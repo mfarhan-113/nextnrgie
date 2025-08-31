@@ -1,0 +1,27 @@
+.topbar {
+  height: 64px;
+  background: #1976d2;
+  border-bottom: 1px solid #222831;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 2rem;
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 1300;
+}
+.topbar .logo {
+  display: flex;
+  align-items: center;
+  font-weight: 700;
+  font-size: 1.2rem;
+  color: #DFD0B8;
+}
+.topbar .avatar {
+  cursor: pointer;
+  border-radius: 50%;
+  width: 40px;
+  height: 40px;
+}

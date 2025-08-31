@@ -1,0 +1,12 @@
+fastapi
+uvicorn[standard]
+sqlalchemy
+asyncpg
+alembic
+python-jose[cryptography]
+passlib[bcrypt]
+pydantic
+psycopg2-binary
+python-multipart
+reportlab
+pymysql>=1.0.0

@@ -1,0 +1,191 @@
+/* Modern SaaS Client Management Styles (No Tailwind) */
+
+.clients-container {
+  display: flex;
+  min-height: 100vh;
+  background: linear-gradient(120deg,#f4f6f8 60%,#e3e9f7 100%);
+}
+
+.clients-main {
+  flex: 1;
+  padding: 2.5rem 2rem 2rem 2rem;
+  margin-left: 240px;
+}
+
+.clients-card {
+  background: #fff;
+  border-radius: 1.25rem;
+  box-shadow: 0 4px 24px 0 rgba(80,120,200,0.08), 0 1px 4px 0 rgba(60,80,120,0.04);
+  padding: 2rem 2rem 1.5rem 2rem;
+  margin-bottom: 2rem;
+  border: 1px solid #ececec;
+}
+
+.clients-form {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1.5rem 2rem;
+}
+@media (max-width: 900px) {
+  .clients-main { margin-left: 0; padding: 1rem; }
+  .clients-form { grid-template-columns: 1fr; }
+}
+.clients-form label {
+  font-weight: 600;
+  color: #1976d2;
+  margin-bottom: 0.25rem;
+  display: block;
+}
+.clients-form input {
+  width: 100%;
+  padding: 0.85rem 2.5rem;
+  border-radius: 1.25rem;
+  border: 1px solid #e0e0e0;
+  font-size: 1rem;
+  margin-bottom: 0.5rem;
+  background: #f9fafb;
+  transition: border 0.2s;
+}
+.clients-form input:focus {
+  border: 1.5px solid #1976d2;
+  outline: none;
+  background: #fff;
+}
+.clients-form .form-actions {
+  grid-column: 1/-1;
+  display: flex;
+  justify-content: flex-end;
+  gap: 1rem;
+}
+.clients-add-btn {
+  background: #1976d2;
+  color: #fff;
+  font-weight: 600;
+  padding: 0.7rem 1rem;
+  border-radius: 1.25rem;
+  border: none;
+  font-size: 1.08rem;
+  box-shadow: 0 2px 8px rgba(25,118,210,0.08);
+  cursor: pointer;
+  transition: background 0.18s, box-shadow 0.18s, transform 0.18s;
+}
+.clients-add-btn:active {
+  background: #1565c0;
+  transform: scale(0.98);
+}
+.clients-add-btn[disabled] {
+  background: #90caf9;
+  cursor: not-allowed;
+}
+.clients-table-container {
+  background: #fff;
+  border-radius: 1.25rem;
+  box-shadow: 0 4px 24px 0 rgba(80,120,200,0.08), 0 1px 4px 0 rgba(60,80,120,0.04);
+  padding: 1.5rem 1.5rem 1rem 1.5rem;
+  border: 1px solid #ececec;
+}
+.clients-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-bottom: 1rem;
+  font-size: 1rem;
+}
+.clients-table th, .clients-table td {
+  padding: 0.95rem 1rem;
+  text-align: left;
+}
+.clients-table th {
+  background: #f4f6f8;
+  font-weight: 700;
+  color: #1976d2;
+  border-bottom: 2px solid #e0e0e0;
+}
+.clients-table tr:nth-child(even) {
+  background: #f9fafb;
+}
+.clients-table tr:hover {
+  background: #e3e9f7;
+  transition: background 0.18s;
+}
+.clients-table .actions {
+  display: flex;
+  gap: 0.5rem;
+}
+.clients-table .action-btn {
+  background: none;
+  border: none;
+  color: #1976d2;
+  font-size: 1.2rem;
+  cursor: pointer;
+  padding: 0.95rem 1rem;
+  border-radius: 0.5rem;
+  transition: background 0.15s;
+}
+.clients-table .action-btn:hover {
+  background: #e3e9f7;
+}
+.clients-table-pagination {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 0.5rem;
+  margin-top: 0.5rem;
+}
+.clients-search-bar {
+  margin-bottom: 1rem;
+  display: flex;
+  justify-content: flex-end;
+}
+.clients-search-bar input {
+  padding: 0.85rem 2.5rem;
+  border-radius: 1.25rem;
+  border: 1px solid #e0e0e0;
+  font-size: 1rem;
+  background: #f9fafb;
+}
+.clients-search-bar input:focus {
+  border: 1.5px solid #1976d2;
+  outline: none;
+  background: #fff;
+}
+.clients-modal {
+  background: rgba(0,0,0,0.17);
+  position: fixed;
+  left: 0; top: 0; right: 0; bottom: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+.clients-modal-content {
+  background: #fff;
+  border-radius: 1.25rem;
+  padding: 2rem 2.5rem 1.5rem 2.5rem;
+  box-shadow: 0 8px 40px 0 rgba(25,118,210,0.13);
+  min-width: 320px;
+  max-width: 95vw;
+}
+.clients-modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 1rem;
+  margin-top: 1.5rem;
+}
+.clients-toast {
+  position: fixed;
+  top: 80px;
+  right: 32px;
+  background: #1976d2;
+  color: #fff;
+  padding: 1rem 2rem;
+  border-radius: 1.25rem;
+  box-shadow: 0 4px 16px rgba(25, 118, 210, 0.12);
+  z-index: 2000;
+  opacity: 0.96;
+  font-weight: 500;
+  animation: toast-in 0.4s cubic-bezier(.4,2,.6,1);
+}
+@keyframes toast-in {
+  from { transform: translateY(-40px); opacity: 0; }
+  to { transform: translateY(0); opacity: 0.96; }
+}

@@ -1,0 +1,111 @@
+.sidebar {
+  width: 220px;
+  background: #03062e;
+  min-height: 100vh;
+  border-right: 1px solid #DFD0B8;
+  display: flex;
+  flex-direction: column;
+  position: fixed;
+  left: 0;
+  top: 0;
+  z-index: 1200;
+}
+
+.sidebar .menu {
+  margin-top: 80px;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+.sidebar .menu-item {
+  display: flex;
+  align-items: center;
+  padding: 0.7rem 1rem;
+  color: #cfd8dc;
+  font-weight: 500;
+  border-radius: 7px;
+  transition: background 0.13s, color 0.13s;
+  cursor: pointer;
+  font-size: 14px;
+}
+
+.sidebar .menu-item.active, .sidebar .menu-item:hover {
+  background: #27548A;
+  color: #fff;
+  border-radius: 7px;
+}
+
+.sidebar .menu-item svg {
+  margin-right: 0.7rem;
+  font-size: 18px;
+}
+
+@media (max-width: 900px) {
+  .sidebar {
+    width: 64px;
+    min-width: 64px;
+    padding: 0;
+    left: 0;
+    top: 0;
+    height: 100vh;
+    border-radius: 0;
+    z-index: 1300;
+    transition: left 0.3s cubic-bezier(.4,2,.6,1);
+  }
+  .sidebar .menu-item span {
+    display: none;
+  }
+  .sidebar .menu-item {
+    justify-content: center;
+    padding: 1rem 0;
+    min-width: 48px;
+    min-height: 48px;
+    border-radius: 8px;
+  }
+}
+
+@media (max-width: 600px) {
+  .sidebar {
+    width: 100vw;
+    min-width: 100vw;
+    height: 56px;
+    min-height: 56px;
+    position: fixed;
+    left: 0;
+    bottom: 0;
+    top: auto;
+    flex-direction: row;
+    align-items: center;
+    border-right: none;
+    border-top: 1px solid #e0e0e0;
+    box-shadow: 0 -2px 16px 0 rgba(60,80,120,0.08);
+    z-index: 1400;
+    padding: 0;
+  }
+  .sidebar .menu {
+    flex-direction: row;
+    margin-top: 0;
+    width: 100vw;
+    gap: 0;
+    justify-content: space-around;
+    align-items: center;
+  }
+  .sidebar .menu-item {
+    flex: 1 1 0;
+    justify-content: center;
+    padding: 0.5rem 0;
+    min-width: 44px;
+    min-height: 44px;
+    border-radius: 0;
+    margin: 0;
+  }
+  .sidebar .menu-item svg {
+    margin-right: 0;
+    font-size: 1.5rem;
+  }
+  .sidebar .menu-item span {
+    display: none !important;
+  }
+}
+
