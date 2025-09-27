@@ -4,14 +4,13 @@ import { Google as GoogleIcon } from '@mui/icons-material';
 import { useFormik } from 'formik';
 import * as Yup from 'yup';
 import { useTranslation } from 'react-i18next';
-import { loginWithEmailAndPassword, signInWithGoogle } from '../firebase/auth';
+import { loginWithEmailAndPassword } from '../firebase/auth';
 import { useNavigate } from 'react-router-dom';
 
 const Login = () => {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const [authError, setAuthError] = useState(null);
-  const [isGoogleLoading, setIsGoogleLoading] = useState(false);
   const [rememberMe, setRememberMe] = useState(true);
   const formik = useFormik({
     initialValues: {
@@ -45,34 +44,50 @@ const Login = () => {
     },
   });
 
-  // Handle Google Sign In
-  const handleGoogleSignIn = async () => {
-    setIsGoogleLoading(true);
-    setAuthError(null);
-    try {
-      const { user, error } = await signInWithGoogle(rememberMe); // Pass the remember me preference
-      
-      if (error) {
-        setAuthError(error);
-      } else if (user) {
-        // Successfully logged in with Google
-        navigate('/');
-      }
-    } catch (err) {
-      setAuthError(err.message || t('google_login_failed'));
-    } finally {
-      setIsGoogleLoading(false);
-    }
-  };
-  
   // Handle remember me checkbox change
   const handleRememberMeChange = (event) => {
     setRememberMe(event.target.checked);
   };
 
   return (
-    <Box display="flex" justifyContent="center" alignItems="center" minHeight="100vh" bgcolor="#f4f6f8">
-      <Paper elevation={3} sx={{ p: 4, width: { xs: '90%', sm: 400 }, maxWidth: '100%' }}>
+    <Box 
+      display="flex" 
+      justifyContent="center" 
+      alignItems="center" 
+      minHeight="100vh" 
+      sx={{
+        backgroundImage: 'url(/logonr.jpg)',
+        backgroundSize: 'cover',
+        backgroundPosition: 'center',
+        backgroundRepeat: 'no-repeat',
+        backgroundAttachment: 'fixed',
+        position: 'relative',
+        '&::before': {
+          content: '""',
+          position: 'absolute',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          backgroundColor: 'rgba(0, 0, 0, 0.4)', // Dark overlay for better text readability
+          zIndex: 1
+        }
+      }}
+    >
+      <Paper 
+        elevation={8} 
+        sx={{ 
+          p: 4, 
+          width: { xs: '90%', sm: 400 }, 
+          maxWidth: '100%',
+          position: 'relative',
+          zIndex: 2,
+          backgroundColor: 'rgba(255, 255, 255, 0.95)', // Semi-transparent white
+          backdropFilter: 'blur(10px)', // Glass effect
+          borderRadius: 3,
+          boxShadow: '0 8px 32px rgba(0, 0, 0, 0.3)'
+        }}
+      >
         <Typography variant="h5" fontWeight="bold" mb={3} align="center">{t('sign_in_to')} Next NR-GIE</Typography>
         
         {authError && (
@@ -146,36 +161,6 @@ const Login = () => {
           </Button>
         </form>
         
-        <Box sx={{ my: 3, position: 'relative' }}>
-          <Divider>
-            <Typography variant="body2" sx={{ px: 1, color: 'text.secondary' }}>
-              {t('or')}
-            </Typography>
-          </Divider>
-        </Box>
-        
-        <Button
-          fullWidth
-          variant="outlined"
-          startIcon={<GoogleIcon />}
-          onClick={handleGoogleSignIn}
-          disabled={isGoogleLoading}
-          sx={{ mb: 3, py: 1.2 }}
-        >
-          {isGoogleLoading ? <CircularProgress size={24} /> : t('sign_in_with_google')}
-        </Button>
-        
-        <Typography variant="body2" align="center">
-          {t('dont_have_account')}{' '}
-          <Typography 
-            component="a" 
-            href="/signup" 
-            color="primary"
-            sx={{ textDecoration: 'none', fontWeight: 'medium', cursor: 'pointer' }}
-          >
-            {t('sign_up')}
-          </Typography>
-        </Typography>
       </Paper>
     </Box>
   );

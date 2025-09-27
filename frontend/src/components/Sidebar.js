@@ -1,10 +1,11 @@
 import React from 'react';
 import { Box, Drawer, Divider, Typography } from '@mui/material';
-import { useLocation } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { 
   People as ClientsIcon, 
   Description as ContractsIcon, 
+  Receipt as FacturesIcon,
   AccountBalance as BalanceIcon, 
   AttachMoney as SalaryIcon, 
   MoreHoriz as MiscIcon, 
@@ -18,13 +19,16 @@ const menuItems = [
   { key: 'dashboard', icon: <DashboardIcon />, path: '/' },
   { key: 'clients', icon: <ClientsIcon />, path: '/clients' },
   { key: 'contracts', icon: <ContractsIcon />, path: '/contracts' },
+  { key: 'devis', icon: <ContractsIcon />, path: '/devis' },
+  { key: 'factures', icon: <FacturesIcon />, path: '/factures' },
   { key: 'balance', icon: <BalanceIcon />, path: '/balance' },
   { key: 'salary', icon: <SalaryIcon />, path: '/salary' },
-  { key: 'miscellaneous', icon: <MiscIcon />, path: '/misc' },
+  { key: 'miscellaneous', icon: <MiscIcon />, path: '/miscellaneous' },
 ];
 
 const Sidebar = ({ mobileOpen, onDrawerToggle }) => {
   const location = useLocation();
+  const navigate = useNavigate();
   const { t } = useTranslation();
 
   const drawer = (
@@ -34,7 +38,7 @@ const Sidebar = ({ mobileOpen, onDrawerToggle }) => {
           <div
             key={item.key}
             className={`menu-item${location.pathname === item.path ? ' active' : ''}`}
-            onClick={() => window.location.href = item.path}
+            onClick={() => navigate(item.path)}
           >
             {item.icon}
             <span>{t(item.key)}</span>

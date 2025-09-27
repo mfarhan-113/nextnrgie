@@ -1,8 +1,8 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import { auth } from './config';
 import { onAuthStateChanged } from 'firebase/auth';
 import { CircularProgress, Box } from '@mui/material';
 import { isUserAuthenticated, logoutUser } from './auth';
+import { auth } from './init';
 
 // Create the authentication context
 const AuthContext = createContext();

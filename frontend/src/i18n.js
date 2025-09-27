@@ -45,9 +45,31 @@ const resources = {
       dashboard: 'Dashboard',
       clients: 'Clients',
       contracts: 'Contracts',
+      factures: 'Invoices',
       balance: 'Balance',
       salary: 'Salary',
       miscellaneous: 'Miscellaneous',
+      
+      // Factures
+      addFacture: 'Add Invoice',
+      editFacture: 'Edit Invoice',
+      facturePreview: 'Invoice Preview',
+      noFacturesFound: 'No invoices found',
+      factureNumber: 'Invoice Number',
+      invoiceDate: 'Invoice Date',
+      dueDate: 'Due Date',
+      totalHT: 'Total HT',
+      totalTTC: 'Total TTC',
+      tva: 'VAT',
+      actions: 'Actions',
+      view: 'View',
+      edit: 'Edit',
+      delete: 'Delete',
+      cancel: 'Cancel',
+      save: 'Save',
+      update: 'Update',
+      close: 'Close',
+      download: 'Download',
       
       // User Menu
       view_profile: 'View Profile',
@@ -208,6 +230,23 @@ const resources = {
       next: 'Next',
       page: 'Page',
       of: 'of',
+      manage_salaries_description: 'Manage employee salaries and track payments',
+      total_employees: 'Total Employees',
+      total_working_days: 'Total Working Days',
+      total_leaves: 'Total Leaves',
+      total_payroll: 'Total Payroll',
+      search_employees: 'Search employees...',
+      no_salaries_match_search: 'No salaries match your search criteria.',
+      no_salaries_available: 'No salary records available. Add a new salary to get started.',
+      failed_to_load_salaries: 'Failed to load salaries',
+      please_fill_required_fields: 'Please fill in all required fields',
+      salary_added_successfully: 'Salary added successfully',
+      failed_to_add_salary: 'Failed to add salary',
+      salary_updated_successfully: 'Salary updated successfully',
+      failed_to_update_salary: 'Failed to update salary',
+      salary_deleted_successfully: 'Salary deleted successfully',
+      failed_to_delete_salary: 'Failed to delete salary',
+      confirm_delete_salary: 'Are you sure you want to delete this salary record? This action cannot be undone?',
       
       // Success Messages
       changes_saved: 'Changes saved successfully',
@@ -237,6 +276,20 @@ const resources = {
       
       // Contract Details Form
       add_contract_details: 'Add Contract Details',
+      add_facture_item: 'Add Facture Item',
+      facture_item: 'Facture Item',
+      remaining_for_factures: 'Remaining for Factures',
+      
+      // Facture Form
+      description: 'Description',
+      quantity: 'Quantity',
+      unit_price: 'Unit Price',
+      total_ht: 'Total HT',
+      cancel: 'Cancel',
+      save_facture_item: 'Save Facture Item',
+      saving: 'Saving...',
+      saved_items: 'Saved Items',
+      no_items_found: 'No items found',
       description: 'Description',
       quantity: 'Quantity',
       qty: 'Qty',
@@ -248,6 +301,45 @@ const resources = {
       saving: 'Saving',
       actions: 'Actions',
       cancel: 'Cancel',
+      
+      // Devis Page (Quotes)
+      devis: 'Devis',
+      created_devis: 'Created Devis',
+      add_devis_item: 'Add Devis Item',
+      edit_devis_item: 'Edit Devis Item',
+      select_devis: 'Select Devis',
+      save_in_devis: 'Save in Devis',
+      error_generating_pdf: 'Failed to generate PDF',
+      no_contract_for_client: 'No contract found for selected client. Create one in Contracts to add devis.',
+      using_latest_contract: 'Using latest contract for this client.',
+      devis_items: 'Devis Items',
+      select_client_first: 'Please select a client and devis first',
+    
+      // Miscellaneous Page
+      miscellaneous_expenses: 'Miscellaneous Expenses',
+      manage_expenses_description: 'Track and manage miscellaneous business expenses',
+      search_expenses: 'Search expenses...',
+      refresh: 'Refresh',
+      price_per_unit: 'Price per Unit',
+      units: 'Units',
+      total: 'Total',
+      date_added: 'Date Added',
+      total_expenses: 'Total Expenses',
+      total_units: 'Total Units',
+      total_value: 'Total Value',
+      average_cost: 'Average Cost',
+      no_expenses_found: 'No expenses found',
+      no_expenses_match_search: 'No expenses match your search criteria.',
+      no_expenses_available: 'No expense records available. Add a new expense to get started.',
+      add_expense: 'Add Expense',
+      adding: 'Adding...',
+      add: 'Add',
+      edit_expense: 'Edit Expense',
+      updating: 'Updating...',
+      update: 'Update',
+      delete_expense: 'Delete Expense',
+      confirm_delete_expense: 'Are you sure you want to delete this expense record? This action cannot be undone.',
+      deleting: 'Deleting...'
     }
   },
   fr: {
@@ -291,9 +383,76 @@ const resources = {
       dashboard: 'Tableau de bord',
       clients: 'Clients',
       contracts: 'Contrats',
+      factures: 'Factures',
       balance: 'Solde',
       salary: 'Salaire',
       miscellaneous: 'Divers',
+      
+      // Miscellaneous Page
+      miscellaneous_expenses: 'Dépenses diverses',
+      manage_expenses_description: "Suivez et gérez les dépenses diverses de l’entreprise",
+      search_expenses: 'Rechercher des dépenses...',
+      refresh: 'Rafraîchir',
+      price_per_unit: 'Prix par unité',
+      units: 'Unités',
+      total: 'Total',
+      date_added: "Date d’ajout",
+      total_expenses: 'Total des dépenses',
+      total_units: 'Total des unités',
+      total_value: 'Valeur totale',
+      average_cost: 'Coût moyen',
+      no_expenses_found: 'Aucune dépense trouvée',
+      no_expenses_match_search: 'Aucune dépense ne correspond à vos critères de recherche.',
+      no_expenses_available: 'Aucun enregistrement de dépense disponible. Ajoutez une nouvelle dépense pour commencer.',
+      add_expense: 'Ajouter une dépense',
+      adding: 'Ajout...',
+      add: 'Ajouter',
+      edit_expense: 'Modifier la dépense',
+      updating: 'Mise à jour...',
+      update: 'Mettre à jour',
+      delete_expense: 'Supprimer la dépense',
+      confirm_delete_expense: 'Êtes-vous sûr de vouloir supprimer cette dépense ? Cette action est irréversible.',
+      deleting: 'Suppression...',
+      
+      // Salary Page
+      manage_salaries_description: 'Gérez les salaires des employés et suivez les paiements',
+      total_employees: 'Total Employés',
+      total_working_days: 'Total Jours Travaillés',
+      total_leaves: 'Total Congés',
+      total_payroll: 'Masse salariale totale',
+      search_employees: 'Rechercher des employés...',
+      no_salaries_match_search: 'Aucun salaire ne correspond à vos critères de recherche.',
+      no_salaries_available: 'Aucun enregistrement de salaire disponible. Ajoutez un nouveau salaire pour commencer.',
+      failed_to_load_salaries: 'Échec du chargement des salaires',
+      please_fill_required_fields: 'Veuillez remplir tous les champs obligatoires',
+      salary_added_successfully: 'Salaire ajouté avec succès',
+      failed_to_add_salary: "Échec de l'ajout du salaire",
+      salary_updated_successfully: 'Salaire mis à jour avec succès',
+      failed_to_update_salary: 'Échec de la mise à jour du salaire',
+      salary_deleted_successfully: 'Salaire supprimé avec succès',
+      failed_to_delete_salary: 'Échec de la suppression du salaire',
+      confirm_delete_salary: 'Êtes-vous sûr de vouloir supprimer cet enregistrement de salaire ? Cette action ne peut pas être annulée.',
+      
+      // Factures
+      addFacture: 'Ajouter une facture',
+      editFacture: 'Modifier la facture',
+      facturePreview: 'Aperçu de la facture',
+      noFacturesFound: 'Aucune facture trouvée',
+      factureNumber: 'Numéro de facture',
+      invoiceDate: 'Date de facturation',
+      dueDate: 'Date d\'échéance',
+      totalHT: 'Total HT',
+      totalTTC: 'Total TTC',
+      tva: 'TVA',
+      actions: 'Actions',
+      view: 'Voir',
+      edit: 'Modifier',
+      delete: 'Supprimer',
+      cancel: 'Annuler',
+      save: 'Enregistrer',
+      update: 'Mettre à jour',
+      close: 'Fermer',
+      download: 'Télécharger',
       
       // User Menu
       view_profile: 'Voir le profil',
@@ -350,6 +509,8 @@ const resources = {
       
       // Contracts Page
       add_contract: 'Ajouter un contrat',
+      new_contract: 'Nouveau contrat',
+      create_contract: 'Créer un contrat',
       edit_contract: 'Modifier le contrat',
       command_number: 'Numéro de commande',
       client: 'Client',
@@ -395,10 +556,584 @@ const resources = {
       expired: 'Expiré',
       actions: 'Actions',
       guarantee: 'Garantie',
-      add_details: 'Ajouter des détails',
+      add_details: 'Ajouter un devis',
       view_details: 'Voir les détails',
       edit: 'Modifier',
       delete: 'Supprimer',
+      
+      // Contract Buttons
+      save_contract: 'Enregistrer le contrat',
+      update_contract: 'Mettre à jour le contrat',
+      submit_contract: 'Soumettre le contrat',
+      cancel_contract: 'Annuler le contrat',
+      approve_contract: 'Approuver le contrat',
+      reject_contract: 'Rejeter le contrat',
+      sign_contract: 'Signer le contrat',
+      send_for_approval: 'Envoyer pour approbation',
+      request_changes: 'Demander des modifications',
+      mark_as_complete: 'Marquer comme terminé',
+      
+      // Contract Status Actions
+      set_as_draft: 'Définir comme brouillon',
+      set_as_active: 'Définir comme actif',
+      set_as_pending: 'Définir comme en attente',
+      set_as_completed: 'Définir comme terminé',
+      set_as_expired: 'Définir comme expiré',
+      set_as_archived: 'Archiver',
+      
+      // Contract Icons
+      add_icon: 'Ajouter',
+      edit_icon: 'Modifier',
+      delete_icon: 'Supprimer',
+      view_icon: 'Voir',
+      print_icon: 'Imprimer',
+      email_icon: 'Email',
+      download_icon: 'Télécharger',
+      upload_icon: 'Téléverser',
+      search_icon: 'Rechercher',
+      filter_icon: 'Filtrer',
+      sort_icon: 'Trier',
+      more_icon: 'Plus',
+      
+      // Contract Messages
+      contract_created: 'Contrat créé avec succès',
+      contract_updated: 'Contrat mis à jour avec succès',
+      contract_deleted: 'Contrat supprimé avec succès',
+      contract_sent_for_approval: 'Contrat envoyé pour approbation',
+      contract_approved: 'Contrat approuvé avec succès',
+      contract_rejected: 'Contrat rejeté',
+      contract_signed: 'Contrat signé avec succès',
+      contract_cancelled: 'Contrat annulé',
+      contract_archived: 'Contrat archivé avec succès',
+      contract_restored: 'Contrat restauré avec succès',
+      
+      // Form Labels and Placeholders
+      command_number_placeholder: 'Numéro de commande',
+      price_placeholder: 'Prix',
+      date_placeholder: 'Date',
+      deadline_placeholder: 'Date limite',
+      guarantee_percentage_placeholder: 'Pourcentage de garantie',
+      contact_person_placeholder: 'Personne à contacter',
+      contact_phone_placeholder: 'Téléphone de contact',
+      contact_email_placeholder: 'Email de contact',
+      contact_address_placeholder: 'Adresse de contact',
+      select_client_placeholder: 'Sélectionner un client',
+      
+      // Form Validation Messages
+      all_fields_required: 'Tous les champs sont obligatoires',
+      invalid_email: 'Email invalide',
+      invalid_phone: 'Numéro de téléphone invalide',
+      invalid_number: 'Veuillez entrer un nombre valide',
+      
+      // Button Text
+      save: 'Enregistrer',
+      cancel: 'Annuler',
+      delete: 'Supprimer',
+      edit: 'Modifier',
+      view: 'Voir',
+      download: 'Télécharger',
+      close: 'Fermer',
+      
+      // Status Messages
+      loading: 'Chargement...',
+      saving: 'Enregistrement en cours...',
+      deleting: 'Suppression en cours...',
+      success: 'Succès',
+      error: 'Erreur',
+      warning: 'Avertissement',
+      
+      // Confirmation Messages
+      confirm_delete: 'Êtes-vous sûr de vouloir supprimer cet élément ?',
+      confirm_cancel: 'Êtes-vous sûr de vouloir annuler ? Toutes les modifications seront perdues.',
+      
+      // Table Headers
+      contract_number: 'Numéro de contrat',
+      client_name: 'Nom du client',
+      contract_date: 'Date du contrat',
+      contract_status: 'Statut du contrat',
+      total_amount: 'Montant total',
+      remaining_balance: 'Solde restant',
+      
+      // Contract Statuses
+      status_draft: 'Brouillon',
+      status_active: 'Actif',
+      status_pending: 'En attente',
+      status_completed: 'Terminé',
+      status_expired: 'Expiré',
+      status_archived: 'Archivé',
+      
+      // Document Types
+      document_type_estimate: 'Devis',
+      document_type_invoice: 'Facture',
+      document_type_contract: 'Contrat',
+      
+      // Actions
+      generate_document: 'Générer un document',
+      view_document: 'Voir le document',
+      download_document: 'Télécharger le document',
+      
+      // Success Messages
+      document_generated: 'Document généré avec succès',
+      document_saved: 'Document enregistré avec succès',
+      document_deleted: 'Document supprimé avec succès',
+      
+      // Error Messages
+      error_loading_data: 'Erreur lors du chargement des données',
+      error_saving_data: 'Erreur lors de la sauvegarde des données',
+      error_deleting_data: 'Erreur lors de la suppression des données',
+      
+      // Info Messages
+      no_data_available: 'Aucune donnée disponible',
+      no_results_found: 'Aucun résultat trouvé',
+      select_an_option: 'Sélectionnez une option',
+      
+      // Détails du contrat
+      contract_details: 'Détails du contrat',
+      add_facture: 'Ajouter une facture',
+      facture_details: 'Détails de la facture',
+      facture_number: 'Numéro de facture',
+      facture_date: 'Date de facturation',
+      due_date: 'Date d\'échéance',
+      payment_status: 'Statut de paiement',
+      amount: 'Montant',
+      total_amount: 'Montant total',
+      paid_amount: 'Montant payé',
+      remaining_amount: 'Montant restant',
+      payment_date: 'Date de paiement',
+      payment_method: 'Méthode de paiement',
+      notes: 'Notes',
+      save_facture: 'Enregistrer la facture',
+      cancel: 'Annuler',
+      add_item: 'Ajouter un article',
+      item_description: 'Description de l\'article',
+      quantity: 'Quantité',
+      unit: 'Unité',
+      unit_price: 'Prix unitaire',
+      total: 'Total',
+      subtotal: 'Sous-total',
+      tax: 'Taxe',
+      discount: 'Remise',
+      grand_total: 'Total général',
+      terms_and_conditions: 'Conditions générales',
+      payment_terms: 'Conditions de paiement',
+      thank_you: 'Merci pour votre confiance',
+      
+      // Contract Status
+      draft: 'Brouillon',
+      sent: 'Envoyé',
+      approved: 'Approuvé',
+      rejected: 'Rejeté',
+      in_progress: 'En cours',
+      on_hold: 'En attente',
+      cancelled: 'Annulé',
+      
+      // Contract Actions
+      send_contract: 'Envoyer le contrat',
+      approve_contract: 'Approuver le contrat',
+      reject_contract: 'Rejeter le contrat',
+      cancel_contract: 'Annuler le contrat',
+      print_contract: 'Imprimer le contrat',
+      email_contract: 'Envoyer par email',
+      
+      // Contract Messages
+      contract_sent: 'Contrat envoyé avec succès',
+      contract_approved: 'Contrat approuvé avec succès',
+      contract_rejected: 'Contrat rejeté',
+      contract_cancelled: 'Contrat annulé',
+      contract_saved: 'Contrat enregistré avec succès',
+      contract_error: 'Une erreur est survenue lors de l\'enregistrement du contrat',
+      
+      // Contract Types
+      service_contract: 'Contrat de service',
+      sales_contract: 'Contrat de vente',
+      rental_contract: 'Contrat de location',
+      employment_contract: 'Contrat de travail',
+      nda_agreement: 'Accord de confidentialité',
+      
+      // Contract Fields
+      contract_title: 'Titre du contrat',
+      contract_type: 'Type de contrat',
+      start_date: 'Date de début',
+      end_date: 'Date de fin',
+      contract_value: 'Valeur du contrat',
+      payment_schedule: 'Échéancier de paiement',
+      milestones: 'Jalons',
+      deliverables: 'Livrables',
+      terms: 'Conditions',
+      
+      // Contract Templates
+      select_template: 'Sélectionner un modèle',
+      create_from_template: 'Créer à partir d\'un modèle',
+      save_as_template: 'Enregistrer comme modèle',
+      template_name: 'Nom du modèle',
+      template_description: 'Description du modèle',
+      
+      // Contract Signatures
+      sign_contract: 'Signer le contrat',
+      signer_name: 'Nom du signataire',
+      signer_email: 'Email du signataire',
+      signer_role: 'Rôle du signataire',
+      signature: 'Signature',
+      signed_on: 'Signé le',
+      signature_pending: 'Signature en attente',
+      
+      // Contract History
+      contract_history: 'Historique du contrat',
+      version_history: 'Historique des versions',
+      change_log: 'Journal des modifications',
+      version: 'Version',
+      changed_by: 'Modifié par',
+      change_date: 'Date de modification',
+      changes: 'Modifications',
+      
+      // Contract Alerts
+      contract_expiring_soon: 'Contrat arrivant à expiration bientôt',
+      contract_expired: 'Contrat expiré',
+      renewal_required: 'Renouvellement requis',
+      action_required: 'Action requise',
+      
+      // Contract Settings
+      notification_settings: 'Paramètres de notification',
+      email_notifications: 'Notifications par email',
+      reminder_days: 'Jours de rappel',
+      auto_renewal: 'Renouvellement automatique',
+      
+      // Contract Reports
+      generate_report: 'Générer un rapport',
+      export_contracts: 'Exporter les contrats',
+      report_type: 'Type de rapport',
+      date_range: 'Période',
+      status_filter: 'Filtre par statut',
+      
+      // Contract Categories
+      all_contracts: 'Tous les contrats',
+      my_contracts: 'Mes contrats',
+      team_contracts: 'Contrats de l\'équipe',
+      expired_contracts: 'Contrats expirés',
+      expiring_soon: 'Expire bientôt',
+      
+      // Contract Search
+      search_placeholder: 'Rechercher des contrats...',
+      advanced_search: 'Recherche avancée',
+      filter_by: 'Filtrer par',
+      sort_by: 'Trier par',
+      
+      // Contract Permissions
+      view_contract: 'Voir le contrat',
+      edit_contract: 'Modifier le contrat',
+      delete_contract: 'Supprimer le contrat',
+      export_contract: 'Exporter le contrat',
+      share_contract: 'Partager le contrat',
+      
+      // Contract Sharing
+      share_with: 'Partager avec',
+      share_message: 'Message (optionnel)',
+      share_permissions: 'Permissions',
+      can_view: 'Peut voir',
+      can_edit: 'Peut modifier',
+      can_comment: 'Peut commenter',
+      
+      // Contract Comments
+      add_comment: 'Ajouter un commentaire',
+      comments: 'Commentaires',
+      no_comments: 'Aucun commentaire',
+      comment_placeholder: 'Ajoutez un commentaire...',
+      post_comment: 'Publier le commentaire',
+      
+      // Contract Attachments
+      attachments: 'Pièces jointes',
+      add_attachment: 'Ajouter une pièce jointe',
+      no_attachments: 'Aucune pièce jointe',
+      file_name: 'Nom du fichier',
+      file_size: 'Taille',
+      uploaded_by: 'Téléversé par',
+      upload_date: 'Date de téléversement',
+      
+      // Contract Templates
+      my_templates: 'Mes modèles',
+      team_templates: 'Modèles de l\'équipe',
+      public_templates: 'Modèles publics',
+      create_template: 'Créer un modèle',
+      template_details: 'Détails du modèle',
+      
+      // Contract Workflow
+      workflow: 'Workflow',
+      workflow_steps: 'Étapes du workflow',
+      add_step: 'Ajouter une étape',
+      step_name: 'Nom de l\'étape',
+      step_description: 'Description de l\'étape',
+      assign_to: 'Assigner à',
+      due_in_days: 'Échéance (jours)',
+      
+      // Contract Approvals
+      approvals: 'Approbations',
+      approval_required: 'Approbation requise',
+      approved_by: 'Approuvé par',
+      approval_date: 'Date d\'approbation',
+      approval_notes: 'Notes d\'approbation',
+      request_approval: 'Demander une approbation',
+      approve: 'Approuver',
+      reject: 'Rejeter',
+      
+      // Contract Notifications
+      notifications: 'Notifications',
+      notification_preferences: 'Préférences de notification',
+      email_alerts: 'Alertes par email',
+      in_app_notifications: 'Notifications dans l\'application',
+      
+      // Contract Integration
+      integrations: 'Intégrations',
+      connect_app: 'Connecter une application',
+      available_integrations: 'Intégrations disponibles',
+      configure: 'Configurer',
+      
+      // Contract Audit
+      audit_log: 'Journal d\'audit',
+      audit_trail: 'Piste d\'audit',
+      user: 'Utilisateur',
+      action: 'Action',
+      timestamp: 'Horodatage',
+      ip_address: 'Adresse IP',
+      
+      // Contract Help
+      help_center: 'Centre d\'aide',
+      documentation: 'Documentation',
+      contact_support: 'Contacter le support',
+      feedback: 'Commentaires',
+      
+      // Contract Dashboard
+      contract_overview: 'Aperçu des contrats',
+      recent_activity: 'Activité récente',
+      upcoming_deadlines: 'Échéances à venir',
+      contract_health: 'État des contrats',
+      
+      // Contract Settings
+      general_settings: 'Paramètres généraux',
+      security_settings: 'Paramètres de sécurité',
+      user_management: 'Gestion des utilisateurs',
+      team_settings: 'Paramètres de l\'équipe',
+      
+      // Contract API
+      api_documentation: 'Documentation API',
+      api_keys: 'Clés API',
+      generate_api_key: 'Générer une clé API',
+      revoke: 'Révoquer',
+      
+      // Contract Billing
+      billing: 'Facturation',
+      subscription: 'Abonnement',
+      payment_method: 'Méthode de paiement',
+      invoice_history: 'Historique des factures',
+      
+      // Contract Support
+      support: 'Support',
+      help_articles: 'Articles d\'aide',
+      video_tutorials: 'Tutoriels vidéo',
+      community_forum: 'Forum communautaire',
+      
+      // Contract Legal
+      terms_of_service: 'Conditions d\'utilisation',
+      privacy_policy: 'Politique de confidentialité',
+      data_processing_agreement: 'Accord de traitement des données',
+      
+      // Contract Status Badges
+      status_draft: 'Brouillon',
+      status_active: 'Actif',
+      status_pending: 'En attente',
+      status_completed: 'Terminé',
+      status_expired: 'Expiré',
+      status_archived: 'Archivé',
+      
+      // Contract Priority
+      priority: 'Priorité',
+      priority_low: 'Basse',
+      priority_medium: 'Moyenne',
+      priority_high: 'Haute',
+      priority_critical: 'Critique',
+      
+      // Contract Tags
+      tags: 'Étiquettes',
+      add_tag: 'Ajouter une étiquette',
+      popular_tags: 'Étiquettes populaires',
+      
+      // Contract Custom Fields
+      custom_fields: 'Champs personnalisés',
+      add_custom_field: 'Ajouter un champ personnalisé',
+      field_name: 'Nom du champ',
+      field_type: 'Type de champ',
+      field_value: 'Valeur du champ',
+      
+      // Contract Export
+      export_format: 'Format d\'exportation',
+      export_options: 'Options d\'exportation',
+      include_attachments: 'Inclure les pièces jointes',
+      include_comments: 'Inclure les commentaires',
+      
+      // Contract Print
+      print_options: 'Options d\'impression',
+      print_preview: 'Aperçu avant impression',
+      page_size: 'Taille de page',
+      orientation: 'Orientation',
+      
+      // Contract Email
+      email_template: 'Modèle d\'email',
+      email_subject: 'Objet de l\'email',
+      email_body: 'Corps de l\'email',
+      send_copy: 'M\'envoyer une copie',
+      
+      // Contract Reminders
+      reminders: 'Rappels',
+      set_reminder: 'Définir un rappel',
+      reminder_date: 'Date du rappel',
+      reminder_message: 'Message de rappel',
+      
+      // Contract Tasks
+      tasks: 'Tâches',
+      add_task: 'Ajouter une tâche',
+      task_name: 'Nom de la tâche',
+      due_date: 'Date d\'échéance',
+      assignee: 'Responsable',
+      
+      // Contract Notes
+      notes: 'Notes',
+      add_note: 'Ajouter une note',
+      note_title: 'Titre de la note',
+      note_content: 'Contenu de la note',
+      
+      // Contract Calendar
+      calendar: 'Calendrier',
+      calendar_view: 'Vue calendrier',
+      day_view: 'Vue jour',
+      week_view: 'Vue semaine',
+      month_view: 'Vue mois',
+      
+      // Contract Templates
+      contract_templates: 'Modèles de contrats',
+      create_contract_template: 'Créer un modèle de contrat',
+      edit_contract_template: 'Modifier le modèle de contrat',
+      delete_contract_template: 'Supprimer le modèle de contrat',
+      
+      // Contract Categories
+      contract_categories: 'Catégories de contrats',
+      add_category: 'Ajouter une catégorie',
+      category_name: 'Nom de la catégorie',
+      category_description: 'Description de la catégorie',
+      
+      // Contract Types
+      contract_types: 'Types de contrats',
+      add_contract_type: 'Ajouter un type de contrat',
+      contract_type_name: 'Nom du type de contrat',
+      contract_type_description: 'Description du type de contrat',
+      
+      // Contract Statuses
+      contract_statuses: 'Statuts de contrats',
+      add_status: 'Ajouter un statut',
+      status_name: 'Nom du statut',
+      status_description: 'Description du statut',
+      
+      // Contract Workflows
+      contract_workflows: 'Workflows de contrats',
+      create_workflow: 'Créer un workflow',
+      workflow_name: 'Nom du workflow',
+      workflow_description: 'Description du workflow',
+      
+      // Contract Approvals
+      contract_approvals: 'Approbations de contrats',
+      request_approval: 'Demander une approbation',
+      approval_workflow: 'Workflow d\'approbation',
+      approval_notes: 'Notes d\'approbation',
+      
+      // Contract Signatures
+      contract_signatures: 'Signatures de contrats',
+      request_signature: 'Demander une signature',
+      sign_contract: 'Signer le contrat',
+      signature_status: 'Statut de la signature',
+      
+      // Contract Alerts
+      contract_alerts: 'Alertes de contrats',
+      set_alert: 'Définir une alerte',
+      alert_type: 'Type d\'alerte',
+      alert_recipients: 'Destinataires de l\'alerte',
+      
+      // Contract Reports
+      contract_reports: 'Rapports de contrats',
+      generate_report: 'Générer un rapport',
+      report_type: 'Type de rapport',
+      report_period: 'Période du rapport',
+      
+      // Contract Settings
+      contract_settings: 'Paramètres des contrats',
+      general_settings: 'Paramètres généraux',
+      notification_settings: 'Paramètres de notification',
+      security_settings: 'Paramètres de sécurité',
+      
+      // Contract API
+      contract_api: 'API des contrats',
+      api_documentation: 'Documentation de l\'API',
+      api_keys: 'Clés API',
+      api_usage: 'Utilisation de l\'API',
+      
+      // Contract Help
+      contract_help: 'Aide sur les contrats',
+      help_center: 'Centre d\'aide',
+      contact_support: 'Contacter le support',
+      video_tutorials: 'Tutoriels vidéo',
+      
+      // Contact Information
+      contact_information: 'Informations de contact',
+      contact_person: 'Personne à contacter',
+      contact_name: 'Nom du contact',
+      contact_email: 'Email du contact',
+      contact_phone: 'Téléphone du contact',
+      contact_mobile: 'Mobile du contact',
+      contact_fax: 'Fax du contact',
+      contact_position: 'Poste du contact',
+      contact_department: 'Département du contact',
+      
+      // Address Information
+      address: 'Adresse',
+      street_address: 'Adresse',
+      address_line1: 'Ligne d\'adresse 1',
+      address_line2: 'Ligne d\'adresse 2',
+      city: 'Ville',
+      state_province: 'État/Province',
+      postal_code: 'Code postal',
+      country: 'Pays',
+      
+      // Phone Numbers
+      phone_number: 'Numéro de téléphone',
+      phone: 'Téléphone',
+      mobile: 'Mobile',
+      fax: 'Fax',
+      telephone: 'Téléphone',
+      extension: 'Poste',
+      
+      // Email
+      email: 'Email',
+      email_address: 'Adresse email',
+      primary_email: 'Email principal',
+      secondary_email: 'Email secondaire',
+      billing_email: 'Email de facturation',
+      
+      // Additional Contact Fields
+      website: 'Site web',
+      company_name: 'Nom de l\'entreprise',
+      company_registration: 'Immatriculation',
+      vat_number: 'Numéro de TVA',
+      tax_identification: 'Numéro d\'identification fiscale',
+      
+      // Social Media
+      social_media: 'Réseaux sociaux',
+      linkedin: 'LinkedIn',
+      twitter: 'Twitter',
+      facebook: 'Facebook',
+      instagram: 'Instagram',
+      
+      // Legal
+      contract_legal: 'Mentions légales',
+      terms_of_service: 'Conditions d\'utilisation',
+      privacy_policy: 'Politique de confidentialité',
+      cookie_policy: 'Politique relative aux cookies',
       deleting: 'Suppression...',
       action_cannot_be_undone: 'Cette action ne peut pas être annulée',
       

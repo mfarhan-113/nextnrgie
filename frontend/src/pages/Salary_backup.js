@@ -115,23 +115,18 @@ const Salary = () => {
   // UI state
   const [mobileOpen, setMobileOpen] = useState(false);
   const [toast, setToast] = useState({ open: false, message: '', severity: 'success' });
-
+  
   const handleDrawerToggle = () => setMobileOpen(!mobileOpen);
 
   const fetchSalaries = async () => {
+    setLoading(true);
     try {
-      setLoading(true);
       const res = await axios.get(`${process.env.REACT_APP_API_URL}/salaries/`);
       setSalaries(Array.isArray(res.data) ? res.data : []);
-      setError(null);
     } catch (err) {
       console.error('Error fetching salaries:', err);
-      setError(t('failed_to_load_salaries') || 'Échec du chargement des salaires. Veuillez réessayer.');
-      setToast({
-        open: true,
-        message: t('failed_to_load_salaries') || 'Échec du chargement des salaires',
-        severity: 'error'
-      });
+      setToast({ show: true, message: 'Failed to load salaries.', type: 'error' });
+      setTimeout(() => setToast({ ...toast, show: false }), 3000);
     } finally {
       setLoading(false);
     }
@@ -187,190 +182,32 @@ const Salary = () => {
     setEditModal({ open: true, salary });
   };
 
-  // Handle form changes with auto-calculation
-  const handleAddFormChange = (event) => {
-    const { name, value } = event.target;
-    let updatedForm = { ...addForm, [name]: value };
-    
-    // Auto-calculate total salary
-    if (['working_days', 'leaves', 'salary_per_day'].includes(name)) {
-      const workingDays = name === 'working_days' ? parseInt(value) || 0 : parseInt(addForm.working_days) || 0;
-      const leaves = name === 'leaves' ? parseInt(value) || 0 : parseInt(addForm.leaves) || 0;
-      const salaryPerDay = name === 'salary_per_day' ? parseFloat(value) || 0 : parseFloat(addForm.salary_per_day) || 0;
-      const totalSalary = (workingDays - leaves) * salaryPerDay;
-      updatedForm.total_salary = totalSalary.toFixed(2);
-    }
-    
-    setAddForm(updatedForm);
-  };
-
-  const handleEditFormChange = (event) => {
-    const { name, value } = event.target;
-    let updatedForm = { ...editForm, [name]: value };
-    
-    // Auto-calculate total salary
-    if (['working_days', 'leaves', 'salary_per_day'].includes(name)) {
-      const workingDays = name === 'working_days' ? parseInt(value) || 0 : parseInt(editForm.working_days) || 0;
-      const leaves = name === 'leaves' ? parseInt(value) || 0 : parseInt(editForm.leaves) || 0;
-      const salaryPerDay = name === 'salary_per_day' ? parseFloat(value) || 0 : parseFloat(editForm.salary_per_day) || 0;
-      const totalSalary = (workingDays - leaves) * salaryPerDay;
-      updatedForm.total_salary = totalSalary.toFixed(2);
-    }
-    
-    setEditForm(updatedForm);
-  };
-
-  // Handle add form submit
-  const handleAddSubmit = async (event) => {
-    event.preventDefault();
-    
-    // Basic validation
-    if (!addForm.employee_name || !addForm.working_days || !addForm.salary_per_day) {
-      setToast({
-        open: true,
-        message: t('please_fill_required_fields') || 'Veuillez remplir tous les champs obligatoires',
-        severity: 'error'
-      });
-      return;
-    }
-    
-    try {
-      setLoading(true);
-      
-      // Convert form data to proper types for API
-      const salaryData = {
-        ...addForm,
-        working_days: parseInt(addForm.working_days) || 0,
-        leaves: parseInt(addForm.leaves) || 0,
-        salary_per_day: parseFloat(addForm.salary_per_day) || 0,
-        total_salary: parseFloat(addForm.total_salary) || 0,
-      };
-      
-      const response = await axios.post(
-        `${process.env.REACT_APP_API_URL}/salaries/`,
-        salaryData
-      );
-      
-      // Add the new salary to the local state
-      setSalaries(prev => [...prev, response.data]);
-      
-      setToast({
-        open: true,
-        message: t('salary_added_successfully') || 'Salaire ajouté avec succès',
-        severity: 'success'
-      });
-      
-      setAddModal({ open: false });
-    } catch (err) {
-      console.error('Error adding salary:', err);
-      const errorMessage = err.response?.data?.detail || err.message || (t('failed_to_add_salary') || 'Échec de l\'ajout du salaire');
-      setToast({
-        open: true,
-        message: errorMessage,
-        severity: 'error'
-      });
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // Handle edit form submit
-  const handleEditSubmit = async (event) => {
-    event.preventDefault();
-    
-    if (!editModal.salary) return;
-    
-    // Basic validation
-    if (!editForm.employee_name || !editForm.working_days || !editForm.salary_per_day) {
-      setToast({
-        open: true,
-        message: t('please_fill_required_fields') || 'Veuillez remplir tous les champs obligatoires',
-        severity: 'error'
-      });
-      return;
-    }
-    
-    try {
-      setLoading(true);
-      
-      // Convert form data to proper types for API
-      const salaryData = {
-        ...editForm,
-        working_days: parseInt(editForm.working_days) || 0,
-        leaves: parseInt(editForm.leaves) || 0,
-        salary_per_day: parseFloat(editForm.salary_per_day) || 0,
-        total_salary: parseFloat(editForm.total_salary) || 0,
-      };
-      
-      const response = await axios.put(
-        `${process.env.REACT_APP_API_URL}/salaries/${editModal.salary.id}`,
-        salaryData
-      );
-      
-      // Update the salary in the local state
-      setSalaries(prev => 
-        prev.map(salary => 
-          salary.id === editModal.salary.id ? response.data : salary
-        )
-      );
-      
-      setToast({
-        open: true,
-        message: t('salary_updated_successfully') || 'Salaire mis à jour avec succès',
-        severity: 'success'
-      });
-      
-      setEditModal({ open: false, salary: null });
-    } catch (err) {
-      console.error('Error updating salary:', err);
-      const errorMessage = err.response?.data?.detail || err.message || (t('failed_to_update_salary') || 'Échec de la mise à jour du salaire');
-      setToast({
-        open: true,
-        message: errorMessage,
-        severity: 'error'
-      });
-    } finally {
-      setLoading(false);
-    }
-  };
-
   // Handle delete click
   const handleDeleteClick = (salaryId) => {
     setDeleteModal({ open: true, salaryId });
   };
 
-  // Handle delete salary
   const handleDelete = async () => {
-    if (!deleteModal.salaryId) return;
-    
+    if (!deleteModal.salary) return;
+    setLoading(true);
     try {
-      setLoading(true);
-      await axios.delete(`${process.env.REACT_APP_API_URL}/salaries/${deleteModal.salaryId}`);
-      
-      setSalaries(salaries.filter(s => s.id !== deleteModal.salaryId));
-      setToast({
-        open: true,
-        message: t('salary_deleted_successfully') || 'Salaire supprimé avec succès',
-        severity: 'success'
-      });
-      
-      setDeleteModal({ open: false, salaryId: null });
-    } catch (err) {
-      console.error('Error deleting salary:', err);
-      setToast({
-        open: true,
-        message: t('failed_to_delete_salary') || 'Échec de la suppression du salaire',
-        severity: 'error'
+      await axios.delete(`${process.env.REACT_APP_API_URL}/salaries/${deleteModal.salary.id}`);
+      setToast({ show: true, message: 'Salary deleted successfully!', type: 'success' });
+      setDeleteModal({ show: false, salary: null });
+      fetchSalaries();
+    } catch (error) {
+      console.error('Error deleting salary:', error);
+      setToast({ 
+        show: true, 
+        message: error.response?.data?.detail || 'Error deleting salary', 
+        type: 'error' 
       });
     } finally {
       setLoading(false);
+      setTimeout(() => setToast({ ...toast, show: false }), 3000);
     }
   };
 
-  // Handle close toast
-  const handleCloseToast = () => {
-    setToast({ ...toast, open: false });
-  };
 
   // Filter and sort salaries
   const filteredSalaries = useMemo(() => {
@@ -410,10 +247,10 @@ const Salary = () => {
         {/* Header */}
         <Box sx={{ mb: 4 }}>
           <Typography variant="h4" fontWeight={700} color="text.primary" gutterBottom>
-            {t('salaries') || 'Gestion des Salaires'}
+            {t('salaries') || 'Salary Management'}
           </Typography>
           <Typography variant="body1" color="text.secondary">
-            {t('manage_salaries_description') || 'Gérez les salaires des employés et suivez les paiements'}
+            {t('manage_salaries_description') || 'Manage employee salaries and track payments'}
           </Typography>
         </Box>
 
@@ -428,7 +265,7 @@ const Salary = () => {
                       {salaries.length}
                     </Typography>
                     <Typography variant="body2" sx={{ opacity: 0.8 }}>
-                      {t('total_employees') || 'Total Employés'}
+                      Total Employees
                     </Typography>
                   </Box>
                   <PersonIcon sx={{ fontSize: 40, opacity: 0.8 }} />
@@ -446,7 +283,7 @@ const Salary = () => {
                       {salaries.reduce((sum, s) => sum + (parseInt(s.working_days) || 0), 0)}
                     </Typography>
                     <Typography variant="body2" sx={{ opacity: 0.8 }}>
-                      {t('total_working_days') || 'Total Jours Travaillés'}
+                      Total Working Days
                     </Typography>
                   </Box>
                   <WorkIcon sx={{ fontSize: 40, opacity: 0.8 }} />
@@ -464,7 +301,7 @@ const Salary = () => {
                       {salaries.reduce((sum, s) => sum + (parseInt(s.leaves) || 0), 0)}
                     </Typography>
                     <Typography variant="body2" sx={{ opacity: 0.8 }}>
-                      {t('total_leaves') || 'Total Congés'}
+                      Total Leaves
                     </Typography>
                   </Box>
                   <LeaveIcon sx={{ fontSize: 40, opacity: 0.8 }} />
@@ -482,7 +319,7 @@ const Salary = () => {
                       ${salaries.reduce((sum, s) => sum + (parseFloat(s.total_salary) || 0), 0).toFixed(0)}
                     </Typography>
                     <Typography variant="body2" sx={{ opacity: 0.8 }}>
-                      {t('total_payroll') || 'Total Payroll'}
+                      Total Payroll
                     </Typography>
                   </Box>
                   <TrendingUpIcon sx={{ fontSize: 40, opacity: 0.8 }} />
@@ -491,6 +328,7 @@ const Salary = () => {
             </Card>
           </Grid>
         </Grid>
+        
         {/* Main Table */}
         <Paper elevation={0} sx={{ borderRadius: 3, overflow: 'hidden', boxShadow: '0 4px 20px rgba(0,0,0,0.1)' }}>
           {/* Toolbar */}
@@ -670,250 +508,148 @@ const Salary = () => {
         >
           <AddIcon sx={{ fontSize: '28px' }} />
         </AddButton>
-        
-        {/* Add Salary Modal */}
-        <Dialog
-          open={addModal.open}
-          onClose={() => setAddModal({ open: false })}
-          maxWidth="md"
-          fullWidth
-        >
-          <DialogTitle>
-            <Typography variant="h6">
-              {t('add_salary') || 'Add New Salary'}
-            </Typography>
-          </DialogTitle>
-          <form onSubmit={handleAddSubmit}>
-            <DialogContent>
-              <Grid container spacing={2} sx={{ mt: 1 }}>
-                <Grid item xs={12} sm={6}>
-                  <TextField
-                    name="employee_name"
-                    label={t('employee_name') || 'Employee Name'}
-                    value={addForm.employee_name}
-                    onChange={handleAddFormChange}
-                    fullWidth
-                    required
-                  />
-                </Grid>
-                <Grid item xs={12} sm={6}>
-                  <TextField
-                    name="working_days"
-                    label={t('working_days') || 'Working Days'}
-                    type="number"
-                    value={addForm.working_days}
-                    onChange={handleAddFormChange}
-                    fullWidth
-                    required
-                    inputProps={{ min: 0 }}
-                  />
-                </Grid>
-                <Grid item xs={12} sm={6}>
-                  <TextField
-                    name="leaves"
-                    label={t('leaves') || 'Leaves'}
-                    type="number"
-                    value={addForm.leaves}
-                    onChange={handleAddFormChange}
-                    fullWidth
-                    inputProps={{ min: 0 }}
-                  />
-                </Grid>
-                <Grid item xs={12} sm={6}>
-                  <TextField
-                    name="salary_per_day"
-                    label={t('salary_per_day') || 'Salary Per Day'}
-                    type="number"
-                    value={addForm.salary_per_day}
-                    onChange={handleAddFormChange}
-                    fullWidth
-                    required
-                    inputProps={{ min: 0, step: 0.01 }}
-                  />
-                </Grid>
-                <Grid item xs={12}>
-                  <TextField
-                    name="total_salary"
-                    label={t('total_salary') || 'Total Salary'}
-                    type="number"
-                    value={addForm.total_salary}
-                    fullWidth
-                    disabled
-                    helperText="Automatically calculated: (Working Days - Leaves) × Daily Rate"
-                  />
-                </Grid>
-              </Grid>
-            </DialogContent>
-            <DialogActions>
-              <Button 
-                onClick={() => setAddModal({ open: false })}
-                disabled={loading}
-              >
-                {t('cancel') || 'Cancel'}
-              </Button>
-              <Button 
-                type="submit"
-                variant="contained"
-                disabled={loading}
-                startIcon={loading ? <CircularProgress size={20} /> : null}
-              >
-                {loading ? t('adding') : t('add') || 'Add'}
-              </Button>
-            </DialogActions>
-          </form>
-        </Dialog>
-
-        {/* Edit Salary Modal */}
-        <Dialog
-          open={editModal.open}
-          onClose={() => setEditModal({ open: false, salary: null })}
-          maxWidth="md"
-          fullWidth
-        >
-          <DialogTitle>
-            <Typography variant="h6">
-              {t('edit_salary') || 'Edit Salary'}
-            </Typography>
-          </DialogTitle>
-          <form onSubmit={handleEditSubmit}>
-            <DialogContent>
-              <Grid container spacing={2} sx={{ mt: 1 }}>
-                <Grid item xs={12} sm={6}>
-                  <TextField
-                    name="employee_name"
-                    label={t('employee_name') || 'Employee Name'}
-                    value={editForm.employee_name}
-                    onChange={handleEditFormChange}
-                    fullWidth
-                    required
-                  />
-                </Grid>
-                <Grid item xs={12} sm={6}>
-                  <TextField
-                    name="working_days"
-                    label={t('working_days') || 'Working Days'}
-                    type="number"
-                    value={editForm.working_days}
-                    onChange={handleEditFormChange}
-                    fullWidth
-                    required
-                    inputProps={{ min: 0 }}
-                  />
-                </Grid>
-                <Grid item xs={12} sm={6}>
-                  <TextField
-                    name="leaves"
-                    label={t('leaves') || 'Leaves'}
-                    type="number"
-                    value={editForm.leaves}
-                    onChange={handleEditFormChange}
-                    fullWidth
-                    inputProps={{ min: 0 }}
-                  />
-                </Grid>
-                <Grid item xs={12} sm={6}>
-                  <TextField
-                    name="salary_per_day"
-                    label={t('salary_per_day') || 'Salary Per Day'}
-                    type="number"
-                    value={editForm.salary_per_day}
-                    onChange={handleEditFormChange}
-                    fullWidth
-                    required
-                    inputProps={{ min: 0, step: 0.01 }}
-                  />
-                </Grid>
-                <Grid item xs={12}>
-                  <TextField
-                    name="total_salary"
-                    label={t('total_salary') || 'Total Salary'}
-                    type="number"
-                    value={editForm.total_salary}
-                    fullWidth
-                    disabled
-                    helperText="Automatically calculated: (Working Days - Leaves) × Daily Rate"
-                  />
-                </Grid>
-              </Grid>
-            </DialogContent>
-            <DialogActions>
-              <Button 
-                onClick={() => setEditModal({ open: false, salary: null })}
-                disabled={loading}
-              >
-                {t('cancel') || 'Cancel'}
-              </Button>
-              <Button 
-                type="submit"
-                variant="contained"
-                disabled={loading}
-                startIcon={loading ? <CircularProgress size={20} /> : null}
-              >
-                {loading ? t('updating') : t('update') || 'Update'}
-              </Button>
-            </DialogActions>
-          </form>
-        </Dialog>
-
-        {/* Delete Confirmation Dialog */}
-        <Dialog
-          open={deleteModal.open}
-          onClose={() => setDeleteModal({ open: false, salaryId: null })}
-          maxWidth="sm"
-          fullWidth
-        >
-          <DialogTitle>
-            <Box display="flex" alignItems="center">
-              <ErrorOutlineIcon color="error" sx={{ mr: 1 }} />
-              <Typography variant="h6">
-                {t('delete_salary') || 'Delete Salary'}
-              </Typography>
-            </Box>
-          </DialogTitle>
-          <DialogContent>
-            <DialogContentText>
-              {t('confirm_delete_salary') || 'Are you sure you want to delete this salary record? This action cannot be undone.'}
-            </DialogContentText>
-          </DialogContent>
-          <DialogActions>
-            <Button 
-              onClick={() => setDeleteModal({ open: false, salaryId: null })}
-              disabled={loading}
-            >
-              {t('cancel') || 'Cancel'}
-            </Button>
-            <Button 
-              onClick={handleDelete} 
-              color="error"
-              variant="contained"
-              disabled={loading}
-              startIcon={loading ? <CircularProgress size={20} /> : null}
-            >
-              {loading ? t('deleting') : t('delete') || 'Delete'}
-            </Button>
-          </DialogActions>
-        </Dialog>
-        
-        {/* Toast Notification */}
-        <Snackbar
-          open={toast.open}
-          autoHideDuration={6000}
-          onClose={handleCloseToast}
-          anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
-        >
-          <Alert 
-            onClose={handleCloseToast} 
-            severity={toast.severity}
-            sx={{ width: '100%' }}
-            elevation={6}
-            variant="filled"
-          >
-            {toast.message}
-          </Alert>
-        </Snackbar>
       </Box>
     </Box>
   );
 };
 
+export default Salary;
+              >
+                {loading ? t('saving') : editModal.salary ? t('update_salary') : t('add_salary')}
+              </button>
+            </div>
+          </form>
+        </div>
+        
+        {/* Search Bar */}
+        <div className="search-container">
+          <SearchIcon className="search-icon" />
+          <input 
+            type="text" 
+            className="search-input" 
+            placeholder={t('search_by_employee')} 
+            value={search} 
+            onChange={(e) => {
+              setSearch(e.target.value);
+              setCurrentPage(1); // Reset to first page when searching
+            }} 
+          />
+        </div>
+        
+        {/* Salary Table */}
+        <div className="salary-table-container">
+          <table className="salary-table">
+            <thead>
+              <tr>
+                <th>{t('employee')}</th>
+                <th>{t('working_days')}</th>
+                <th>{t('leaves')}</th>
+                <th>{t('salary_per_day')}</th>
+                <th>{t('total_salary')}</th>
+                <th>{t('actions')}</th>
+              </tr>
+            </thead>
+            <tbody>
+              {paginatedSalaries.length > 0 ? (
+                paginatedSalaries.map((salary, index) => (
+                  <tr key={salary.id || index}>
+                    <td>{salary.employee_name}</td>
+                    <td>{salary.working_days}</td>
+                    <td>{salary.leaves}</td>
+                    <td>${parseFloat(salary.salary_per_day).toFixed(2)}</td>
+                    <td>${parseFloat(salary.total_salary).toFixed(2)}</td>
+                    <td>
+                      <div className="action-buttons">
+                        <Tooltip title="Edit">
+                          <button 
+                            className="btn-icon" 
+                            onClick={() => handleEdit(salary)}
+                            disabled={loading}
+                          >
+                            <EditIcon fontSize="small" />
+                          </button>
+                        </Tooltip>
+                        <Tooltip title="Delete">
+                          <button 
+                            className="btn-icon" 
+                            onClick={() => setDeleteModal({ show: true, salary })}
+                            disabled={loading}
+                          >
+                            <DeleteIcon fontSize="small" />
+                          </button>
+                        </Tooltip>
+                      </div>
+                    </td>
+                  </tr>
+                ))
+              ) : (
+                <tr>
+                  <td colSpan="6" style={{ textAlign: 'center', padding: '2rem' }}>
+                    {t('no_salaries_found')}
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+          
+          {/* Pagination */}
+          {totalPages > 1 && (
+            <div className="pagination">
+              <button 
+                className="pagination-button" 
+                onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                disabled={currentPage === 1 || loading}
+              >
+                {t('previous')}
+              </button>
+              <span className="pagination-info">
+                {t('page')} {currentPage} {t('of')} {totalPages}
+              </span>
+              <button 
+                className="pagination-button" 
+                onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                disabled={currentPage === totalPages || loading}
+              >
+                {t('next')}
+              </button>
+            </div>
+          )}
+        </div>
+      </Box>
+      
+      {/* Delete Confirmation Modal */}
+      {deleteModal.show && (
+        <div className="modal-overlay">
+          <div className="modal">
+            <h3>{t('delete_salary')}</h3>
+            <p>{t('delete_salary_confirm')} <strong>{deleteModal.salary?.employee_name}</strong>?</p>
+            <div className="modal-actions">
+              <button 
+                className="btn btn-outline" 
+                onClick={() => setDeleteModal({ show: false, salary: null })}
+                disabled={loading}
+              >
+                Cancel
+              </button>
+              <button 
+                className="btn btn-danger" 
+                onClick={handleDelete}
+                disabled={loading}
+              >
+                {loading ? t('deleting') : t('delete')}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      
+      {/* Toast Notification */}
+      {toast.show && (
+        <div className={`toast ${toast.type}`}>
+          {toast.message}
+        </div>
+      )}
+    </Box>
+  );
+};
 export default Salary;

@@ -9,9 +9,12 @@ import {
   onAuthStateChanged,
   setPersistence,
   browserLocalPersistence,
-  browserSessionPersistence
+  browserSessionPersistence,
+  confirmPasswordReset as firebaseConfirmPasswordReset,
+  verifyPasswordResetCode as firebaseVerifyPasswordResetCode
 } from "firebase/auth";
-import { auth } from "./config";
+import { auth } from "./init";
+import { getActionCodeSettings } from "./config";
 
 // Set session persistence type
 const setPersistenceType = async (persistenceType = 'local') => {
@@ -105,10 +108,30 @@ export const logoutUser = async () => {
   }
 };
 
-// Reset password
+// Send password reset email
 export const resetPassword = async (email) => {
   try {
-    await sendPasswordResetEmail(auth, email);
+    await sendPasswordResetEmail(auth, email, getActionCodeSettings());
+    return { success: true, error: null };
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
+};
+
+// Verify password reset code
+export const verifyPasswordResetCode = async (oobCode) => {
+  try {
+    const email = await firebaseVerifyPasswordResetCode(auth, oobCode);
+    return email;
+  } catch (error) {
+    throw new Error('Invalid or expired reset code');
+  }
+};
+
+// Confirm password reset
+export const confirmPasswordReset = async (oobCode, newPassword) => {
+  try {
+    await firebaseConfirmPasswordReset(auth, oobCode, newPassword);
     return { success: true, error: null };
   } catch (error) {
     return { success: false, error: error.message };

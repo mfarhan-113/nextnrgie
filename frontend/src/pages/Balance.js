@@ -6,8 +6,39 @@ import VisibilityIcon from '@mui/icons-material/Visibility';
 import DownloadIcon from '@mui/icons-material/Download';
 import WarningIcon from '@mui/icons-material/Warning';
 import CheckIcon from '@mui/icons-material/Check';
-import { People, Description, AccountBalance, AttachMoney, MoreHoriz, Dashboard as DashboardIcon } from '@mui/icons-material';
-import { Select, MenuItem, FormControl, IconButton, Tooltip, Box, CssBaseline } from '@mui/material';
+import SearchIcon from '@mui/icons-material/Search';
+import FilterListIcon from '@mui/icons-material/FilterList';
+import TrendingUpIcon from '@mui/icons-material/TrendingUp';
+import TrendingDownIcon from '@mui/icons-material/TrendingDown';
+import AccountBalanceWalletIcon from '@mui/icons-material/AccountBalanceWallet';
+import ReceiptIcon from '@mui/icons-material/Receipt';
+import { 
+  Select, 
+  MenuItem, 
+  FormControl, 
+  IconButton, 
+  Tooltip, 
+  Box, 
+  CssBaseline, 
+  Typography,
+  Card,
+  CardContent,
+  TextField,
+  InputAdornment,
+  Chip,
+  Table,
+  TableBody,
+  TableCell,
+  TableContainer,
+  TableHead,
+  TableRow,
+  Paper,
+  Fade,
+  LinearProgress,
+  Button,
+  Grid
+} from '@mui/material';
+import { styled, alpha } from '@mui/material/styles';
 import { Link, useLocation } from 'react-router-dom';
 import Sidebar from '../components/Sidebar';
 import Navbar from '../components/Navbar';
@@ -21,7 +52,9 @@ const statusColors = {
   unpaid: '#e53935', // red
 };
 
-function getStatus(amount, paid) {
+// Derive status safely; prefer explicit backend status when present
+function getStatus(amount, paid, backendStatus) {
+  if (backendStatus) return backendStatus; // trusted
   if (paid >= amount) return 'paid';
   if (paid > 0) return 'partial';
   return 'unpaid';
@@ -30,6 +63,99 @@ function getStatus(amount, paid) {
 function isOverdue(dueDate, status) {
   return status !== 'paid' && new Date(dueDate) < new Date();
 }
+
+// Styled Components
+const StatsCard = styled(Card)(({ theme, variant }) => ({
+  background: variant === 'total' 
+    ? 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)'
+    : variant === 'paid'
+    ? 'linear-gradient(135deg, #4caf50 0%, #45a049 100%)'
+    : variant === 'outstanding'
+    ? 'linear-gradient(135deg, #f44336 0%, #d32f2f 100%)'
+    : 'linear-gradient(135deg, #ff9800 0%, #f57c00 100%)',
+  color: 'white',
+  borderRadius: '16px',
+  boxShadow: '0 4px 20px rgba(0, 0, 0, 0.1)',
+  transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+  '&:hover': {
+    transform: 'translateY(-4px)',
+    boxShadow: '0 8px 30px rgba(0, 0, 0, 0.15)',
+  },
+}));
+
+const ModernTableContainer = styled(TableContainer)({
+  borderRadius: '16px',
+  boxShadow: '0 4px 20px rgba(0, 0, 0, 0.08)',
+  border: '1px solid rgba(0, 0, 0, 0.05)',
+  overflow: 'hidden',
+});
+
+const StyledTableHead = styled(TableHead)({
+  background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+  '& .MuiTableCell-head': {
+    color: 'white',
+    fontWeight: 'bold',
+    fontSize: '0.95rem',
+    padding: '16px',
+  },
+});
+
+const StyledTableRow = styled(TableRow)(({ theme, isoverdue }) => ({
+  backgroundColor: isoverdue === 'true' ? alpha('#f44336', 0.05) : 'white',
+  borderLeft: isoverdue === 'true' ? '4px solid #f44336' : 'none',
+  transition: 'all 0.2s ease-in-out',
+  '&:hover': {
+    backgroundColor: isoverdue === 'true' ? alpha('#f44336', 0.1) : alpha('#667eea', 0.05),
+    transform: 'scale(1.01)',
+  },
+  '& .MuiTableCell-root': {
+    padding: '16px',
+    borderBottom: '1px solid rgba(0, 0, 0, 0.05)',
+  },
+}));
+
+const StatusChip = styled(Chip)(({ status }) => ({
+  backgroundColor: status === 'paid' ? '#4caf50' : status === 'partial' ? '#ff9800' : '#f44336',
+  color: 'white',
+  fontWeight: 'bold',
+  borderRadius: '12px',
+  '& .MuiChip-icon': {
+    color: 'white',
+  },
+}));
+
+const ActionButton = styled(IconButton)(({ variant = 'view' }) => ({
+  borderRadius: '12px',
+  padding: '8px',
+  transition: 'all 0.2s ease-in-out',
+  ...(variant === 'view' && {
+    backgroundColor: alpha('#2196f3', 0.1),
+    color: '#2196f3',
+    '&:hover': {
+      backgroundColor: '#2196f3',
+      color: 'white',
+      transform: 'scale(1.1)',
+    }
+  }),
+  ...(variant === 'download' && {
+    backgroundColor: alpha('#4caf50', 0.1),
+    color: '#4caf50',
+    '&:hover': {
+      backgroundColor: '#4caf50',
+      color: 'white',
+      transform: 'scale(1.1)',
+    }
+  }),
+  ...(variant === 'delete' && {
+    backgroundColor: alpha('#f44336', 0.1),
+    color: '#f44336',
+    '&:hover': {
+      backgroundColor: '#f44336',
+      color: 'white',
+      transform: 'scale(1.1)',
+    }
+  })
+}));
 
 const Balance = () => {
   const { t } = useTranslation();
@@ -76,7 +202,7 @@ const Balance = () => {
     const client = clients.find(c => c.id === inv.client_id);
     const clientName = client ? client.full_name.toLowerCase() : '';
     const matchesSearch = inv.invoice_number.toLowerCase().includes(search.toLowerCase()) || clientName.includes(search.toLowerCase());
-    const status = getStatus(inv.amount, inv.paid_amount || 0);
+    const status = getStatus(inv.amount, inv.paid_amount || 0, inv.status);
     const matchesStatus = statusFilter === 'all' || status === statusFilter;
     return matchesSearch && matchesStatus;
   });
@@ -113,7 +239,7 @@ const Balance = () => {
   };
 
   const handleStatusChange = async (invoice, newStatus) => {
-    const currentStatus = getStatus(invoice.amount, invoice.paid_amount || 0);
+    const currentStatus = getStatus(invoice.amount, invoice.paid_amount || 0, invoice.status);
     const isOverdueInvoice = isOverdue(invoice.due_date, currentStatus);
     
     // Check if invoice is overdue
@@ -166,15 +292,11 @@ const Balance = () => {
         }
       );
       
-      // Update the local state with the new data
-      setInvoices(prevInvoices => 
-        prevInvoices.map(inv => 
-          inv.id === invoice.id 
-            ? { 
-                ...inv, 
-                status: newStatus, 
-                paid_amount: paidAmount 
-              } 
+      // Update the local state with the new data (status is the source of truth on refresh)
+      setInvoices(prevInvoices =>
+        prevInvoices.map(inv =>
+          inv.id === invoice.id
+            ? { ...inv, status: newStatus, paid_amount: paidAmount }
             : inv
         )
       );
@@ -196,155 +318,359 @@ const Balance = () => {
   };
 
   return (
-    <Box sx={{ display: 'flex', minHeight: '100vh', background: 'linear-gradient(120deg,#f4f6f8 60%,#e3e9f7 100%)' }}>
+    <Box sx={{ 
+      display: 'flex', 
+      minHeight: '100vh', 
+      background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+      position: 'relative',
+      '&::before': {
+        content: '""',
+        position: 'absolute',
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
+        background: 'linear-gradient(135deg, rgba(255,255,255,0.1) 0%, rgba(255,255,255,0.05) 100%)',
+        backdropFilter: 'blur(10px)',
+      }
+    }}>
       <CssBaseline />
-      {/* Unified Navbar */}
       <Navbar handleDrawerToggle={handleDrawerToggle} />
-      {/* Sidebar */}
       <Sidebar mobileOpen={mobileOpen} onDrawerToggle={handleDrawerToggle} />
-      {/* Main Content */}
-      <Box component="main" sx={{ flexGrow: 1, px: { xs: 1, md: 4 }, mt: { xs: 7.5, md: 8 }, pb: 4, minHeight: '100vh', transition: 'all 0.3s', background: 'rgba(255,255,255,0.7)', boxShadow: { md: 3, xs: 0 } }}>
-        <div className="invoices-summary-card">
-          <div>
-            <div className="summary-title">{t('total_invoices')}</div>
-            <div className="summary-value">{filtered.length}</div>
-          </div>
-          <div>
-            <div className="summary-title">{t('total_amount')}</div>
-            <div className="summary-value">${totalAmount.toLocaleString()}</div>
-          </div>
-          <div>
-            <div className="summary-title">{t('total_paid')}</div>
-            <div className="summary-value">${totalPaid.toLocaleString()}</div>
-          </div>
-          <div>
-            <div className="summary-title">{t('outstanding')}</div>
-            <div className="summary-value outstanding">${totalOutstanding.toLocaleString()}</div>
-          </div>
-        </div>
-        <div className="invoices-table-card">
-          <div className="table-header">
-            <div className="table-title">{t('invoices')}</div>
-            <div className="table-controls">
-              <select value={statusFilter} onChange={e => { setStatusFilter(e.target.value); setPage(1); }} className="status-filter">
-                <option value="all">{t('all_statuses')}</option>
-                <option value="paid">{t('paid')}</option>
-                <option value="partial">{t('partial')}</option>
-                <option value="unpaid">{t('unpaid')}</option>
-              </select>
-              <input type="text" className="search-bar" placeholder={t('search_invoice_client')} value={search} onChange={e => { setSearch(e.target.value); setPage(1); }} />
-            </div>
-          </div>
-          <div className="invoices-table-container">
-            <table className="invoices-table">
-              <thead>
-                <tr>
-                  <th>{t('invoice_number')}</th>
-                  <th>{t('total_amount')}</th>
-                  <th>{t('paid_amount')}</th>
-                  <th>{t('balance')}</th>
-                  <th>{t('due_date')}</th>
-                  <th>{t('status')}</th>
-                  
-                </tr>
-              </thead>
-              <tbody>
-                {paged.length === 0 && (
-                  <tr><td colSpan={8} style={{ textAlign: 'center', padding: '2rem' }}>{t('no_invoices')}</td></tr>
-                )}
-                {paged.map(inv => {
-                  const client = clients.find(c => c.id === inv.client_id);
-                  const status = getStatus(inv.amount, inv.paid_amount || 0);
-                  const overdue = isOverdue(inv.due_date, status);
-                  return (
-                    <tr key={inv.id} className={overdue ? 'overdue-row' : ''}>
-                      <td>{inv.invoice_number}</td>
-                      <td>${inv.amount?.toLocaleString()}</td>
-                      <td>${(inv.paid_amount || 0).toLocaleString()}</td>
-                      <td>${((inv.amount || 0) - (inv.paid_amount || 0)).toLocaleString()}</td>
-                      <td>{inv.due_date}</td>
-                      <td>
-                        <FormControl size="small" variant="standard" sx={{ minWidth: 120 }}>
-                          <Select
-                            value={status}
-                            onChange={(e) => handleStatusChange(inv, e.target.value)}
-                            disabled={status === 'paid' || isOverdue(inv.due_date, status)}
-                            sx={{
-                              '& .MuiSelect-select': {
-                                padding: '4px 24px 4px 8px',
-                                borderRadius: '12px',
-                                backgroundColor: statusColors[status] || statusColors.unpaid,
-                                color: '#fff',
-                                fontWeight: 500,
-                                opacity: isOverdue(inv.due_date, status) ? 0.7 : 1,
-                                '&:hover': {
-                                  backgroundColor: isOverdue(inv.due_date, status) 
-                                    ? statusColors[status] || statusColors.unpaid 
-                                    : `${statusColors[status] || statusColors.unpaid}CC`,
-                                  cursor: isOverdue(inv.due_date, status) ? 'not-allowed' : 'pointer'
-                                },
-                              },
-                              '& .MuiOutlinedInput-notchedOutline': {
-                                border: 'none',
-                              },
-                              '& .MuiSelect-icon': {
-                                color: isOverdue(inv.due_date, status) ? '#ffffff99' : '#fff',
-                                cursor: isOverdue(inv.due_date, status) ? 'not-allowed' : 'pointer'
-                              },
-                            }}
-                            MenuProps={{
-                              PaperProps: {
-                                sx: {
-                                  '& .MuiMenuItem-root': {
-                                    padding: '8px 16px',
-                                    '&.Mui-selected': {
-                                      backgroundColor: '#f5f5f5',
-                                      '&:hover': {
-                                        backgroundColor: '#f0f0f0',
-                                      },
-                                    },
-                                    '&.Mui-disabled': {
-                                      opacity: 0.5,
-                                      cursor: 'not-allowed'
-                                    }
-                                  },
-                                },
-                              },
-                            }}
-                          >
-                            <MenuItem value="unpaid" disabled={status === 'paid' || isOverdue(inv.due_date, status)}>
-                              <span style={{ color: statusColors.unpaid, fontWeight: 500 }}>{t('unpaid')}</span>
-                            </MenuItem>
-                            <MenuItem value="partial" disabled={status === 'paid' || isOverdue(inv.due_date, status)}>
-                              <span style={{ color: statusColors.partial, fontWeight: 500 }}>{t('partial')}</span>
-                            </MenuItem>
-                            <MenuItem value="paid" disabled={isOverdue(inv.due_date, status)}>
-                              <span style={{ color: statusColors.paid, fontWeight: 500 }}>
-                                {status === 'paid' ? <><CheckIcon sx={{ fontSize: 16, mr: 0.5 }} /> {t('paid')}</> : t('mark_as_paid')}
-                              </span>
-                            </MenuItem>
-                          </Select>
-                        </FormControl>
-                        {overdue && <span className="overdue-badge"><WarningIcon style={{ fontSize: 16, marginRight: 2 }} />{t('overdue')}</span>}
-                      </td>
+      
+      <Box component="main" sx={{ 
+        flexGrow: 1, 
+        px: { xs: 2, md: 4 }, 
+        mt: { xs: 7.5, md: 8 }, 
+        pb: 4, 
+        minHeight: '100vh', 
+        transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+        background: 'rgba(255,255,255,0.95)', 
+        backdropFilter: 'blur(20px)',
+        borderRadius: { md: '24px 0 0 0' },
+        boxShadow: { md: '0 0 40px rgba(0,0,0,0.1)', xs: 0 },
+        position: 'relative',
+        zIndex: 1
+      }}>
+        {/* Header */}
+        <Box sx={{ display: 'flex', alignItems: 'center', mb: 4 }}>
+          <Typography variant="h3" fontWeight={800} sx={{ 
+            background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+            backgroundClip: 'text',
+            WebkitBackgroundClip: 'text',
+            WebkitTextFillColor: 'transparent',
+            mr: 2
+          }}>
+{t('balance_overview') || 'Aperçu du Solde'}
+          </Typography>
+          <Box sx={{ 
+            width: 4, 
+            height: 40, 
+            background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+            borderRadius: 2 
+          }} />
+          <Chip 
+            label={`${filtered.length} ${t('invoices') || 'Factures'}`}
+            sx={{ 
+              ml: 2,
+              background: 'linear-gradient(135deg, #4caf50 0%, #45a049 100%)',
+              color: 'white',
+              fontWeight: 'bold'
+            }}
+          />
+        </Box>
 
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-          {/* Pagination */}
-          <div className="pagination-bar">
-            <button disabled={page === 1} onClick={() => handlePageChange(page - 1)}>&lt;</button>
-            <span>{t('page')} {page} {t('of')} {totalPages || 1}</span>
-            <button disabled={page === totalPages || totalPages === 0} onClick={() => handlePageChange(page + 1)}>&gt;</button>
-          </div>
-        </div>
-        {/* Toast */}
-        {toast && <div className="invoices-toast">{toast}</div>}
-        {/* Loading Spinner */}
-        {loading && <div className="invoices-loading"><div className="spinner"></div></div>}
+        {/* Stats Cards */}
+        <Grid container spacing={3} sx={{ mb: 4 }}>
+          <Grid item xs={12} sm={6} md={3}>
+            <Fade in={true} timeout={300}>
+              <StatsCard variant="total">
+                <CardContent sx={{ textAlign: 'center', py: 3 }}>
+                  <ReceiptIcon sx={{ fontSize: 40, mb: 1 }} />
+                  <Typography variant="h4" fontWeight={700} sx={{ mb: 1 }}>
+                    {filtered.length}
+                  </Typography>
+                  <Typography variant="body1" sx={{ opacity: 0.9 }}>
+                    {t('total_invoices') || 'Total Factures'}
+                  </Typography>
+                </CardContent>
+              </StatsCard>
+            </Fade>
+          </Grid>
+          
+          <Grid item xs={12} sm={6} md={3}>
+            <Fade in={true} timeout={400}>
+              <StatsCard variant="amount">
+                <CardContent sx={{ textAlign: 'center', py: 3 }}>
+                  <TrendingUpIcon sx={{ fontSize: 40, mb: 1 }} />
+                  <Typography variant="h4" fontWeight={700} sx={{ mb: 1 }}>
+                    ${totalAmount.toLocaleString()}
+                  </Typography>
+                  <Typography variant="body1" sx={{ opacity: 0.9 }}>
+                    {t('total_amount') || 'Montant Total'}
+                  </Typography>
+                </CardContent>
+              </StatsCard>
+            </Fade>
+          </Grid>
+          
+          <Grid item xs={12} sm={6} md={3}>
+            <Fade in={true} timeout={500}>
+              <StatsCard variant="paid">
+                <CardContent sx={{ textAlign: 'center', py: 3 }}>
+                  <AccountBalanceWalletIcon sx={{ fontSize: 40, mb: 1 }} />
+                  <Typography variant="h4" fontWeight={700} sx={{ mb: 1 }}>
+                    ${totalPaid.toLocaleString()}
+                  </Typography>
+                  <Typography variant="body1" sx={{ opacity: 0.9 }}>
+                    {t('total_paid') || 'Total Payé'}
+                  </Typography>
+                </CardContent>
+              </StatsCard>
+            </Fade>
+          </Grid>
+          
+          <Grid item xs={12} sm={6} md={3}>
+            <Fade in={true} timeout={600}>
+              <StatsCard variant="outstanding">
+                <CardContent sx={{ textAlign: 'center', py: 3 }}>
+                  <TrendingDownIcon sx={{ fontSize: 40, mb: 1 }} />
+                  <Typography variant="h4" fontWeight={700} sx={{ mb: 1 }}>
+                    ${totalOutstanding.toLocaleString()}
+                  </Typography>
+                  <Typography variant="body1" sx={{ opacity: 0.9 }}>
+                    {t('outstanding') || 'En Attente'}
+                  </Typography>
+                </CardContent>
+              </StatsCard>
+            </Fade>
+          </Grid>
+        </Grid>
+
+        {/* Controls */}
+        <Box sx={{ 
+          display: 'flex', 
+          justifyContent: 'space-between', 
+          alignItems: 'center', 
+          mb: 3,
+          flexWrap: 'wrap',
+          gap: 2
+        }}>
+          <Typography variant="h5" fontWeight={600} sx={{ color: '#333' }}>
+            📋 {t('invoice_management') || 'Gestion des Factures'}
+          </Typography>
+          
+          <Box sx={{ display: 'flex', gap: 2, alignItems: 'center' }}>
+            <TextField
+              variant="outlined"
+              size="small"
+              placeholder={t('search_invoices') || 'Rechercher des factures...'}
+              value={search}
+              onChange={(e) => { setSearch(e.target.value); setPage(1); }}
+              InputProps={{
+                startAdornment: (
+                  <InputAdornment position="start">
+                    <SearchIcon sx={{ color: '#667eea' }} />
+                  </InputAdornment>
+                ),
+              }}
+              sx={{
+                minWidth: '250px',
+                '& .MuiOutlinedInput-root': {
+                  borderRadius: '12px',
+                  '&:hover fieldset': {
+                    borderColor: '#667eea',
+                  },
+                  '&.Mui-focused fieldset': {
+                    borderColor: '#667eea',
+                  },
+                },
+              }}
+            />
+            
+            <FormControl size="small" sx={{ minWidth: 120 }}>
+              <Select
+                value={statusFilter}
+                onChange={(e) => { setStatusFilter(e.target.value); setPage(1); }}
+                startAdornment={<FilterListIcon sx={{ color: '#667eea', mr: 1 }} />}
+                sx={{
+                  borderRadius: '12px',
+                  '&:hover .MuiOutlinedInput-notchedOutline': {
+                    borderColor: '#667eea',
+                  },
+                  '&.Mui-focused .MuiOutlinedInput-notchedOutline': {
+                    borderColor: '#667eea',
+                  },
+                }}
+              >
+                <MenuItem value="all">{t('all_status') || 'Tous les Statuts'}</MenuItem>
+                <MenuItem value="paid">{t('paid') || 'Payé'}</MenuItem>
+                <MenuItem value="partial">{t('partial') || 'Partiel'}</MenuItem>
+                <MenuItem value="unpaid">{t('unpaid') || 'Non Payé'}</MenuItem>
+              </Select>
+            </FormControl>
+          </Box>
+        </Box>
+        {/* Modern Table */}
+        <ModernTableContainer component={Paper}>
+          {loading && <LinearProgress sx={{ borderRadius: '16px 16px 0 0' }} />}
+          <Table>
+            <StyledTableHead>
+              <TableRow>
+                <TableCell>{t('invoice_number') || 'Numéro de Facture'}</TableCell>
+                <TableCell align="right">{t('total_amount') || 'Montant Total'}</TableCell>
+                <TableCell align="right">{t('paid_amount') || 'Montant Payé'}</TableCell>
+                <TableCell align="right">{t('balance') || 'Solde'}</TableCell>
+                <TableCell>{t('due_date') || 'Date d\'Échéance'}</TableCell>
+                <TableCell>{t('status') || 'Statut'}</TableCell>
+              </TableRow>
+            </StyledTableHead>
+            <TableBody>
+              {paged.length === 0 && (
+                <TableRow>
+                  <TableCell colSpan={6} align="center" sx={{ py: 4 }}>
+                    <Typography variant="body1" color="textSecondary">
+                      {t('no_invoices_found') || 'Aucune facture trouvée'}
+                    </Typography>
+                  </TableCell>
+                </TableRow>
+              )}
+              {paged.map((inv, index) => {
+                const client = clients.find(c => c.id === inv.client_id);
+                const status = getStatus(inv.amount, inv.paid_amount || 0, inv.status);
+                const derivedPaid = typeof inv.paid_amount === 'number' ? inv.paid_amount : (
+                  status === 'paid' ? inv.amount : status === 'partial' ? (inv.amount / 2) : 0
+                );
+                const overdue = isOverdue(inv.due_date, status);
+                const balance = (inv.amount || 0) - (derivedPaid || 0);
+                
+                return (
+                  <Fade in={true} key={inv.id} timeout={300 + index * 50}>
+                    <StyledTableRow isoverdue={overdue.toString()}>
+                      <TableCell>
+                        <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                          <Typography variant="body2" fontWeight={600}>
+                            {inv.invoice_number}
+                          </Typography>
+                          {overdue && (
+                            <Chip
+                              icon={<WarningIcon />}
+                              label={t('overdue') || 'En Retard'}
+                              size="small"
+                              color="error"
+                              sx={{ ml: 1, fontSize: '0.7rem' }}
+                            />
+                          )}
+                        </Box>
+                      </TableCell>
+                      <TableCell align="right">
+                        <Typography variant="body2" fontWeight={600} color="primary">
+                          ${inv.amount?.toLocaleString()}
+                        </Typography>
+                      </TableCell>
+                      <TableCell align="right">
+                        <Typography variant="body2" color="success.main">
+                          ${(derivedPaid || 0).toLocaleString()}
+                        </Typography>
+                      </TableCell>
+                      <TableCell align="right">
+                        <Typography 
+                          variant="body2" 
+                          fontWeight={600}
+                          color={balance > 0 ? 'error.main' : 'success.main'}
+                        >
+                          ${balance.toLocaleString()}
+                        </Typography>
+                      </TableCell>
+                      <TableCell>
+                        <Typography variant="body2">
+                          {new Date(inv.due_date).toLocaleDateString()}
+                        </Typography>
+                      </TableCell>
+                      <TableCell>
+                        <StatusChip
+                          status={status}
+                          label={status.charAt(0).toUpperCase() + status.slice(1)}
+                          icon={status === 'paid' ? <CheckIcon /> : undefined}
+                          onClick={() => {
+                            if (status !== 'paid' && !overdue) {
+                              const newStatus = status === 'unpaid' ? 'partial' : 'paid';
+                              handleStatusChange(inv, newStatus);
+                            }
+                          }}
+                          sx={{ 
+                            cursor: (status !== 'paid' && !overdue) ? 'pointer' : 'default',
+                            '&:hover': (status !== 'paid' && !overdue) ? { 
+                              transform: 'scale(1.05)',
+                              boxShadow: '0 2px 8px rgba(0,0,0,0.2)'
+                            } : {}
+                          }}
+                        />
+                      </TableCell>
+                    </StyledTableRow>
+                  </Fade>
+                );
+              })}
+            </TableBody>
+          </Table>
+        </ModernTableContainer>
+
+        {/* Modern Pagination */}
+        <Box sx={{ 
+          display: 'flex', 
+          justifyContent: 'center', 
+          alignItems: 'center', 
+          mt: 3, 
+          gap: 2 
+        }}>
+          <Button
+            variant="outlined"
+            disabled={page === 1}
+            onClick={() => handlePageChange(page - 1)}
+            sx={{ borderRadius: '12px' }}
+          >
+{t('previous') || 'Précédent'}
+          </Button>
+          <Typography variant="body2" sx={{ 
+            px: 2, 
+            py: 1, 
+            backgroundColor: alpha('#667eea', 0.1),
+            borderRadius: '8px',
+            fontWeight: 'bold'
+          }}>
+{t('page') || 'Page'} {page} {t('of') || 'de'} {totalPages || 1}
+          </Typography>
+          <Button
+            variant="outlined"
+            disabled={page === totalPages || totalPages === 0}
+            onClick={() => handlePageChange(page + 1)}
+            sx={{ borderRadius: '12px' }}
+          >
+{t('next') || 'Suivant'}
+          </Button>
+        </Box>
+        {/* Modern Toast */}
+        {toast && (
+          <Fade in={true}>
+            <Box sx={{ 
+              position: 'fixed',
+              bottom: 24,
+              right: 24,
+              zIndex: 9999,
+              p: 2.5, 
+              backgroundColor: '#4caf50',
+              color: 'white',
+              borderRadius: 2,
+              boxShadow: '0 8px 30px rgba(76, 175, 80, 0.3)',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 1
+            }}>
+              <CheckIcon />
+              <Typography fontWeight={500}>{toast}</Typography>
+            </Box>
+          </Fade>
+        )}
       </Box>
     </Box>
   );

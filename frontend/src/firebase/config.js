@@ -1,23 +1,18 @@
-// Import the functions you need from the SDKs you need
-import { initializeApp } from "firebase/app";
-import { getAnalytics } from "firebase/analytics";
-import { getAuth } from "firebase/auth";
-
-// Your web app's Firebase configuration
-// For Firebase JS SDK v7.20.0 and later, measurementId is optional
-const firebaseConfig = {
-  apiKey: "AIzaSyCoxyHMncsFOKLopuClupe18oWthy7A0qY",
-  authDomain: "next-nrgie.firebaseapp.com",
-  projectId: "next-nrgie",
-  storageBucket: "next-nrgie.firebasestorage.app",
-  messagingSenderId: "803013817667",
-  appId: "1:803013817667:web:813f869155852c5bc06bf6",
-  measurementId: "G-HDR7CP94KT"
+// Firebase configuration
+export const firebaseConfig = {
+  apiKey: "AIzaSyAWjJnyY2p1sDG8R2g4qPT-COi4apDIDL8",
+  authDomain: "app.nextnrgie.fr",
+  projectId: "next-nr-gie",
+  storageBucket: "next-nr-gie.firebasestorage.app",
+  messagingSenderId: "770967302109",
+  appId: "1:770967302109:web:ecd7573ab8947d4f4d5034",
+  measurementId: "G-75K1FMH1W0"
 };
 
-// Initialize Firebase
-const app = initializeApp(firebaseConfig);
-const analytics = getAnalytics(app);
-const auth = getAuth(app);
-
-export { app, analytics, auth };
+// Action URL settings for password reset
+export const getActionCodeSettings = () => ({
+  // URL you want to redirect back to after password reset
+  url: 'https://app.nextnrgie.fr/login',
+  // This must be true for email link sign-in
+  handleCodeInApp: false,
+});

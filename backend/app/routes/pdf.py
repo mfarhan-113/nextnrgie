@@ -5,6 +5,8 @@ from app.models.invoice import Invoice
 from app.models.contract import Contract
 from app.models.client import Client
 from app.models.contract_detail import ContractDetail
+from app.models.facture import Facture
+from app.schemas.facture import Facture as FactureSchema
 from sqlalchemy.future import select
 from reportlab.lib.pagesizes import letter
 from reportlab.pdfgen import canvas
@@ -218,8 +220,8 @@ async def generate_invoice_pdf(invoice_id: int, db: AsyncSession = Depends(get_d
             p.drawString(current_x + headers[2]["width"] - unit_price_width - 5, y_position - 15, unit_price_text)
             current_x += headers[2]["width"]
             
-            # TVA
-            tva_text = f"{detail.tva:.2f}%"
+            # TVA (forced 0%)
+            tva_text = f"{0.00:.2f}%"
             tva_width = p.stringWidth(tva_text, "Helvetica", 9)
             p.drawString(current_x + headers[3]["width"] - tva_width - 5, y_position - 15, tva_text)
             current_x += headers[3]["width"]
@@ -253,8 +255,8 @@ async def generate_invoice_pdf(invoice_id: int, db: AsyncSession = Depends(get_d
         p.drawString(current_x + headers[2]["width"] - price_width - 5, y_position - 15, price_text)
         current_x += headers[2]["width"]
         
-        # TVA (default 20%)
-        p.drawString(current_x + headers[3]["width"] - 25, y_position - 15, "20.00%")
+        # TVA (forced 0%)
+        p.drawString(current_x + headers[3]["width"] - 25, y_position - 15, "0.00%")
         current_x += headers[3]["width"]
         
         # Total HT
@@ -286,17 +288,17 @@ async def generate_invoice_pdf(invoice_id: int, db: AsyncSession = Depends(get_d
     total_width_text = p.stringWidth(total_text, "Helvetica-Bold", 10)
     p.drawString(header_x + total_width - total_width_text - 5, y_position - 15, total_text)
     
-    # TVA
+    # TVA (forced 0%)
     y_position -= 20
-    tva_amount = total_amount * 0.20  # Assuming 20% TVA
-    p.drawString(header_x + 5, y_position - 15, "TVA (20%):")
+    tva_amount = 0.0
+    p.drawString(header_x + 5, y_position - 15, "TVA:")
     tva_text = f"{tva_amount:.2f} €"
     tva_width_text = p.stringWidth(tva_text, "Helvetica-Bold", 10)
     p.drawString(header_x + total_width - tva_width_text - 5, y_position - 15, tva_text)
     
     # Total TTC
     y_position -= 20
-    total_ttc = total_amount + tva_amount
+    total_ttc = total_amount
     p.drawString(header_x + 5, y_position - 15, "Total TTC:")
     ttc_text = f"{total_ttc:.2f} €"
     ttc_width_text = p.stringWidth(ttc_text, "Helvetica-Bold", 10)
@@ -324,6 +326,13 @@ async def generate_estimate_pdf(contract_id: int, db: AsyncSession = Depends(get
     buffer = BytesIO()
     p = canvas.Canvas(buffer, pagesize=letter)
     
+    # Page-break helper
+    def ensure_space(current_y: int, min_y: int = 140) -> int:
+        if current_y < min_y:
+            p.showPage()
+            return 760
+        return current_y
+    
     # Margins and layout
     left = 40
     right = 350
@@ -331,11 +340,17 @@ async def generate_estimate_pdf(contract_id: int, db: AsyncSession = Depends(get
     line_height = 20
     
     # Title
-    p.setFont("Helvetica-Bold", 16)
-    p.drawString(left, y, "DEVIS")
-    p.setFont("Helvetica", 12)
-    p.drawString(left + 80, y, f"N° {contract.command_number}")
+    p.setFont("Helvetica-Bold", 24)
+    p.drawString(left, y, "Facture")
     y -= line_height * 1.5
+    
+    # Invoice number (F + yyMMdd)
+    p.setFont("Helvetica-Bold", 12)
+    p.drawString(left, y, "Numéro de facture")
+    p.setFont("Helvetica", 12)
+    invoice_no = f"F{datetime.now().strftime('%y%m%d')}"
+    p.drawString(left + 170, y, invoice_no)
+    y -= line_height
     
     # Dates
     start_date = contract.date.strftime('%d/%m/%Y') if hasattr(contract, 'date') else ''
@@ -351,6 +366,13 @@ async def generate_estimate_pdf(contract_id: int, db: AsyncSession = Depends(get
     p.drawString(left, y, "Date d'expiration")
     p.setFont("Helvetica", 12)
     p.drawString(left + 170, y, f"{end_date}")
+    y -= line_height
+    
+    # Numéro de bon de commande
+    p.setFont("Helvetica-Bold", 11)
+    p.drawString(left, y, "Numéro de bon de commande")
+    p.setFont("Helvetica", 12)
+    p.drawString(left + 170, y, f"{contract.command_number}" if hasattr(contract, 'command_number') else '')
     y -= line_height
     
     # Logo (top right)
@@ -385,11 +407,22 @@ async def generate_estimate_pdf(contract_id: int, db: AsyncSession = Depends(get
     if client:
         p.drawString(right, right_col_y, client.client_name)
         p.setFont("Helvetica", 10)
-        p.drawString(right, right_col_y - 15, client.email)
-        p.drawString(right, right_col_y - 30, client.phone)
-        if client.tva_number:
-            p.drawString(right, right_col_y - 45, client.tva_number)
-            p.drawString(right, right_col_y - 60, f"Numéro de TVA: {client.tva_number}")
+        # TSA directly under client name if available
+        line_offset = 15
+        if getattr(client, 'tsa_number', None):
+            p.drawString(right, right_col_y - line_offset, f"TSA: {client.tsa_number}")
+            line_offset += 15
+        # Address under TSA if available
+        if getattr(client, 'client_address', None):
+            p.drawString(right, right_col_y - line_offset, client.client_address)
+            line_offset += 15
+        # Phone
+        if getattr(client, 'phone', None):
+            p.drawString(right, right_col_y - line_offset, client.phone)
+            line_offset += 15
+        # TVA number
+        if getattr(client, 'tva_number', None):
+            p.drawString(right, right_col_y - line_offset, f"Numéro de TVA: {client.tva_number}")
     else:
         p.drawString(right, right_col_y, "Client")
         p.setFont("Helvetica", 10)
@@ -399,9 +432,8 @@ async def generate_estimate_pdf(contract_id: int, db: AsyncSession = Depends(get
     
     # Chantier (site/project)
     chantier_y = left_col_y - 100
-    chantier = getattr(contract, 'name', '') if contract else ''
-    p.setFont("Helvetica", 11)
-    p.drawString(left, chantier_y, f"Chantier {chantier if chantier else ''}")
+    p.setFont("Helvetica-Bold", 12)
+    p.drawString(left, chantier_y, "CHANTIER Arc de seine")
     
     # Add table header below chantier
     table_y = chantier_y - 30  # Position below chantier
@@ -445,20 +477,24 @@ async def generate_estimate_pdf(contract_id: int, db: AsyncSession = Depends(get
             p.drawString(current_x + 5, table_header_y - 15, header["text"])
         current_x += header["width"]
     
-    # Fetch contract details
-    contract_details_result = await db.execute(select(ContractDetail).where(ContractDetail.contract_id == contract.id))
-    contract_details = contract_details_result.scalars().all()
+    # Fetch facture items
+    facture_items = await db.execute(select(Facture).where(Facture.contract_id == contract.id))
+    facture_items = facture_items.scalars().all()
     
     # Reset fill color to black for text
     p.setFillColorRGB(0, 0, 0)
     
-    # Draw contract details in the table
-    row_height = 20
+    # Draw facture items in the table
     y_position = table_header_y - 20
     total_amount = 0
     
-    if contract_details:
-        for detail in contract_details:
+    if facture_items:
+        for item in facture_items:
+            # Calculate row height based on description lines
+            description = str(item.description) if item.description else ""
+            description_lines = description.split('\n')
+            additional_lines = min(len(description_lines) - 1, 3) if len(description_lines) > 1 else 0
+            row_height = 20 + (additional_lines * 12)  # Base height + extra for additional lines
             # Check if we need a new page
             if y_position < 100:  # If too close to bottom, start a new page
                 p.showPage()
@@ -484,38 +520,56 @@ async def generate_estimate_pdf(contract_id: int, db: AsyncSession = Depends(get
             current_x = header_x
             p.setFont("Helvetica", 9)
             
-            # Description
-            p.drawString(current_x + 5, y_position - 15, str(detail.description)[:40])
+            # Description - handle multi-line text
+            description = str(item.description) if item.description else ""
+            description_lines = description.split('\n')  # Split by line breaks
+            
+            # Draw first line in the main row
+            first_line = description_lines[0][:40] if description_lines else ""
+            p.drawString(current_x + 5, y_position - 15, first_line)
+            
+            # If there are additional lines, draw them below
+            if len(description_lines) > 1:
+                temp_y = y_position - 15
+                for i, line in enumerate(description_lines[1:], 1):
+                    if i >= 3:  # Limit to 3 additional lines to prevent overflow
+                        break
+                    temp_y -= 12  # Move down for each additional line
+                    if temp_y > 50:  # Make sure we don't go too low on the page
+                        p.drawString(current_x + 5, temp_y, line[:40])
+            
             current_x += headers[0]["width"]
             
             # Quantity
-            qty_text = str(detail.qty)
+            qty_text = str(item.qty)
             qty_width = p.stringWidth(qty_text, "Helvetica", 9)
             p.drawString(current_x + headers[1]["width"] - qty_width - 5, y_position - 15, qty_text)
             current_x += headers[1]["width"]
             
             # Unit Price
-            unit_price_text = f"{detail.unit_price:.2f}"
+            unit_price_text = f"{item.unit_price:.2f}"
             unit_price_width = p.stringWidth(unit_price_text, "Helvetica", 9)
             p.drawString(current_x + headers[2]["width"] - unit_price_width - 5, y_position - 15, unit_price_text)
             current_x += headers[2]["width"]
             
-            # TVA
-            tva_text = f"{detail.tva:.2f}%"
+            # TVA (forced 0%)
+            tva_text = f"{0.00:.2f}%"
             tva_width = p.stringWidth(tva_text, "Helvetica", 9)
             p.drawString(current_x + headers[3]["width"] - tva_width - 5, y_position - 15, tva_text)
             current_x += headers[3]["width"]
             
-            # Total HT
-            total_ht_text = f"{detail.total_ht:.2f}"
+            # Total HT (use pre-calculated total_ht from facture table)
+            total_ht = item.total_ht
+            total_ht_text = f"{total_ht:.2f}"
             total_ht_width = p.stringWidth(total_ht_text, "Helvetica", 9)
             p.drawString(current_x + headers[4]["width"] - total_ht_width - 5, y_position - 15, total_ht_text)
             
             # Add to total
-            total_amount += detail.total_ht
+            total_amount += total_ht
             
-            # Draw horizontal line for this row
-            p.line(header_x, y_position - 20, header_x + total_width, y_position - 20)
+            # Draw horizontal line at the bottom of the row (accounting for variable height)
+            line_y = y_position - row_height
+            p.line(header_x, line_y, header_x + total_width, line_y)
             
             # Move to next row
             y_position -= row_height
@@ -535,8 +589,8 @@ async def generate_estimate_pdf(contract_id: int, db: AsyncSession = Depends(get
         p.drawString(current_x + headers[2]["width"] - price_width - 5, y_position - 15, price_text)
         current_x += headers[2]["width"]
         
-        # TVA (default 20%)
-        p.drawString(current_x + headers[3]["width"] - 25, y_position - 15, "20.00%")
+        # TVA (forced 0%)
+        p.drawString(current_x + headers[3]["width"] - 25, y_position - 15, "0.00%")
         current_x += headers[3]["width"]
         
         # Total HT
@@ -559,7 +613,7 @@ async def generate_estimate_pdf(contract_id: int, db: AsyncSession = Depends(get
     p.line(header_x, y_position, header_x + total_width, y_position)
     
     # Add totals section
-    y_position -= 20
+    y_position = ensure_space(y_position - 20, 160)
     p.setFont("Helvetica-Bold", 10)
     
     # Total HT
@@ -568,22 +622,552 @@ async def generate_estimate_pdf(contract_id: int, db: AsyncSession = Depends(get
     total_width_text = p.stringWidth(total_text, "Helvetica-Bold", 10)
     p.drawString(header_x + total_width - total_width_text - 5, y_position - 15, total_text)
     
-    # TVA
-    y_position -= 20
-    tva_amount = total_amount * 0.20  # Assuming 20% TVA
-    p.drawString(header_x + 5, y_position - 15, "TVA (20%):")
+    # TVA (forced 0%)
+    y_position = ensure_space(y_position - 20, 140)
+    tva_amount = 0.0
+    p.drawString(header_x + 5, y_position - 15, "TVA:")
     tva_text = f"{tva_amount:.2f} €"
     tva_width_text = p.stringWidth(tva_text, "Helvetica-Bold", 10)
     p.drawString(header_x + total_width - tva_width_text - 5, y_position - 15, tva_text)
     
     # Total TTC
-    y_position -= 20
-    total_ttc = total_amount + tva_amount
+    y_position = ensure_space(y_position - 20, 140)
+    total_ttc = total_amount
     p.drawString(header_x + 5, y_position - 15, "Total TTC:")
     ttc_text = f"{total_ttc:.2f} €"
     ttc_width_text = p.stringWidth(ttc_text, "Helvetica-Bold", 10)
     p.drawString(header_x + total_width - ttc_width_text - 5, y_position - 15, ttc_text)
+    
+    # Add legal text above details.png image
+    y_position = ensure_space(y_position - 30, 200)
+    p.setFont("Helvetica", 8)
+    p.drawString(left, y_position, "TVA non applicable - Section 283 du CGI - Autoliquidation des services")
+    y_position -= 12
+    p.drawString(left, y_position, "Type de transaction : Services")
+    y_position -= 12
+    p.drawString(left, y_position, "Pas d'escompte accordé pour paiement anticipé.")
+    y_position -= 12
+    p.drawString(left, y_position, "En cas de non-paiement à la date d'échéance, des pénalités calculées à trois fois le taux d'intérêt légal seront appliquées.")
+    y_position -= 12
+    p.drawString(left, y_position, "Tout retard de paiement entraînera une indemnité forfaitaire pour frais de recouvrement de 40€.")
+    
+    # Add 6 lines of distance before payment details
+    y_position -= (6 * 12)  # 6 lines × 12 points per line = 72 points
+    
+    # Add payment details text below legal text (pay.png image removed)
+    y_position = ensure_space(y_position - 30, 150)
+    p.setFont("Helvetica-Bold", 11)
+    p.drawString(left, y_position, "Détails du paiement")
+    y_position -= 16
+    p.setFont("Helvetica", 9)
+    
+    # Payment details in a structured format
+    label_x = left
+    value_x = left + 150  # align values in a column
+    
+    p.drawString(label_x, y_position, "Nom du bénéficiaire")
+    p.drawString(value_x, y_position, "NEXT NR-GIE")
+    y_position -= 14
+    
+    p.drawString(label_x, y_position, "BIC")
+    p.drawString(value_x, y_position, "QNTOFRP1XXX")
+    y_position -= 14
+    
+    p.drawString(label_x, y_position, "IBAN")
+    p.drawString(value_x, y_position, "FR7616958000013394623012453")
+    y_position -= 14
+    
+    p.drawString(label_x, y_position, "Référence")
+    p.drawString(value_x, y_position, "QECVZDX")
+    
     p.showPage()
     p.save()
     buffer.seek(0)
     return Response(buffer.read(), media_type="application/pdf", headers={"Content-Disposition": f"inline; filename=estimate_{contract.command_number}.pdf"})
+
+@router.get("/facture/{contract_id}")
+async def generate_facture_pdf_by_contract(contract_id: int, db: AsyncSession = Depends(get_db)):
+    """
+    Generate a PDF for facture by contract ID - this is what the frontend expects!
+    """
+    # This is the same as estimate but with "Facture" title instead of "Devis"
+    return await generate_estimate_pdf(contract_id, db)
+
+@router.post("/facture")
+async def generate_facture_pdf(facture_data: dict, db: AsyncSession = Depends(get_db)):
+    """
+    Generate a PDF for a facture
+    """
+    from reportlab.lib.utils import ImageReader
+    
+    buffer = BytesIO()
+    p = canvas.Canvas(buffer, pagesize=letter)
+
+    # Margins and layout
+    left = 40
+    right = 320
+    y = 740
+    line_height = 22
+
+    # Title
+    p.setFont("Helvetica-Bold", 28)
+    p.drawString(left, y, "Facture")
+    y -= 2 * line_height
+
+    # Invoice info (left col)
+    p.setFont("Helvetica-Bold", 12)
+    p.drawString(left, y, "Numéro de facture")
+    p.setFont("Helvetica", 12)
+    p.drawString(left + 170, y, f"{facture_data.get('id', '')}")
+    y -= line_height
+    
+    # Dates
+    p.setFont("Helvetica-Bold", 12)
+    p.drawString(left, y, "Date d'émission")
+    p.setFont("Helvetica", 12)
+    p.drawString(left + 170, y, f"{datetime.now().strftime('%d/%m/%Y')}")
+    y -= line_height
+
+    # Logo (top right)
+    logo_y = 700
+    logo_x = 440
+    logo_width = 150
+    logo_height = 55
+    logo_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "..", "frontend", "public", "logonr.jpg")
+    if os.path.exists(logo_path):
+        p.drawImage(ImageReader(logo_path), logo_x, logo_y, width=logo_width, height=logo_height, mask='auto')
+
+    # Addresses and info
+    y -= 2 * line_height
+    left_col_y = y
+    
+    # LEFT: Supplier
+    p.setFont("Helvetica-Bold", 11)
+    p.drawString(left, left_col_y, "NEXT NR–GIE")
+    p.setFont("Helvetica", 10)
+    p.drawString(left, left_col_y - 15, "2 Rue Des Frênes")
+    p.drawString(left, left_col_y - 30, "91100 Corbeil-Essonnes, FR")
+    p.drawString(left, left_col_y - 45, "nextrngie@gmail.com")
+    p.drawString(left, left_col_y - 60, "93060154700019")
+    p.drawString(left, left_col_y - 75, "Numéro de TVA: FR26930601547")
+
+    # RIGHT: Client
+    p.setFont("Helvetica-Bold", 11)
+    p.drawString(right, left_col_y, f"Client: {facture_data.get('client_name', 'Non spécifié')}")
+    p.setFont("Helvetica", 10)
+    
+    client_address = facture_data.get('client_address')
+    if client_address:
+        p.drawString(right, left_col_y - 15, client_address)
+    
+    client_email = facture_data.get('client_email')
+    client_phone = facture_data.get('client_phone')
+    client_tva = facture_data.get('client_tva')
+    
+    y_offset = left_col_y - 15
+    if client_email and client_email != 'N/A':
+        y_offset -= 15
+        p.drawString(right, y_offset, f"Email: {client_email}")
+    
+    if client_phone and client_phone != 'N/A':
+        y_offset -= 15
+        p.drawString(right, y_offset, f"Tél: {client_phone}")
+    
+    if client_tva and client_tva != 'N/A':
+        y_offset -= 15
+        p.drawString(right, y_offset, f"N° TVA: {client_tva}")
+
+    # Line items header
+    y = left_col_y - 120
+    p.setFont("Helvetica-Bold", 10)
+    p.drawString(left, y, "Désignation")
+    p.drawString(350, y, "Qté")
+    p.drawString(400, y, "Prix U. HT")
+    p.drawString(500, y, "Total HT")
+    y -= 15
+    p.line(left, y, 550, y)
+    y -= 15
+
+    # Line items
+    p.setFont("Helvetica", 10)
+    total_ht = float(facture_data.get('total_ht', 0))
+    
+    # Add facture items with line break preservation for description
+    description = facture_data.get('description', '')
+    
+    # Split description by line breaks first, then handle word wrapping for each line
+    description_lines = description.split('\n')
+    lines = []
+    max_width = 250  # Maximum width for description before wrapping
+    
+    # Process each line separately to preserve line breaks
+    for desc_line in description_lines:
+        if not desc_line.strip():  # Empty line
+            lines.append('')
+            continue
+            
+        # Word wrap this line if it's too long
+        words = desc_line.split()
+        current_line = []
+        current_width = 0
+        
+        for word in words:
+            word_width = p.stringWidth(word + ' ', 'Helvetica', 10)
+            if current_width + word_width <= max_width:
+                current_line.append(word)
+                current_width += word_width
+            else:
+                if current_line:  # Only append if there's content
+                    lines.append(' '.join(current_line))
+                current_line = [word]
+                current_width = word_width
+        
+        if current_line:
+            lines.append(' '.join(current_line))
+    
+    # Draw the first line with all data
+    first_line_y = y
+    p.drawString(left, first_line_y, lines[0] if lines else '')
+    p.drawString(370, first_line_y, str(facture_data.get('qty', 0)))
+    p.drawString(420, first_line_y, f"{float(facture_data.get('unit_price', 0)):.2f} €")
+    p.drawString(500, first_line_y, f"{total_ht:.2f} €")
+    
+    # Draw remaining description lines indented
+    for i in range(1, len(lines)):
+        first_line_y -= 15
+        p.drawString(left + 10, first_line_y, lines[i])
+    
+    y = first_line_y - 25  # Extra space after description
+
+    # Totals
+    p.line(400, y, 550, y)
+    y -= 20
+    p.setFont("Helvetica-Bold", 10)
+    p.drawString(400, y, "Total HT:")
+    p.drawString(500, y, f"{total_ht:.2f} €")
+    y -= 20
+    
+    # TVA forced to 0%
+    tva_rate = 0.0
+    tva_amount = 0.0
+    total_ttc = total_ht
+    
+    p.drawString(400, y, f"TVA (0%):")
+    p.drawString(500, y, f"{tva_amount:.2f} €")
+    y -= 20
+    
+    p.line(400, y, 550, y)
+    y -= 20
+    p.setFont("Helvetica-Bold", 12)
+    p.drawString(400, y, "Total TTC:")
+    p.drawString(500, y, f"{total_ttc:.2f} €")
+    
+    # Legal notes under Total TTC (small font) — let content flow naturally
+    y = ensure_space(y - 30, 200)
+    p.setStrokeColorRGB(0.2, 0.2, 0.2)
+    p.line(40, y, 550, y)
+    y -= 18
+    p.setFont("Helvetica", 8)
+    p.drawString(left, y, "TVA non applicable - Section 283 du CGI - Autoliquidation des services")
+    y -= 12
+    p.drawString(left, y, "Type de transaction : Services")
+    y -= 12
+    p.drawString(left, y, "Pas d’escompte accordé pour paiement anticipé.")
+    y -= 12
+    p.drawString(left, y, "En cas de non-paiement à la date d’échéance, des pénalités calculées à trois fois le taux d’intérêt légal seront appliquées.")
+    y -= 12
+    p.drawString(left, y, "Tout retard de paiement entraînera une indemnité forfaitaire pour frais de recouvrement de 40€.")
+
+    # Payment details section
+    y = ensure_space(y - 18, 160)
+    p.setFont("Helvetica-Bold", 11)
+    p.drawString(left, y, "Détails du paiement")
+    y -= 16
+    p.setFont("Helvetica", 9)
+    label_x = left
+    value_x = right  # align values in a right column
+    p.drawString(label_x, y, "Nom du bénéficiaire")
+    p.drawString(value_x, y, "NEXT NR-GIE")
+    y -= 14
+    p.drawString(label_x, y, "BIC")
+    p.drawString(value_x, y, "QNTOFRP1XXX")
+    y -= 14
+    p.drawString(label_x, y, "IBAN")
+    p.drawString(value_x, y, "FR7616958000013394623012453")
+    y -= 14
+    p.drawString(label_x, y, "Référence")
+    p.drawString(value_x, y, "QECVZDX")
+
+    # Footer
+    # Show invoice number in footer
+    y = ensure_space(y, 130)
+    y = 115
+    p.setFont("Helvetica", 8)
+    p.drawString(left, y, f"Numéro de facture: {invoice_no}")
+    # Company footer lines
+    y = 100
+    p.setFont("Helvetica", 8)
+    p.drawString(left, y, "NEXT NR-GIE - 2 Rue Des Frênes, 91100 Corbeil-Essonnes - Tél: +33 7 83 19 48 75 - Email: nextrngie@gmail.com")
+    y -= 15
+    p.drawString(left, y, "SIRET: 930 601 547 00019 - TVA Intracommunautaire: FR26930601547")
+
+    p.save()
+    buffer.seek(0)
+    return Response(content=buffer.getvalue(), media_type="application/pdf", headers={
+        "Cache-Control": "no-store, max-age=0",
+        "Pragma": "no-cache"
+    })
+
+@router.post("/devis")
+async def generate_devis_pdf(payload: dict):
+    """
+    Generate a Devis PDF from a payload (client + items).
+    Expected payload format:
+    {
+      "name": "Devis ClientName 01/01/2025",
+      "client": {"name": str, "email": str, "phone": str, "tva": str},
+      "items": [
+        {"description": str, "qty": number, "unit_price": number, "tva": number, "total_ht": number}, ...
+      ]
+    }
+    """
+    from reportlab.lib.utils import ImageReader
+
+    buffer = BytesIO()
+    p = canvas.Canvas(buffer, pagesize=letter)
+
+    # Page-break helper
+    def ensure_space(current_y: int, min_y: int = 140) -> int:
+        if current_y < min_y:
+            p.showPage()
+            return 760
+        return current_y
+
+    # Layout
+    left = 40
+    right = 320
+    y = 740
+    line_height = 22
+
+    # Always use a fixed title for Devis, without client name/date from payload
+    title = "Devis"
+    client = payload.get("client", {})
+    items = payload.get("items", []) or []
+
+    # Title
+    p.setFont("Helvetica-Bold", 24)
+    p.drawString(left, y, title)
+    y -= int(1.5 * line_height)
+
+    # Devis number
+    p.setFont("Helvetica-Bold", 12)
+    p.drawString(left, y, "Numéro de devis")
+    p.setFont("Helvetica", 12)
+    p.drawString(left + 170, y, f"{payload.get('devis_number', '')}")
+    y -= line_height
+
+    # Issue date
+    p.setFont("Helvetica-Bold", 12)
+    p.drawString(left, y, "Date d'émission")
+    p.setFont("Helvetica", 12)
+    p.drawString(left + 170, y, f"{datetime.now().strftime('%d/%m/%Y')}")
+    y -= line_height
+    # Expiration date (from payload.expiration)
+    exp_iso = payload.get("expiration")
+    exp_text = ""
+    if exp_iso:
+      try:
+        # Support ISO with trailing 'Z' (UTC)
+        iso2 = exp_iso.replace('Z', '+00:00')
+        exp_dt = datetime.fromisoformat(iso2)
+        exp_text = exp_dt.strftime('%d/%m/%Y')
+      except Exception:
+        try:
+          # Fallback: parse as YYYY-MM-DD
+          date_part = exp_iso.split('T')[0]
+          y_, m_, d_ = date_part.split('-')
+          exp_text = f"{d_}/{m_}/{y_}"
+        except Exception:
+          exp_text = ""
+    p.setFont("Helvetica-Bold", 12)
+    p.drawString(left, y, "Date d'expiration")
+    p.setFont("Helvetica", 12)
+    p.drawString(left + 170, y, exp_text)
+    y -= line_height
+
+    # Logo (top right)
+    logo_y = 700
+    logo_x = 440
+    logo_width = 150
+    logo_height = 55
+    logo_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "..", "frontend", "public", "logonr.jpg")
+    if os.path.exists(logo_path):
+        p.drawImage(ImageReader(logo_path), logo_x, logo_y, width=logo_width, height=logo_height, mask='auto')
+
+    # Supplier
+    y -= 2 * line_height
+    left_col_y = y
+    right_col_y = y
+    p.setFont("Helvetica-Bold", 11)
+    p.drawString(left, left_col_y, "NEXT NR–GIE")
+    p.setFont("Helvetica", 10)
+    p.drawString(left, left_col_y - 15, "2 Rue Des Frênes")
+    p.drawString(left, left_col_y - 30, "91100 Corbeil-Essonnes, FR")
+    p.drawString(left, left_col_y - 45, "nextrngie@gmail.com")
+    p.drawString(left, left_col_y - 60, "93060154700019")
+    p.drawString(left, left_col_y - 75, "Numéro de TVA: FR26930601547")
+
+    # Client
+    p.setFont("Helvetica-Bold", 11)
+    p.drawString(right, right_col_y, client.get("name") or "Client")
+    p.setFont("Helvetica", 10)
+    if client.get("tsa_number"): p.drawString(right, right_col_y - 15, f"TSA: {client.get('tsa_number')}")
+    if client.get("client_address"): p.drawString(right, right_col_y - 30, client.get("client_address"))
+    if client.get("phone"): p.drawString(right, right_col_y - 45, client.get("phone"))
+    if client.get("tva"): p.drawString(right, right_col_y - 60, f"Numéro de TVA: {client.get('tva')}")
+
+    # Table header
+    chantier_y = left_col_y - 100
+    table_y = chantier_y - 30
+    table_header_y = table_y + 20
+
+    headers = [
+        {"text": "Description", "width": 250},
+        {"text": "Qté", "width": 70},
+        {"text": "Prix unitaire", "width": 100},
+        {"text": "TVA (%)", "width": 60},
+        {"text": "Total HT", "width": 70},
+    ]
+    total_width = sum(h["width"] for h in headers)
+    page_width = 550
+    header_x = (page_width - total_width) / 2 + 40
+
+    p.setFillColorRGB(0, 0, 0)
+    p.rect(header_x, table_header_y - 20, total_width, 20, fill=1)
+    p.setFillColorRGB(1, 1, 1)
+    current_x = header_x
+    p.setFont("Helvetica-Bold", 10)
+    for h in headers:
+        if h["text"] == "Total HT":
+            text_width = p.stringWidth(h["text"], "Helvetica-Bold", 10)
+            p.drawString(current_x + h["width"] - text_width - 5, table_header_y - 15, h["text"])
+        else:
+            p.drawString(current_x + 5, table_header_y - 15, h["text"])
+        current_x += h["width"]
+
+    # Items rows
+    p.setFillColorRGB(0, 0, 0)
+    y_pos = table_header_y - 20
+    total_amount = 0.0
+
+    for item in items:
+        # Calculate row height based on description lines
+        description = str(item.get("description", ""))
+        description_lines = description.split('\n')
+        additional_lines = min(len(description_lines) - 1, 3) if len(description_lines) > 1 else 0
+        row_height = 20 + (additional_lines * 12)  # Base height + extra for additional lines
+        if y_pos < 100:
+            p.showPage()
+            p.setFont("Helvetica", 10)
+            y_pos = 750
+            # Redraw header on new page
+            p.setFillColorRGB(0, 0, 0)
+            p.rect(header_x, y_pos, total_width, 20, fill=1)
+            p.setFillColorRGB(1, 1, 1)
+            current_x = header_x
+            for h in headers:
+                if h["text"] == "Total HT":
+                    text_width = p.stringWidth(h["text"], "Helvetica-Bold", 10)
+                    p.drawString(current_x + h["width"] - text_width - 5, y_pos - 15, h["text"])
+                else:
+                    p.drawString(current_x + 5, y_pos - 15, h["text"])
+                current_x += h["width"]
+            y_pos -= 20
+            p.setFillColorRGB(0, 0, 0)
+
+        current_x = header_x
+        p.setFont("Helvetica", 9)
+        
+        # Description - handle multi-line text
+        description = str(item.get("description", ""))
+        description_lines = description.split('\n')  # Split by line breaks
+        
+        # Draw first line in the main row
+        first_line = description_lines[0][:60] if description_lines else ""
+        p.drawString(current_x + 5, y_pos - 15, first_line)
+        
+        # If there are additional lines, draw them below
+        if len(description_lines) > 1:
+            temp_y = y_pos - 15
+            for i, line in enumerate(description_lines[1:], 1):
+                if i >= 3:  # Limit to 3 additional lines to prevent overflow
+                    break
+                temp_y -= 12  # Move down for each additional line
+                if temp_y > 50:  # Make sure we don't go too low on the page
+                    p.drawString(current_x + 5, temp_y, line[:60])
+        
+        current_x += headers[0]["width"]
+        # Qte
+        qty_text = str(item.get("qty", 0))
+        qty_width = p.stringWidth(qty_text, "Helvetica", 9)
+        p.drawString(current_x + headers[1]["width"] - qty_width - 5, y_pos - 15, qty_text)
+        current_x += headers[1]["width"]
+        # Unit price
+        unit_price = float(item.get("unit_price", 0))
+        unit_price_text = f"{unit_price:.2f}"
+        unit_price_width = p.stringWidth(unit_price_text, "Helvetica", 9)
+        p.drawString(current_x + headers[2]["width"] - unit_price_width - 5, y_pos - 15, unit_price_text)
+        current_x += headers[2]["width"]
+        # TVA
+        tva_val = float(item.get("tva", 0))
+        tva_text = f"{tva_val:.2f}%"
+        tva_width = p.stringWidth(tva_text, "Helvetica", 9)
+        p.drawString(current_x + headers[3]["width"] - tva_width - 5, y_pos - 15, tva_text)
+        current_x += headers[3]["width"]
+        # Total HT
+        total_ht = float(item.get("total_ht", (unit_price * float(item.get("qty", 0)))))
+        total_ht_text = f"{total_ht:.2f}"
+        total_ht_width = p.stringWidth(total_ht_text, "Helvetica", 9)
+        p.drawString(current_x + headers[4]["width"] - total_ht_width - 5, y_pos - 15, total_ht_text)
+
+        total_amount += total_ht
+        # Draw horizontal line at the bottom of the row (accounting for variable height)
+        line_y = y_pos - row_height
+        p.line(header_x, line_y, header_x + total_width, line_y)
+        y_pos -= row_height
+
+    # Column lines
+    current_x = header_x
+    for h in headers[:-1]:
+        p.line(current_x, table_header_y, current_x, y_pos)
+        current_x += h["width"]
+    p.line(current_x, table_header_y, current_x, y_pos)
+    p.line(header_x, y_pos, header_x + total_width, y_pos)
+
+    # Totals
+    y_pos = ensure_space(y_pos - 20, 160)
+    p.setFont("Helvetica-Bold", 10)
+    p.drawString(header_x + 5, y_pos - 15, "Total HT:")
+    total_text = f"{total_amount:.2f} €"
+    total_width_text = p.stringWidth(total_text, "Helvetica-Bold", 10)
+    p.drawString(header_x + total_width - total_width_text - 5, y_pos - 15, total_text)
+
+    y_pos = ensure_space(y_pos - 20, 140)
+    tva_amount = 0.0
+    p.drawString(header_x + 5, y_pos - 15, "TVA:")
+    tva_text = f"{tva_amount:.2f} €"
+    tva_width_text = p.stringWidth(tva_text, "Helvetica-Bold", 10)
+    p.drawString(header_x + total_width - tva_width_text - 5, y_pos - 15, tva_text)
+
+    y_pos = ensure_space(y_pos - 20, 140)
+    total_ttc = total_amount
+    p.drawString(header_x + 5, y_pos - 15, "Total TTC:")
+    ttc_text = f"{total_ttc:.2f} €"
+    ttc_width_text = p.stringWidth(ttc_text, "Helvetica-Bold", 10)
+    p.drawString(header_x + total_width - ttc_width_text - 5, y_pos - 15, ttc_text)
+
+    p.showPage()
+    p.save()
+    buffer.seek(0)
+    filename = f"devis_{datetime.now().strftime('%Y%m%d_%H%M%S')}.pdf"
+    return Response(buffer.read(), media_type="application/pdf", headers={"Content-Disposition": f"inline; filename={filename}"})

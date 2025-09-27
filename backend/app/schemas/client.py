@@ -7,6 +7,11 @@ class ClientBase(BaseModel):
     email: EmailStr
     phone: str
     tva_number: Optional[str] = None
+    tsa_number: Optional[str] = None
+    contact_person: Optional[str] = None
+    contact_person_phone: Optional[str] = None
+    contact_person_designation: Optional[str] = None
+    client_address: Optional[str] = None
 
 class ClientCreate(ClientBase):
     pass

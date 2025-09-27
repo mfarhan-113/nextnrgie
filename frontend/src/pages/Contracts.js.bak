@@ -1,0 +1,2128 @@
+import React, { useState, useEffect } from 'react';
+import { Link, useLocation } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
+import axios from 'axios';
+
+// Material UI Components
+import Box from '@mui/material/Box';
+import Typography from '@mui/material/Typography';
+import IconButton from '@mui/material/IconButton';
+import Tooltip from '@mui/material/Tooltip';
+import CircularProgress from '@mui/material/CircularProgress';
+import { CssBaseline } from '@mui/material';
+
+// Material UI Icons
+import SearchIcon from '@mui/icons-material/Search';
+import EditIcon from '@mui/icons-material/Edit';
+import DeleteIcon from '@mui/icons-material/Delete';
+import VisibilityIcon from '@mui/icons-material/Visibility';
+import DownloadIcon from '@mui/icons-material/Download';
+import WarningIcon from '@mui/icons-material/Warning';
+import NavigateBeforeIcon from '@mui/icons-material/NavigateBefore';
+import NavigateNextIcon from '@mui/icons-material/NavigateNext';
+import CloseIcon from '@mui/icons-material/Close';
+import GetAppIcon from '@mui/icons-material/GetApp';
+import ErrorOutlineIcon from '@mui/icons-material/ErrorOutline';
+import CheckCircleOutlineIcon from '@mui/icons-material/CheckCircleOutline';
+import MenuIcon from '@mui/icons-material/Menu';
+import AddIcon from '@mui/icons-material/Add';
+import { People, Description, AccountBalance, AttachMoney, MoreHoriz, Dashboard as DashboardIcon } from '@mui/icons-material';
+
+// Components
+import Sidebar from '../components/Sidebar';
+import Navbar from '../components/Navbar';
+
+// Styles
+import '../modern-contracts.css';
+
+
+const Contracts = () => {
+  const { t } = useTranslation();
+  // State for contract details modal
+  const [detailsModal, setDetailsModal] = useState(null);
+  const [contractPrice, setContractPrice] = useState(0);
+  
+  // State for contract details
+  const [detailsForm, setDetailsForm] = useState({
+    description: '',
+    qty: '',
+    unit_price: '',
+    tva: '',
+    total_ht: ''
+  });
+  const [contractDetails, setContractDetails] = useState({}); // { [contractId]: [details, ...] }
+
+  // ...existing code
+
+  // State for edit mode of contract details
+  const [editingDetail, setEditingDetail] = useState(null);
+
+  // Handlers for contract details modal
+  const handleDetailsChange = (e) => {
+    const { name, value } = e.target;
+    let updatedForm = { ...detailsForm, [name]: value };
+    
+    // Auto-calculate total_ht when qty or unit_price changes
+    if (name === 'qty' || name === 'unit_price') {
+      const qty = name === 'qty' ? parseFloat(value) || 0 : parseFloat(detailsForm.qty) || 0;
+      const unitPrice = name === 'unit_price' ? parseFloat(value) || 0 : parseFloat(detailsForm.unit_price) || 0;
+      updatedForm.total_ht = (qty * unitPrice).toFixed(2);
+    }
+    
+    setDetailsForm(updatedForm);
+  };
+
+  // Facture functionality has been moved to the Factures page
+  // Fetch contract data
+    try {
+      setLoadingFactures(true);
+      const [facturesResponse, contractResponse] = await Promise.all([
+        axios.get(`${process.env.REACT_APP_API_URL}/factures/contract/${contractId}`, {
+          headers: {
+            'Authorization': `Bearer ${localStorage.getItem('token')}`
+          }
+        }),
+        axios.get(`${process.env.REACT_APP_API_URL}/contracts/${contractId}`, {
+          headers: {
+            'Authorization': `Bearer ${localStorage.getItem('token')}`
+          }
+        })
+      ]);
+      
+      setFactures(facturesResponse.data);
+      
+      // Log the raw response data
+      console.log('Raw Contract Response Data:', JSON.stringify(contractResponse.data, null, 2));
+      
+      // Get the contract data and ensure price is a number
+      const contract = contractResponse.data;
+      // Set contract price from the contract data
+      const contractPrice = parseFloat(contractResponse.data.price) || 0;
+      setContractPrice(contractPrice);
+      
+      // Set remaining devis amount
+      setRemainingDevisAmount(contractPrice);
+      
+      // Set remaining facture amount
+      setRemainingFactureAmount(contractPrice);
+      
+      // Log the contract ID and price for debugging
+      console.log('Contract ID:', contract.id, 'Price:', contractPrice, 'Type:', typeof contractPrice);
+      
+      // Calculate total of all factures
+      const totalFactured = facturesResponse.data.reduce((sum, item) => {
+        // Handle both string and number formats, and ensure it's a valid number
+        const itemTotal = Number(item.total_ht) || 0;
+        return sum + itemTotal;
+      }, 0);
+      
+      // Calculate remaining amount (ensure it doesn't go below 0)
+      const remaining = Math.max(0, contractPrice - totalFactured);
+      
+      // Log for debugging
+      console.log('Contract Price:', contractPrice, typeof contractPrice);
+      console.log('Total Factured:', totalFactured, typeof totalFactured);
+      console.log('Remaining Amount:', remaining, typeof remaining);
+      
+      // Update facture remaining amount (2 decimal places)
+      const formattedRemaining = parseFloat(remaining.toFixed(2));
+      setRemainingFactureAmount(formattedRemaining);
+    } catch (error) {
+      console.error('Error fetching factures:', error);
+      setError('Failed to load factures');
+    } finally {
+      setLoadingFactures(false);
+    }
+  };
+
+  // Fetch contract details for a specific contract
+  const fetchContractDetails = async (contractId) => {
+    try {
+      setLoading(true);
+      
+      // Fetch both contract details and contract data
+      const [detailsResponse, contractResponse] = await Promise.all([
+        axios.get(`${process.env.REACT_APP_API_URL}/contract-details/contract/${contractId}`, {
+          headers: {
+            'Authorization': `Bearer ${localStorage.getItem('token')}`
+          }
+        }),
+        axios.get(`${process.env.REACT_APP_API_URL}/contracts/${contractId}`, {
+          headers: {
+            'Authorization': `Bearer ${localStorage.getItem('token')}`
+          }
+        })
+      ]);
+      
+      // Set contract price from the contract data
+      const contractPrice = parseFloat(contractResponse.data.price) || 0;
+      setContractPrice(contractPrice);
+      
+      // Group details by document type and calculate totals
+      const detailsByType = {};
+      let totalDevis = 0;
+      
+      detailsResponse.data.forEach(detail => {
+        const type = detail.document_type || 'devis';
+        if (!detailsByType[type]) {
+          detailsByType[type] = [];
+        }
+        detailsByType[type].push(detail);
+        
+        // Only sum up devis items for remaining balance calculation
+        if (type === 'devis') {
+          totalDevis += parseFloat(detail.total_ht) || 0;
+        }
+      });
+      
+      // Calculate remaining balances
+      const remainingDevis = Math.max(0, contractPrice - totalDevis);
+      setRemainingDevisAmount(remainingDevis);
+      
+      // For factures, we'll use the contract price as the initial remaining amount
+      // This can be updated separately when needed
+      setRemainingFactureAmount(contractPrice);
+      
+      setContractDetails(prev => ({
+        ...prev,
+        [contractId]: detailsByType
+      }));
+      
+      // Return the contract price and remaining devis amount for further use if needed
+      return { contractPrice, remainingDevis };
+      
+    } catch (error) {
+      console.error('Error fetching contract details:', error);
+      setError(t('error_loading_data'));
+      throw error; // Re-throw to handle in the calling function if needed
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Handle facture deletion
+  const handleDeleteFacture = async (factureId) => {
+    if (!window.confirm(t('confirm_delete'))) {
+      return;
+    }
+    
+    try {
+      setLoading(true);
+      const response = await axios.delete(`${process.env.REACT_APP_API_URL}/factures/${factureId}`, {
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('token')}`
+        }
+      });
+      
+      if (response.status === 200) {
+        setToast(t('document_deleted'));
+        // Refresh the factures list
+        if (factureModal) {
+          await fetchFactures(factureModal);
+        }
+      }
+    } catch (error) {
+      console.error('Error deleting facture item:', error);
+      setError(t('error_deleting_data'));
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Handle facture form submission
+  const handleFactureSubmit = async (e) => {
+    e.preventDefault();
+    setLoading(true);
+    setError('');
+    
+    try {
+      const factureData = {
+        ...factureForm,
+        contract_id: factureModal,
+        qty: parseFloat(factureForm.qty) || 0,
+        unit_price: parseFloat(factureForm.unit_price) || 0,
+        tva: parseFloat(factureForm.tva) || 0,
+        total_ht: parseFloat(factureForm.total_ht) || 0
+      };
+
+      console.log('Sending facture data to API:', factureData);
+      console.log('API URL:', `${process.env.REACT_APP_API_URL}/factures/`);
+      
+      const response = await axios.post(`${process.env.REACT_APP_API_URL}/factures/`, factureData, {
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('token')}`
+        }
+      });
+      
+      console.log('API Response:', response);
+      
+      if (response.status === 200 || response.status === 201) {
+        setToast(t('document_saved'));
+        
+        // Update remaining facture amount by subtracting the new facture amount
+        const factureAmount = parseFloat(factureData.total_ht) || 0;
+        setRemainingFactureAmount(prevRemaining => {
+          const newRemaining = (parseFloat(prevRemaining) - factureAmount).toFixed(2);
+          return parseFloat(newRemaining) >= 0 ? parseFloat(newRemaining) : 0;
+        });
+        
+        // Refresh the factures list after adding a new one
+        if (factureModal) {
+          fetchFactures(factureModal);
+        }
+      } else {
+        throw new Error(`Unexpected response status: ${response.status}`);
+      }
+      
+      // Reset form and close modal
+      setFactureForm({
+        description: '',
+        qty: '',
+        unit_price: '',
+        tva: '',
+        total_ht: ''
+      });
+      setFactureModal(null);
+      
+      // Refresh contracts to get updated data
+      await fetchContracts();
+      
+    } catch (err) {
+      console.error('Error saving facture item:', err);
+      setError(err.response?.data?.detail || 'Failed to save facture item.');
+    } finally {
+      setLoading(false);
+    }
+  };
+  
+  // Handle adding or updating contract detail
+  const handleDetailsSubmit = async (e, contractId, documentType = 'devis') => {
+    e.preventDefault();
+    setLoading(true);
+    setError('');
+    
+    try {
+      const detailData = {
+        ...detailsForm,
+        contract_id: contractId,
+        qty: parseInt(detailsForm.qty),
+        unit_price: parseFloat(detailsForm.unit_price),
+        tva: parseFloat(detailsForm.tva),
+        total_ht: parseFloat(detailsForm.total_ht),
+        document_type: documentType
+      };
+      
+      if (editingDetail) {
+        // Update existing detail
+        console.log('Updating contract detail:', detailData);
+        await axios.put(`${process.env.REACT_APP_API_URL}/contract-details/${editingDetail.id}`, detailData);
+        setToast(t('document_saved'));
+      } else {
+        // Add new detail
+        console.log('Adding contract detail:', detailData);
+        await axios.post(`${process.env.REACT_APP_API_URL}/contract-details/`, detailData);
+        setToast(t('document_saved'));
+      }
+      
+      // Reset form and close modal
+      setDetailsForm({ description: '', qty: '', unit_price: '', tva: '', total_ht: '' });
+      setEditingDetail(null);
+      setDetailsModal(null);
+      
+      // Refresh contracts to get updated data
+      await fetchContracts();
+      
+      // Recalculate remaining balance based on document type
+      const contractPrice = parseFloat(contracts.find(c => c.id === contractId)?.price || 0);
+      
+      if (documentType === 'devis') {
+        const devisResponse = await axios.get(`${process.env.REACT_APP_API_URL}/contract-details/contract/${contractId}?document_type=devis`, {
+          headers: {
+            'Authorization': `Bearer ${localStorage.getItem('token')}`
+          }
+        });
+        
+        const totalDevis = devisResponse.data.reduce((sum, item) => {
+          return sum + (parseFloat(item.total_ht) || 0);
+        }, 0);
+        
+        const remainingDevis = Math.max(0, contractPrice - totalDevis);
+        setRemainingDevisAmount(remainingDevis);
+      } else if (documentType === 'facture') {
+        const factureResponse = await axios.get(`${process.env.REACT_APP_API_URL}/contract-details/contract/${contractId}?document_type=facture`, {
+          headers: {
+            'Authorization': `Bearer ${localStorage.getItem('token')}`
+          }
+        });
+        
+        const totalFacture = factureResponse.data.reduce((sum, item) => {
+          return sum + (parseFloat(item.total_ht) || 0);
+        }, 0);
+        
+        const remainingFacture = Math.max(0, contractPrice - totalFacture);
+        setRemainingFactureAmount(remainingFacture);
+      }
+      
+      setTimeout(() => setToast(''), 3000);
+    } catch (err) {
+      console.error('Error saving contract detail:', err);
+      setError(t('error_saving_data'));
+    } finally {
+      setLoading(false);
+    }
+  };
+  
+  // Handle deleting a contract detail
+  const handleDeleteDetail = async (detailId) => {
+    if (!window.confirm(t('confirm_delete'))) return;
+    
+    setLoading(true);
+    try {
+      await axios.delete(`${process.env.REACT_APP_API_URL}/contract-details/${detailId}`);
+      setToast(t('document_deleted'));
+      
+      // Refresh contracts to get updated data
+      await fetchContracts();
+      
+      // Reset form if deleting the currently edited item
+      if (editingDetail && editingDetail.id === detailId) {
+        setEditingDetail(null);
+        setDetailsForm({ description: '', qty: '', unit_price: '', tva: '', total_ht: '' });
+      }
+      
+      setTimeout(() => setToast(''), 3000);
+    } catch (err) {
+      console.error('Error deleting contract detail:', err);
+      setError(t('error_deleting_data'));
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const location = useLocation();
+  const [mobileOpen, setMobileOpen] = useState(false);
+  const handleDrawerToggle = () => setMobileOpen(!mobileOpen);
+
+  const [contracts, setContracts] = useState([]);
+  const [clients, setClients] = useState([]);
+  const [form, setForm] = useState({ 
+    command_number: '', 
+    price: '', 
+    date: '', 
+    deadline: '', 
+    guarantee_percentage: '', 
+    contact_person: '', 
+    contact_phone: '',
+    contact_email: '',
+    contact_address: '',
+    client_id: '' 
+  });
+  const [search, setSearch] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+  const [toast, setToast] = useState('');
+  const [modal, setModal] = useState({ show: false, contract: null });
+  const [editModal, setEditModal] = useState({ show: false, contract: null });
+  const [pdfModal, setPdfModal] = useState({ show: false, url: '', title: '' });
+  const [page, setPage] = useState(1);
+  const [perPage] = useState(8);
+
+  // Fetch contracts and clients
+  const fetchContracts = async () => {
+    setLoading(true);
+    setError('');
+    try {
+      const res = await axios.get(`${process.env.REACT_APP_API_URL}/contracts/`);
+      setContracts(res.data);
+      
+      // Fetch contract details for each contract
+      const detailsObj = {};
+      for (const contract of res.data) {
+        try {
+          const detailsRes = await axios.get(`${process.env.REACT_APP_API_URL}/contract-details/contract/${contract.id}`);
+          if (detailsRes.data.length > 0) {
+            detailsObj[contract.id] = detailsRes.data;
+          }
+        } catch (detailErr) {
+          console.error(`Failed to load details for contract ${contract.id}:`, detailErr);
+        }
+      }
+      
+      setContractDetails(detailsObj);
+    } catch (err) {
+      console.error('Error fetching contracts:', err);
+      setError(t('error_loading_data'));
+    } finally {
+      setLoading(false);
+    }
+  };
+  const fetchClients = async () => {
+    try {
+      const res = await axios.get(`${process.env.REACT_APP_API_URL}/clients/`);
+      console.log('Clients data:', res.data); // Debug log
+      
+      // Map the clients data to the expected format
+      const formattedClients = res.data.map(client => ({
+        value: client.id,
+        label: client.client_name || `Client #${client.client_number}`
+      }));
+      
+      setClients(formattedClients);
+    } catch (err) {
+      console.error('Error fetching clients:', err);
+      setClients([]);
+    }
+  };
+  useEffect(() => { fetchContracts(); fetchClients(); }, []);
+
+  // Form handlers
+  const handleChange = (e) => {
+    if (e.target.name === 'client_id') {
+      // When client is selected from dropdown, update client_id
+      setForm({ ...form, client_id: e.target.value });
+    } else {
+      setForm({ ...form, [e.target.name]: e.target.value });
+    }
+  };
+
+  // Edit form handlers
+  const [editForm, setEditForm] = useState({ 
+    command_number: '', 
+    price: '', 
+    date: '', 
+    deadline: '', 
+    guarantee_percentage: '', 
+    contact_person: '', 
+    contact_phone: '',
+    contact_email: '',
+    contact_address: '',
+    client_id: '' 
+  });
+  const [editError, setEditError] = useState('');
+  const handleEditChange = (e) => {
+    setEditForm({ ...editForm, [e.target.name]: e.target.value });
+  };
+  const openEditModal = (contract) => {
+    setEditForm({
+      command_number: contract.command_number || '',
+      price: contract.price || '',
+      date: contract.date ? contract.date.split('T')[0] : '',
+      deadline: contract.deadline ? contract.deadline.split('T')[0] : '',
+      guarantee_percentage: contract.guarantee_percentage || '',
+      contact_person: contract.contact_person || '',
+      contact_phone: contract.contact_phone || '',
+      contact_email: contract.contact_email || '',
+      contact_address: contract.contact_address || '',
+      client_id: contract.client_id || ''
+    });
+    setEditError('');
+    setEditModal({ show: true, contract });
+  };
+  const closeEditModal = () => {
+    setEditModal({ show: false, contract: null });
+    setEditError('');
+  };
+  const handleEditSubmit = async (e) => {
+    e.preventDefault();
+    if (!editForm.command_number || !editForm.price || !editForm.date || !editForm.deadline || !editForm.guarantee_percentage || !editForm.contact_person || !editForm.client_id) {
+      setEditError(t('all_fields_required'));
+      return;
+    }
+    setLoading(true);
+    try {
+      await axios.put(`${process.env.REACT_APP_API_URL}/contracts/${editModal.contract.id}`, editForm);
+      setToast(t('contract_updated'));
+      fetchContracts();
+      closeEditModal();
+    } catch (err) {
+      setEditError(t('error_saving_data'));
+    } finally {
+      setLoading(false);
+      setTimeout(() => setToast(''), 2500);
+    }
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    if (!form.price || !form.date || !form.deadline || !form.guarantee_percentage || !form.contact_person || !form.client_id) {
+      setError(t('all_fields_required'));
+      return;
+    }
+    setLoading(true);
+    setError(''); // Clear any previous errors
+    try {
+      const response = await axios.post(`${process.env.REACT_APP_API_URL}/contracts/`, form);
+      // If we get here, the contract was successfully created
+      setToast(t('contract_created'));
+      setForm({ command_number: '', price: '', date: '', deadline: '', guarantee_percentage: '', contact_person: '', client_id: '' });
+      await fetchContracts(); // Use await to ensure contracts are fetched before continuing
+    } catch (err) {
+      console.error('Error adding contract:', err);
+      setError(t('error_saving_data'));
+      // Even if there's an error, try to refresh contracts as the contract might have been created
+      try {
+        await fetchContracts();
+      } catch (fetchErr) {
+        console.error('Error fetching contracts after failed add:', fetchErr);
+      }
+    } finally {
+      setLoading(false);
+      setTimeout(() => setToast(''), 2500);
+    }
+  };
+  // PDF actions
+  const handleViewPDF = (contract, type) => {
+    const title = type === 'invoice' ? t('document_type_invoice') : t('document_type_estimate');
+    setPdfModal({ 
+      show: true, 
+      url: `${process.env.REACT_APP_API_URL}/pdf/${type}/${contract.id}`, 
+      title: `${title} PDF` 
+    });
+  };
+  const handleDownloadPDF = async (contract, type) => {
+    if (type !== 'invoice') {
+      // For estimates, contract.id is correct
+      window.open(`${process.env.REACT_APP_API_URL}/pdf/${type}/${contract.id}`, '_blank');
+      setToast(t('document_downloaded'));
+      setTimeout(() => setToast(''), 2000);
+      return;
+    }
+    setLoading(true);
+    try {
+      // 1. Fetch all invoices and filter by contract_id
+      const res = await axios.get(`${process.env.REACT_APP_API_URL}/invoices/`);
+      let invoice = res.data.find(inv => inv.contract_id === contract.id);
+      // 2. If not found, create one
+      if (!invoice) {
+        // Generate a unique invoice number (e.g., INV-<command_number>-<timestamp>)
+        const invoiceNumber = `INV-${contract.command_number}-${Date.now()}`;
+        const createRes = await axios.post(`${process.env.REACT_APP_API_URL}/invoices/`, {
+          invoice_number: invoiceNumber,
+          contract_id: contract.id,
+          amount: contract.price,
+          due_date: contract.deadline
+          // status: 'unpaid' // optional, backend defaults to 'unpaid'
+        });
+        invoice = createRes.data;
+      }
+      // 3. Open PDF using invoice.id
+      if (invoice && invoice.id) {
+        window.open(`${process.env.REACT_APP_API_URL}/pdf/invoice/${invoice.id}`, '_blank');
+        setToast(t('document_downloaded'));
+      } else {
+        setToast(t('error_generating_invoice'));
+      }
+    } catch (err) {
+      console.error('Error generating invoice:', err);
+      setToast(t('error_generating_invoice'));
+    } finally {
+      setLoading(false);
+      setTimeout(() => setToast(''), 2000);
+    }
+  };
+  const handleDelete = async () => {
+    if (!modal.contract) return;
+    setLoading(true);
+    try {
+      console.log('Attempting to delete contract ID:', modal.contract.id);
+      const response = await axios.delete(
+        `${process.env.REACT_APP_API_URL}/contracts/${modal.contract.id}`,
+        {
+          headers: {
+            'Authorization': `Bearer ${localStorage.getItem('token')}`,
+            'Content-Type': 'application/json'
+          }
+        }
+      );
+      
+      console.log('Delete response:', response.data);
+      setToast(t('contract_deleted'));
+      fetchContracts();
+    } catch (err) {
+      console.error('Error deleting contract:', {
+        message: err.message,
+        response: err.response?.data,
+        status: err.response?.status
+      });
+      setError(t('error_deleting_data'));
+    } finally {
+      setLoading(false);
+      setModal({ show: false, contract: null });
+    }  
+    setTimeout(() => setToast(''), 2500);
+  };
+
+  // Filtering, search, pagination
+  const filtered = contracts.filter(
+    (c) => c.command_number?.toLowerCase().includes(search.toLowerCase())
+      || c.contact_person?.toLowerCase().includes(search.toLowerCase())
+      || clients.find(cl => cl.value === c.client_id)?.label?.toLowerCase().includes(search.toLowerCase())
+  );
+  const totalPages = Math.ceil(filtered.length / perPage);
+  const paged = filtered.slice((page - 1) * perPage, page * perPage);
+
+  // Expired contract check
+  const isExpired = (deadline) => {
+    if (!deadline) return false;
+    return new Date(deadline) < new Date();
+  };
+
+  return (
+    <Box sx={{ display: 'flex', minHeight: '100vh', background: 'linear-gradient(120deg,#f4f6f8 60%,#e3e9f7 100%)' }}>
+      <CssBaseline />
+      {/* Unified Navbar */}
+      <Navbar handleDrawerToggle={handleDrawerToggle} />
+      {/* Sidebar */}
+      <Sidebar mobileOpen={mobileOpen} onDrawerToggle={handleDrawerToggle} />
+      {/* Main Content */}
+      <Box component="main" sx={{ flexGrow: 1, px: { xs: 1, md: 4 }, mt: { xs: 7.5, md: 8 }, pb: 4, minHeight: '100vh', transition: 'all 0.3s', background: 'rgba(255,255,255,0.7)', boxShadow: { md: 3, xs: 0 } }}>
+        <Typography variant="h4" fontWeight={700} sx={{ color: '#9c27b0', mb: 2 }}>
+          Contracts <Typography component="span" variant="h5" fontWeight={500} sx={{ color: '#4caf50', ml: 1, fontSize: '1.2rem', display: 'inline' }}>({contracts.length})</Typography>
+        </Typography>
+        {/* Add Contract Form */}
+        <div className="contracts-card">
+          <h2><Description /> {t('add_contract')}</h2>
+          <form className="contracts-form" onSubmit={handleSubmit} autoComplete="off">
+            <div className="form-group">
+              <input 
+                id="command_number" 
+                name="command_number" 
+                value={form.command_number} 
+                onChange={handleChange} 
+                placeholder=" " 
+                required 
+                aria-label="Command Number"
+              />
+              <label htmlFor="command_number">{t('command_number')}</label>
+            </div>
+            <div className="form-group">
+              <input 
+                id="price" 
+                name="price" 
+                type="number" 
+                value={form.price} 
+                onChange={handleChange} 
+                placeholder=" " 
+                required 
+                aria-label="Price"
+              />
+              <label htmlFor="price">{t('price')}</label>
+            </div>
+            <div className="form-group">
+              <input 
+                id="date" 
+                name="date" 
+                type="date" 
+                value={form.date} 
+                onChange={handleChange} 
+                required 
+                aria-label="Date"
+              />
+              <label htmlFor="date">{t('date')}</label>
+            </div>
+            <div className="form-group">
+              <input 
+                id="deadline" 
+                name="deadline" 
+                type="date" 
+                value={form.deadline} 
+                onChange={handleChange} 
+                required 
+                aria-label="Deadline"
+              />
+              <label htmlFor="deadline">{t('deadline')}</label>
+            </div>
+            <div className="form-group">
+              <input 
+                id="guarantee_percentage" 
+                name="guarantee_percentage" 
+                type="number" 
+                min="0" 
+                max="100" 
+                value={form.guarantee_percentage} 
+                onChange={handleChange} 
+                placeholder=" " 
+                required 
+                aria-label="Guarantee Percentage"
+              />
+              <label htmlFor="guarantee_percentage">{t('guarantee_percentage')}</label>
+            </div>
+            <div className="form-group">
+              <input 
+                id="contact_person" 
+                name="contact_person" 
+                value={form.contact_person} 
+                onChange={handleChange} 
+                placeholder=" " 
+                required 
+                aria-label="Contact Person"
+              />
+              <label htmlFor="contact_person">{t('contact_person')}</label>
+            </div>
+            <div className="form-group">
+              <input 
+                id="contact_phone" 
+                name="contact_phone" 
+                type="tel"
+                value={form.contact_phone} 
+                onChange={handleChange} 
+                placeholder=" " 
+                required 
+                aria-label="Contact Phone"
+              />
+              <label htmlFor="contact_phone">Contact Phone</label>
+            </div>
+            <div className="form-group">
+              <input 
+                id="contact_email" 
+                name="contact_email" 
+                type="email"
+                value={form.contact_email} 
+                onChange={handleChange} 
+                placeholder=" " 
+                required 
+                aria-label="Contact Email"
+              />
+              <label htmlFor="contact_email">Contact Email</label>
+            </div>
+            <div className="form-group">
+              <textarea 
+                id="contact_address" 
+                name="contact_address" 
+                value={form.contact_address} 
+                onChange={handleChange} 
+                placeholder=" " 
+                required 
+                aria-label="Contact Address"
+                rows="3"
+                style={{ padding: '0.75rem', minHeight: '80px' }}
+              />
+              <label htmlFor="contact_address">Contact Address</label>
+            </div>
+            <div className="form-group">
+              <select 
+                id="client_id" 
+                name="client_id" 
+                value={form.client_id} 
+                onChange={handleChange} 
+                required 
+                aria-label="Client Name"
+              >
+                <option value="">{t('select_client')}</option>
+                {clients.map(c => (
+                  <option key={c.value} value={c.value}>{c.label}</option>
+                ))}
+              </select>
+              <label htmlFor="client_id">{t('client_name')}</label>
+            </div>
+            <div className="form-actions">
+              <button 
+                type="submit" 
+                className="btn-primary" 
+                disabled={loading}
+                style={{
+                  background: '#9c27b0',
+                  color: 'white',
+                  border: 'none',
+                  padding: '0.75rem 1.5rem',
+                  borderRadius: '6px',
+                  fontWeight: '500',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.5rem',
+                  cursor: 'pointer'
+                }}
+              >
+                {loading ? <CircularProgress size={20} style={{ color: 'white' }} /> : <><AddIcon fontSize="small" style={{ marginRight: '0.5rem' }} /> Add Contract</>}
+              </button>
+            </div>
+          </form>
+          {error && <div className="text-error">{error}</div>}
+        </div>
+
+        {/* Contract Table */}
+
+        {/* Contract Details Modal */}
+        {detailsModal !== null && (
+          <div className="modal-overlay" onClick={() => setDetailsModal(null)} style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backgroundColor: 'rgba(0, 0, 0, 0.5)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 1000
+          }}>
+            <div className="modal-content" onClick={e => e.stopPropagation()} style={{
+              background: 'white',
+              borderRadius: '12px',
+              boxShadow: '0 8px 30px rgba(0,0,0,0.12)',
+              width: '90vw',
+              maxWidth: '700px',
+              maxHeight: '90vh',
+              padding: '1.5rem',
+              overflow: 'auto',
+              display: 'flex',
+              flexDirection: 'column',
+              margin: '1rem',
+              boxSizing: 'border-box'
+            }}>
+              <div style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                marginBottom: '1.5rem',
+                paddingBottom: '1rem',
+                borderBottom: '1px solid #f0f0f0',
+                flexWrap: 'wrap',
+                gap: '1rem'
+              }}>
+                <h3 style={{
+                  color: '#9c27b0',
+                  fontSize: '1.5rem',
+                  fontWeight: '600',
+                  margin: 0,
+                  borderBottom: '2px solid #9c27b0',
+                  paddingBottom: '0.5rem',
+                  width: 'fit-content'
+                }}>
+                  {editingDetail ? t('edit_devis_item') : t('add_devis_item')}
+                </h3>
+                <button 
+                  onClick={() => setDetailsModal(null)}
+                  style={{
+                    background: 'transparent',
+                    border: 'none',
+                    color: '#666',
+                    cursor: 'pointer',
+                    fontSize: '1.5rem',
+                    padding: '0.25rem',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    borderRadius: '50%',
+                    width: '32px',
+                    height: '32px',
+                    ':hover': {
+                      backgroundColor: '#f5f5f5'
+                    }
+                  }}
+                  aria-label="Close"
+                >
+                  &times;
+                </button>
+              </div>
+              
+              <div style={{ 
+                marginBottom: '1.5rem', 
+                padding: '1rem', 
+                backgroundColor: '#f8f9fa', 
+                borderRadius: '4px', 
+                borderLeft: '4px solid #9c27b0' 
+              }}>
+                <div style={{ 
+                  display: 'flex', 
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  flexWrap: 'wrap',
+                  gap: '1rem'
+                }}>
+                  <div>
+                    <div style={{ fontWeight: '500', color: '#9c27b0', fontSize: '0.875rem' }}>{t('contract_amount')}:</div>
+                    <div style={{ fontSize: '1.25rem', fontWeight: 'bold', color: '#7b1fa2' }}>{contractPrice.toFixed(2)} €</div>
+                  </div>
+                  <div style={{ height: '30px', borderLeft: '1px solid #e0d0e6' }}></div>
+                  <div>
+                    <div style={{ fontWeight: '500', color: '#9c27b0', fontSize: '0.875rem' }}>{t('remaining_for_devis')}:</div>
+                    <div style={{ fontSize: '1.25rem', fontWeight: 'bold', color: '#7b1fa2' }}>{remainingDevisAmount.toFixed(2)} €</div>
+                  </div>
+                </div>
+              </div>
+              
+              <form onSubmit={(e) => handleDetailsSubmit(e, detailsModal, 'devis')} className="contracts-form" style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem' }}>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem', gridColumn: 'span 2' }}>
+                    <label htmlFor="devis_description" style={{ color: '#9c27b0', fontWeight: '500', fontSize: '0.875rem' }}>{t('description')}</label>
+                    <input 
+                      id="devis_description" 
+                      name="description" 
+                      value={detailsForm.description} 
+                      onChange={handleDetailsChange} 
+                      required 
+                      aria-label="Description"
+                      style={{ 
+                        padding: '0.75rem', 
+                        border: '1px solid #e0e0e0', 
+                        borderRadius: '6px', 
+                        fontSize: '1rem',
+                        transition: 'border-color 0.2s, box-shadow 0.2s',
+                        ':focus': {
+                          outline: 'none',
+                          borderColor: '#9c27b0',
+                          boxShadow: '0 0 0 2px rgba(156, 39, 176, 0.1)'
+                        }
+                      }}
+                      placeholder={t('enter_item_description')}
+                    />
+                  </div>
+                  
+                  <div style={{ width: '100%' }}>
+                    <label htmlFor="detail_qty" style={{
+                      display: 'block',
+                      marginBottom: '0.5rem',
+                      color: '#4a4a4a',
+                      fontWeight: '500',
+                      fontSize: '0.875rem'
+                    }}>
+                      {t('quantity')}
+                    </label>
+                    <input
+                      id="detail_qty"
+                      name="qty"
+                      type="number"
+                      min="1"
+                      value={detailsForm.qty}
+                      onChange={handleDetailsChange}
+                      required
+                      style={{
+                        width: '100%',
+                        padding: '0.75rem 1rem',
+                        border: '1px solid #e0e0e0',
+                        borderRadius: '6px',
+                        fontSize: '0.9375rem',
+                        transition: 'border-color 0.2s, box-shadow 0.2s',
+                        ':focus': {
+                          outline: 'none',
+                          borderColor: '#9c27b0',
+                          boxShadow: '0 0 0 2px rgba(156, 39, 176, 0.1)'
+                        }
+                      }}
+                      placeholder="0"
+                    />
+                  </div>
+                  
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+                    <label htmlFor="devis_unit_price" style={{ color: '#9c27b0', fontWeight: '500', fontSize: '0.875rem' }}>{t('unit_price')}</label>
+                    <input 
+                      id="devis_unit_price" 
+                      name="unit_price" 
+                      type="number" 
+                      min="0" 
+                      step="0.01" 
+                      value={detailsForm.unit_price} 
+                      onChange={handleDetailsChange} 
+                      required 
+                      aria-label="Unit Price"
+                      style={{ 
+                        padding: '0.75rem', 
+                        border: '1px solid #e0e0e0', 
+                        borderRadius: '6px', 
+                        fontSize: '1rem',
+                        transition: 'border-color 0.2s, box-shadow 0.2s',
+                        ':focus': {
+                          outline: 'none',
+                          borderColor: '#9c27b0',
+                          boxShadow: '0 0 0 2px rgba(156, 39, 176, 0.1)'
+                        }
+                      }}
+                      placeholder="0.00"
+                    />
+                  </div>
+                  
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+                    <label htmlFor="devis_tva" style={{ color: '#9c27b0', fontWeight: '500', fontSize: '0.875rem' }}>{t('tva_percent')}</label>
+                    <input 
+                      id="devis_tva" 
+                      name="tva" 
+                      type="number" 
+                      min="0" 
+                      max="100" 
+                      step="0.01" 
+                      value={detailsForm.tva} 
+                      onChange={handleDetailsChange} 
+                      required 
+                      aria-label="TVA"
+                      style={{ 
+                        padding: '0.75rem', 
+                        border: '1px solid #e0e0e0', 
+                        borderRadius: '6px', 
+                        fontSize: '1rem',
+                        transition: 'border-color 0.2s, box-shadow 0.2s',
+                        ':focus': {
+                          outline: 'none',
+                          borderColor: '#9c27b0',
+                          boxShadow: '0 0 0 2px rgba(156, 39, 176, 0.1)'
+                        }
+                      }}
+                      placeholder="0.0"
+                    />
+                  </div>
+                  
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+                    <label htmlFor="devis_total_ht" style={{ color: '#9c27b0', fontWeight: '500', fontSize: '0.875rem' }}>{t('total_ht')}</label>
+                    <input 
+                      id="devis_total_ht" 
+                      name="total_ht" 
+                      type="number" 
+                      min="0" 
+                      step="0.01" 
+                      value={detailsForm.total_ht} 
+                      readOnly 
+                      required 
+                      aria-label="Total HT"
+                      style={{ 
+                        padding: '0.75rem', 
+                        border: '1px solid #e0e0e0', 
+                        borderRadius: '6px', 
+                        fontSize: '1rem', 
+                        backgroundColor: '#f5f5f5',
+                        cursor: 'not-allowed'
+                      }}
+                    />
+                  </div>
+                </div>
+                
+                <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '1rem', marginTop: '1rem' }}>
+                  <button 
+                    type="button" 
+                    onClick={() => setDetailsModal(null)}
+                    style={{
+                      padding: '0.5rem 1.5rem',
+                      border: '1px solid #dc3545',
+                      borderRadius: '6px',
+                      background: 'white',
+                      color: '#dc3545',
+                      fontWeight: '600',
+                      cursor: 'pointer',
+                      fontSize: '0.9rem',
+                      transition: 'all 0.2s',
+                      ':hover': {
+                        backgroundColor: '#f8d7da',
+                        borderColor: '#f5c6cb'
+                      }
+                    }}
+                  >
+                    {t('cancel')}
+                  </button>
+                  <button 
+                    type="submit" 
+                    disabled={loading}
+                    style={{
+                      padding: '0.5rem 1.5rem',
+                      background: '#9c27b0',
+                      color: 'white',
+                      border: 'none',
+                      borderRadius: '6px',
+                      fontWeight: '600',
+                      cursor: 'pointer',
+                      fontSize: '0.9rem',
+                      transition: 'all 0.2s',
+                      opacity: loading ? 0.7 : 1,
+                      pointerEvents: loading ? 'none' : 'auto',
+                      ':hover': {
+                        backgroundColor: '#7b1fa2',
+                        boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
+                      },
+                      ':active': {
+                        transform: 'translateY(1px)'
+                      }
+                    }}
+                  >
+                    {loading ? t('saving') + '...' : (editingDetail ? t('update_devis_item') : t('add_devis_item'))}
+                  </button>
+                </div>
+              </form>
+              
+              {/* Show existing details for this contract */}
+              {contractDetails[detailsModal] && contractDetails[detailsModal].length > 0 && (
+                <div className="details-table-container" style={{ marginTop: '2rem' }}>
+                  <h4 style={{ 
+                    color: '#9c27b0',
+                    fontSize: '1.1rem',
+                    marginBottom: '1rem',
+                    paddingBottom: '0.5rem',
+                    borderBottom: '1px solid #f0f0f0'
+                  }}>
+                    {t('existing_details')}
+                  </h4>
+                  <div className="table-responsive" style={{ 
+                    maxHeight: '400px', 
+                    overflowY: 'auto',
+                    width: '100%',
+                    display: 'block',
+                    overflowX: 'auto',
+                    border: '1px solid #e0e0e0',
+                    borderRadius: '6px'
+                  }}>
+                    <table style={{
+                      width: '100%',
+                      borderCollapse: 'collapse',
+                      fontSize: '0.9rem'
+                    }}>
+                      <thead>
+                        <tr style={{ 
+                          backgroundColor: '#f9f5ff',
+                          borderBottom: '1px solid #e0e0e0'
+                        }}>
+                          <th style={{ textAlign: 'left', padding: '0.75rem', fontWeight: '600' }}>{t('description')}</th>
+                          <th style={{ textAlign: 'right', padding: '0.75rem', fontWeight: '600' }}>{t('qty')}</th>
+                          <th style={{ textAlign: 'right', padding: '0.75rem', fontWeight: '600' }}>{t('unit_price')}</th>
+                          <th style={{ textAlign: 'right', padding: '0.75rem', fontWeight: '600' }}>{t('tva_percent')}</th>
+                          <th style={{ textAlign: 'right', padding: '0.75rem', fontWeight: '600' }}>{t('total_ht')}</th>
+                          <th style={{ textAlign: 'center', padding: '0.75rem', fontWeight: '600' }}>{t('actions')}</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {contractDetails[detailsModal].map((detail, index) => (
+                          <tr 
+                            key={detail.id || index}
+                            style={{ 
+                              borderBottom: '1px solid #f0f0f0',
+                              ':hover': {
+                                backgroundColor: '#faf5ff'
+                              }
+                            }}
+                          >
+                            <td style={{ padding: '0.75rem' }}>{detail.description}</td>
+                            <td style={{ textAlign: 'right', padding: '0.75rem' }}>{detail.qty}</td>
+                            <td style={{ textAlign: 'right', padding: '0.75rem' }}>{parseFloat(detail.unit_price).toFixed(2)}</td>
+                            <td style={{ textAlign: 'right', padding: '0.75rem' }}>{parseFloat(detail.tva).toFixed(2)}%</td>
+                            <td style={{ textAlign: 'right', padding: '0.75rem', fontWeight: '500' }}>
+                              {parseFloat(detail.total_ht).toFixed(2)}
+                            </td>
+                            <td style={{ textAlign: 'center', padding: '0.5rem' }}>
+                              <button 
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleDeleteDetail(detail.id);
+                                }}
+                                style={{
+                                  background: 'transparent',
+                                  border: 'none',
+                                  color: '#f44336',
+                                  cursor: 'pointer',
+                                  padding: '0.25rem 0.5rem',
+                                  borderRadius: '4px',
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  ':hover': {
+                                    backgroundColor: 'rgba(244, 67, 54, 0.1)'
+                                  }
+                                }}
+                                title="Delete"
+                              >
+                                <DeleteIcon fontSize="small" />
+                              </button>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+              
+              <div style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                marginTop: '2rem',
+                paddingTop: '1.5rem',
+                borderTop: '1px solid #f0f0f0'
+              }}>
+                <button 
+                  type="button" 
+                  className="btn-secondary" 
+                  onClick={() => setDetailsModal(null)}
+                  style={{
+                    background: 'white',
+                    color: '#9c27b0',
+                    border: '1px solid #9c27b0',
+                    padding: '0.75rem 1.5rem',
+                    borderRadius: '6px',
+                    fontWeight: '500',
+                    cursor: 'pointer',
+                    marginRight: 'auto'
+                  }}
+                >
+                  {t('cancel')}
+                </button>
+                <button 
+                  type="button" 
+                  className="btn-primary" 
+                  disabled={loading}
+                  onClick={(e) => handleDetailsSubmit(e, detailsModal, 'devis')}
+                  style={{
+                    background: '#4caf50',
+                    color: 'white',
+                    border: 'none',
+                    padding: '0.75rem 1.5rem',
+                    borderRadius: '6px',
+                    fontWeight: '500',
+                    cursor: 'pointer',
+                    minWidth: '150px'
+                  }}
+                >
+                  {loading ? t('saving') + '...' : t('save_in_devis')}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Page Header */}
+        <div style={{ marginBottom: '1.5rem' }}>
+          <h1 style={{ 
+            fontSize: '1.75rem',
+            fontWeight: '600',
+            color: '#333',
+            margin: '0 0 1rem 0',
+            paddingBottom: '0.5rem',
+            borderBottom: '2px solid #f0f0f0'
+          }}>
+            {t('contracts')}
+          </h1>
+        </div>
+
+        {/* Search Bar */}
+        <div className="search-container">
+          <div className="search-box">
+            <SearchIcon className="search-icon" />
+            <input 
+              type="text" 
+              placeholder={t('search_contracts')} 
+              value={search} 
+              onChange={(e) => setSearch(e.target.value)}
+              aria-label="Search contracts"
+            />
+          </div>
+        </div>
+        
+        {/* Contracts Table */}
+        <div className="table-responsive" style={{ width: '100%', overflowX: 'auto' }}>
+          <table className="modern-table" style={{ width: '100%', borderCollapse: 'collapse' }}>
+            <thead>
+              <tr>
+                <th style={{ textAlign: 'left', padding: '12px', borderBottom: '1px solid #e0e0e0' }}>{t('command_number')}</th>
+                <th style={{ textAlign: 'left', padding: '12px', borderBottom: '1px solid #e0e0e0' }}>{t('client')}</th>
+                <th style={{ textAlign: 'right', padding: '12px', borderBottom: '1px solid #e0e0e0' }}>{t('price')}</th>
+                <th style={{ textAlign: 'left', padding: '12px', borderBottom: '1px solid #e0e0e0' }}>{t('date')}</th>
+                <th style={{ textAlign: 'left', padding: '12px', borderBottom: '1px solid #e0e0e0' }}>{t('deadline')}</th>
+                <th style={{ textAlign: 'left', padding: '12px', borderBottom: '1px solid #e0e0e0' }}>{t('contact_person')}</th>
+                <th style={{ textAlign: 'left', padding: '12px', borderBottom: '1px solid #e0e0e0' }}>{t('contact_phone')}</th>
+                <th style={{ textAlign: 'left', padding: '12px', borderBottom: '1px solid #e0e0e0' }}>{t('guarantee')}</th>
+                <th style={{ textAlign: 'left', padding: '12px', borderBottom: '1px solid #e0e0e0' }}>{t('actions')}</th>
+              </tr>
+            </thead>
+            <tbody>
+              {paged.map((contract) => (
+                <tr key={contract.id} style={{ borderBottom: '1px solid #f0f0f0' }}>
+                  <td style={{ padding: '12px', verticalAlign: 'middle' }}>{contract.command_number}</td>
+                  <td style={{ padding: '12px', verticalAlign: 'middle' }}>{clients.find(c => c.value === contract.client_id)?.label || ''}</td>
+                  <td style={{ padding: '12px', textAlign: 'right', verticalAlign: 'middle' }}>{contract.price}</td>
+                  <td style={{ padding: '12px', verticalAlign: 'middle' }}>
+                    {contract.date}
+                    {isExpired(contract.deadline) && (
+                      <span style={{ 
+                        display: 'inline-flex', 
+                        alignItems: 'center', 
+                        backgroundColor: 'rgba(239, 68, 68, 0.1)', 
+                        color: '#ef4444', 
+                        padding: '0.25rem 0.5rem', 
+                        borderRadius: '0.25rem', 
+                        fontSize: '0.75rem',
+                        fontWeight: '500',
+                        marginLeft: '0.5rem'
+                      }}>
+                        <WarningIcon fontSize="inherit" style={{ marginRight: '0.25rem' }} />
+                        {t('expired')}
+                      </span>
+                    )}
+                  </td>
+                  <td style={{ padding: '12px', verticalAlign: 'middle' }}>{contract.deadline}</td>
+                  <td style={{ padding: '12px', verticalAlign: 'middle' }}>
+                    <Tooltip title={contract.contact_email ? `Email: ${contract.contact_email}` : t('no_email')} arrow>
+                      <span style={{ cursor: contract.contact_email ? 'help' : 'default' }}>
+                        {contract.contact_person}
+                      </span>
+                    </Tooltip>
+                  </td>
+                  <td style={{ padding: '12px', verticalAlign: 'middle' }}>{contract.contact_phone || '-'}</td>
+                  <td style={{ padding: '12px', verticalAlign: 'middle' }}>
+                    <span style={{ 
+                      backgroundColor: 'rgba(16, 185, 129, 0.1)', 
+                      color: '#10b981', 
+                      padding: '0.25rem 0.5rem', 
+                      borderRadius: '0.25rem', 
+                      fontSize: '0.75rem',
+                      fontWeight: '500',
+                      display: 'inline-block'
+                    }}>
+                      {contract.guarantee_percentage}%
+                    </span>
+                  </td>
+                  <td style={{ padding: '12px', verticalAlign: 'middle' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+                      <Tooltip title={t('view_pdf')}>
+                        <button 
+                          className="action-btn" 
+                          onClick={() => handleViewPDF(contract, 'estimate')}
+                          style={{ 
+                            background: 'rgba(25, 118, 210, 0.1)', 
+                            color: '#1976d2',
+                            border: 'none',
+                            borderRadius: '4px',
+                            width: '32px',
+                            height: '32px',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            cursor: 'pointer'
+                          }}
+                        >
+                          <VisibilityIcon fontSize="small" />
+                        </button>
+                      </Tooltip>
+                      <Tooltip title={t('download_invoice')}>
+                        <button 
+                          className="action-btn" 
+                          onClick={() => handleDownloadPDF(contract, 'invoice')} 
+                          disabled={loading}
+                          style={{ 
+                            background: 'rgba(25, 118, 210, 0.1)', 
+                            color: '#1976d2',
+                            border: 'none',
+                            borderRadius: '4px',
+                            width: '32px',
+                            height: '32px',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            cursor: 'pointer'
+                          }}
+                        >
+                          <DownloadIcon fontSize="small" />
+                        </button>
+                      </Tooltip>
+                      <Tooltip title={t('edit_contract')}>
+                        <button 
+                          className="btn-edit" 
+                          onClick={() => openEditModal(contract)}
+                        >
+                          {t('edit')}
+                        </button>
+                      </Tooltip>
+                      <Tooltip title={t('delete_contract')}>
+                        <button 
+                          className="btn-delete" 
+                          onClick={() => setModal({ show: true, contract })}
+                          style={{
+                            width: '32px',
+                            height: '32px',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            cursor: 'pointer',
+                            border: 'none',
+                            background: 'transparent',
+                            padding: '4px',
+                            borderRadius: '4px',
+                            color: '#f44336',
+                            ':hover': {
+                              backgroundColor: 'rgba(244, 67, 54, 0.1)'
+                            }
+                          }}
+                        >
+                          <DeleteIcon fontSize="small" />
+                        </button>
+                      </Tooltip>
+                      <Tooltip title={t('add_facture_item')}>
+                        <button 
+                          className="btn-primary" 
+                          onClick={async () => {
+                            setFactureModal(contract.id);
+                            // Fetch factures when opening the modal
+                            try {
+                              await fetchFactures(contract.id);
+                            } catch (error) {
+                              console.error('Error fetching factures:', error);
+                              setError(t('error_loading_data'));
+                            }
+                          }}
+                          style={{ 
+                            fontSize: '0.8rem', 
+                            padding: '0.35rem 0.75rem',
+                            background: '#4caf50',
+                            color: 'white',
+                            borderRadius: '6px',
+                            boxShadow: '0 2px 4px rgba(76, 175, 80, 0.25)',
+                            fontWeight: '600',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '0.25rem',
+                            border: 'none',
+                            cursor: 'pointer',
+                            marginRight: '0.5rem'
+                          }}
+                        >
+                          <AddIcon fontSize="small" />
+                          {t('add_facture_item')}
+                        </button>
+                      </Tooltip>
+                      <Tooltip title={t('add_contract_details')}>
+                        <button 
+                          className="btn-primary" 
+                          onClick={async () => {
+                            setDetailsModal(contract.id);
+                            const contractPrice = parseFloat(contract.price) || 0;
+                            setContractPrice(contractPrice);
+                            
+                            // Fetch and calculate remaining balance for devis
+                            try {
+                              const response = await axios.get(
+                                `${process.env.REACT_APP_API_URL}/contract-details/contract/${contract.id}?document_type=devis`,
+                                {
+                                  headers: {
+                                    'Authorization': `Bearer ${localStorage.getItem('token')}`
+                                  }
+                                }
+                              );
+                              
+                              const totalDevis = response.data.reduce((sum, item) => {
+                                return sum + (parseFloat(item.total_ht) || 0);
+                              }, 0);
+                              
+                              const remainingDevis = Math.max(0, contractPrice - totalDevis);
+                              setRemainingDevisAmount(remainingDevis);
+                            } catch (error) {
+                              console.error('Error calculating remaining balance:', error);
+                              // Fallback to full contract price if there's an error
+                              setRemainingDevisAmount(contractPrice);
+                            }
+                          }}
+                          style={{ 
+                            fontSize: '0.8rem', 
+                            padding: '0.35rem 0.75rem',
+                            background: '#9c27b0',
+                            color: 'white',
+                            borderRadius: '6px',
+                            boxShadow: '0 2px 4px rgba(156, 39, 176, 0.25)',
+                            fontWeight: '600',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '0.25rem',
+                            border: 'none',
+                            cursor: 'pointer'
+                          }}
+                        >
+                          <AddIcon fontSize="small" />
+                          Add Devis Item
+                        </button>
+                      </Tooltip>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+              {paged.length === 0 && (
+                <tr>
+                  <td colSpan={7} style={{ textAlign: 'center', padding: '2rem 0', color: 'var(--text-light)' }}>
+                    {t('no_contracts_found')}
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+        
+        {/* Pagination */}
+        <div className="pagination-container">
+          <button 
+            className="pagination-btn" 
+            onClick={() => setPage(page - 1)} 
+            disabled={page === 1}
+            aria-label="Previous page"
+          >
+            <NavigateBeforeIcon />
+          </button>
+          <span className="pagination-info">Page {page} of {totalPages || 1}</span>
+          <button 
+            className="pagination-btn" 
+            onClick={() => setPage(page + 1)} 
+            disabled={page === totalPages || totalPages === 0}
+            aria-label="Next page"
+          >
+            <NavigateNextIcon />
+          </button>
+        </div>
+        {/* Delete Modal */}
+        {modal.show && (
+          <div className="modal-overlay" onClick={() => setModal({ show: false, contract: null })}>
+            <div className="modal-content" onClick={e => e.stopPropagation()}>
+              <div className="modal-header">
+                <h3>{t('delete_contract')}</h3>
+                <IconButton 
+                  aria-label="close" 
+                  onClick={() => setModal({ show: false, contract: null })}
+                  size="small"
+                >
+                  <CloseIcon />
+                </IconButton>
+              </div>
+              <div className="modal-body">
+                <p>{t('delete_confirm')} <b>{modal.contract.command_number}</b>?</p>
+                <p>{t('action_cannot_be_undone')}</p>
+              </div>
+              <div className="modal-actions">
+                <button 
+                  className="btn-secondary" 
+                  onClick={() => setModal({ show: false, contract: null })}
+                >
+                  {t('cancel')}
+                </button>
+                <button 
+                  className="btn-danger" 
+                  onClick={handleDelete} 
+                  disabled={loading}
+                >
+                  {loading ? <CircularProgress size={16} style={{ color: 'white', marginRight: '0.5rem' }} /> : null}
+                  {loading ? t('deleting') : t('delete')}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+        {/* Facture Item Modal */}
+        {factureModal !== null && (
+          <div className="modal-overlay" onClick={() => setFactureModal(null)} style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backgroundColor: 'rgba(0, 0, 0, 0.5)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 1300,
+            padding: '20px',
+            overflow: 'auto'
+          }}>
+            <div className="modal-content" onClick={e => e.stopPropagation()} style={{
+              background: 'white',
+              borderRadius: '12px',
+              boxShadow: '0 8px 30px rgba(0,0,0,0.12)',
+              width: '98vw',
+              maxWidth: '800px',
+              maxHeight: '95vh',
+              padding: '1.5rem',
+              overflow: 'auto',
+              display: 'flex',
+              flexDirection: 'column',
+              margin: '1rem',
+              boxSizing: 'border-box'
+            }}>
+              <h3 style={{
+                fontSize: '1.25rem',
+                color: '#4caf50',
+                marginBottom: '1rem',
+                fontWeight: '600',
+                borderBottom: '2px solid #4caf50',
+                paddingBottom: '0.5rem',
+                width: 'fit-content'
+              }}>{t('add_facture_item')}</h3>
+              
+              <div style={{ marginBottom: '1rem', padding: '1rem', backgroundColor: '#f8f9fa', borderRadius: '4px', borderLeft: '4px solid #4caf50' }}>
+                <div style={{ fontWeight: '500', color: '#4caf50' }}>{t('remaining_for_factures')}:</div>
+                <div style={{ fontSize: '1.25rem', fontWeight: 'bold' }}>{remainingFactureAmount.toFixed(2)} €</div>
+              </div>
+              
+              <form onSubmit={handleFactureSubmit} className="contracts-form" style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem' }}>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem', gridColumn: 'span 2' }}>
+                    <label htmlFor="facture_description" style={{ color: '#4caf50', fontWeight: '500', fontSize: '0.875rem' }}>{t('description')}</label>
+                    <input 
+                      id="facture_description" 
+                      name="description" 
+                      value={factureForm.description} 
+                      onChange={handleFactureChange} 
+                      required 
+                      aria-label="Description"
+                      style={{ padding: '0.75rem', border: '1px solid #ddd', borderRadius: '6px', fontSize: '1rem' }}
+                    />
+                  </div>
+                  
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+                    <label htmlFor="facture_qty" style={{ color: '#4caf50', fontWeight: '500', fontSize: '0.875rem' }}>{t('quantity')}</label>
+                    <input 
+                      id="facture_qty" 
+                      name="qty" 
+                      type="number" 
+                      min="1" 
+                      value={factureForm.qty} 
+                      onChange={handleFactureChange} 
+                      required 
+                      aria-label="Quantity"
+                      style={{ padding: '0.75rem', border: '1px solid #ddd', borderRadius: '6px', fontSize: '1rem' }}
+                    />
+                  </div>
+                  
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+                    <label htmlFor="facture_unit_price" style={{ color: '#4caf50', fontWeight: '500', fontSize: '0.875rem' }}>{t('unit_price')}</label>
+                    <input 
+                      id="facture_unit_price" 
+                      name="unit_price" 
+                      type="number" 
+                      min="0" 
+                      step="0.01" 
+                      value={factureForm.unit_price} 
+                      onChange={handleFactureChange} 
+                      required 
+                      aria-label="Unit Price"
+                      style={{ padding: '0.75rem', border: '1px solid #ddd', borderRadius: '6px', fontSize: '1rem' }}
+                    />
+                  </div>
+                  
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+                    <label htmlFor="facture_tva" style={{ color: '#4caf50', fontWeight: '500', fontSize: '0.875rem' }}>{t('tva_percent')}</label>
+                    <input 
+                      id="facture_tva" 
+                      name="tva" 
+                      type="number" 
+                      min="0" 
+                      max="100" 
+                      step="0.01" 
+                      value={factureForm.tva} 
+                      onChange={handleFactureChange} 
+                      required 
+                      aria-label="TVA"
+                      style={{ padding: '0.75rem', border: '1px solid #ddd', borderRadius: '6px', fontSize: '1rem' }}
+                    />
+                  </div>
+                  
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+                    <label htmlFor="facture_total_ht" style={{ color: '#4caf50', fontWeight: '500', fontSize: '0.875rem' }}>{t('total_ht')}</label>
+                    <input 
+                      id="facture_total_ht" 
+                      name="total_ht" 
+                      type="number" 
+                      min="0" 
+                      step="0.01" 
+                      value={factureForm.total_ht} 
+                      readOnly 
+                      required 
+                      aria-label="Total HT"
+                      style={{ padding: '0.75rem', border: '1px solid #ddd', borderRadius: '6px', fontSize: '1rem', backgroundColor: '#f5f5f5' }}
+                    />
+                  </div>
+                </div>
+                
+                <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '1rem', marginTop: '1rem' }}>
+                  <button 
+                    type="button" 
+                    onClick={() => setFactureModal(null)}
+                    style={{
+                      padding: '0.5rem 1.5rem',
+                      border: '1px solid #dc3545',
+                      borderRadius: '6px',
+                      background: 'white',
+                      color: '#dc3545',
+                      fontWeight: '600',
+                      cursor: 'pointer',
+                      fontSize: '0.9rem'
+                    }}
+                  >
+                    {t('cancel')}
+                  </button>
+                  <button 
+                    type="submit" 
+                    disabled={loading}
+                    style={{
+                      padding: '0.5rem 1.5rem',
+                      background: '#4caf50',
+                      color: 'white',
+                      border: 'none',
+                      borderRadius: '6px',
+                      fontWeight: '600',
+                      cursor: 'pointer',
+                      fontSize: '0.9rem',
+                      opacity: loading ? 0.7 : 1,
+                      pointerEvents: loading ? 'none' : 'auto'
+                    }}
+                  >
+                    {loading ? t('saving') : t('save_facture_item')}
+                  </button>
+                </div>
+              </form>
+
+              {/* Facture Items Table */}
+              <div style={{ marginTop: '2rem' }}>
+                <h4 style={{ 
+                  color: '#4caf50',
+                  fontSize: '1.2rem',
+                  marginBottom: '1rem',
+                  borderBottom: '1px solid #eee',
+                  paddingBottom: '0.5rem'
+                }}>
+                  {t('saved_items')}
+                </h4>
+                
+                {loadingFactures ? (
+                  <div style={{ textAlign: 'center', padding: '1rem' }}>
+                    <CircularProgress size={24} style={{ color: '#4caf50' }} />
+                    <p>Loading items...</p>
+                  </div>
+                ) : factures.length === 0 ? (
+                  <p style={{ color: '#666', textAlign: 'center', padding: '1rem' }}>{t('no_items_found')}</p>
+                ) : (
+                  <div style={{ overflowX: 'auto' }}>
+                    <table style={{
+                      width: '100%',
+                      borderCollapse: 'collapse',
+                      marginTop: '0.5rem'
+                    }}>
+                      <thead>
+                        <tr style={{ 
+                          backgroundColor: '#f5f5f5',
+                          borderBottom: '1px solid #ddd'
+                        }}>
+                          <th style={{ textAlign: 'left', padding: '0.75rem', fontSize: '0.875rem' }}>Description</th>
+                          <th style={{ textAlign: 'right', padding: '0.75rem', fontSize: '0.875rem' }}>Qty</th>
+                          <th style={{ textAlign: 'right', padding: '0.75rem', fontSize: '0.875rem' }}>Unit Price</th>
+                          <th style={{ textAlign: 'right', padding: '0.75rem', fontSize: '0.875rem' }}>TVA %</th>
+                          <th style={{ textAlign: 'right', padding: '0.75rem', fontSize: '0.875rem' }}>Total HT</th>
+                          <th style={{ textAlign: 'center', padding: '0.75rem', fontSize: '0.875rem' }}>Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {factures.map((item) => (
+                          <tr key={item.id} style={{ borderBottom: '1px solid #eee' }}>
+                            <td style={{ padding: '0.75rem', fontSize: '0.9rem' }}>{item.description}</td>
+                            <td style={{ textAlign: 'right', padding: '0.75rem', fontSize: '0.9rem' }}>{item.qty}</td>
+                            <td style={{ textAlign: 'right', padding: '0.75rem', fontSize: '0.9rem' }}>{parseFloat(item.unit_price).toFixed(2)}</td>
+                            <td style={{ textAlign: 'right', padding: '0.75rem', fontSize: '0.9rem' }}>{item.tva}</td>
+                            <td style={{ textAlign: 'right', padding: '0.75rem', fontSize: '0.9rem', fontWeight: '500' }}>
+                              {parseFloat(item.total_ht).toFixed(2)}
+                            </td>
+                            <td style={{ textAlign: 'center', padding: '0.5rem' }}>
+                              <button 
+                                onClick={() => handleDeleteFacture(item.id)}
+                                style={{
+                                  background: 'transparent',
+                                  border: 'none',
+                                  color: '#dc3545',
+                                  cursor: 'pointer',
+                                  padding: '0.25rem 0.5rem',
+                                  borderRadius: '4px',
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  gap: '0.25rem'
+                                }}
+                                title="Delete Item"
+                                disabled={loading}
+                              >
+                                <DeleteIcon fontSize="small" />
+                              </button>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                      <tfoot>
+                        <tr style={{ 
+                          backgroundColor: '#f9f9f9',
+                          borderTop: '2px solid #ddd',
+                          fontWeight: '600'
+                        }}>
+                          <td colSpan="4" style={{ textAlign: 'right', padding: '0.75rem' }}>Total:</td>
+                          <td style={{ textAlign: 'right', padding: '0.75rem', color: '#4caf50' }}>
+                            {factures.reduce((sum, item) => sum + parseFloat(item.total_ht), 0).toFixed(2)}
+                          </td>
+                          <td></td>
+                        </tr>
+                      </tfoot>
+                    </table>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+        {/* Edit Modal */}
+        {editModal.show && (
+          <div className="modal-overlay" onClick={closeEditModal}>
+            <div className="modal-content" onClick={e => e.stopPropagation()} style={{
+              background: 'white',
+              borderRadius: '12px',
+              boxShadow: '0 8px 30px rgba(0,0,0,0.12)',
+              width: '90%',
+              maxWidth: '600px',
+              padding: '2rem',
+              overflow: 'hidden'
+            }}>
+              <h3 style={{ 
+                color: '#9c27b0', 
+                fontSize: '1.5rem', 
+                fontWeight: '600',
+                marginTop: 0,
+                marginBottom: '1.5rem',
+                borderBottom: '2px solid #9c27b0',
+                paddingBottom: '0.5rem',
+                width: 'fit-content'
+              }}>Edit Contract</h3>
+                <div className="contracts-form" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem' }}>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+                    <label htmlFor="edit_command_number" style={{ color: '#9c27b0', fontWeight: '500', fontSize: '0.875rem' }}>Command Number</label>
+                    <input 
+                      id="edit_command_number" 
+                      name="command_number" 
+                      value={editForm.command_number} 
+                      onChange={handleEditChange} 
+                      required 
+                      aria-label="Command Number"
+                      style={{ padding: '0.75rem', border: '1px solid #ddd', borderRadius: '6px', fontSize: '1rem' }}
+                    />
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+                    <label htmlFor="edit_price" style={{ color: '#9c27b0', fontWeight: '500', fontSize: '0.875rem' }}>Price</label>
+                    <input 
+                      id="edit_price" 
+                      name="price" 
+                      type="number" 
+                      value={editForm.price} 
+                      onChange={handleEditChange} 
+                      required 
+                      aria-label="Price"
+                      style={{ padding: '0.75rem', border: '1px solid #ddd', borderRadius: '6px', fontSize: '1rem' }}
+                    />
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+                    <label htmlFor="edit_date" style={{ color: '#9c27b0', fontWeight: '500', fontSize: '0.875rem' }}>Date</label>
+                    <input 
+                      id="edit_date" 
+                      name="date" 
+                      type="date" 
+                      value={editForm.date} 
+                      onChange={handleEditChange} 
+                      required 
+                      aria-label="Date"
+                      style={{ padding: '0.75rem', border: '1px solid #ddd', borderRadius: '6px', fontSize: '1rem' }}
+                    />
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+                    <label htmlFor="edit_deadline" style={{ color: '#9c27b0', fontWeight: '500', fontSize: '0.875rem' }}>Deadline</label>
+                    <input 
+                      id="edit_deadline" 
+                      name="deadline" 
+                      type="date" 
+                      value={editForm.deadline} 
+                      onChange={handleEditChange} 
+                      required 
+                      aria-label="Deadline"
+                      style={{ padding: '0.75rem', border: '1px solid #ddd', borderRadius: '6px', fontSize: '1rem' }}
+                    />
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+                    <label htmlFor="edit_guarantee_percentage" style={{ color: '#9c27b0', fontWeight: '500', fontSize: '0.875rem' }}>Guarantee Percentage</label>
+                    <input 
+                      id="edit_guarantee_percentage" 
+                      name="guarantee_percentage" 
+                      type="number" 
+                      min="0" 
+                      max="100" 
+                      value={editForm.guarantee_percentage} 
+                      onChange={handleEditChange} 
+                      required 
+                      aria-label="Guarantee Percentage"
+                      style={{ padding: '0.75rem', border: '1px solid #ddd', borderRadius: '6px', fontSize: '1rem' }}
+                    />
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+                    <label htmlFor="edit_contact_person" style={{ color: '#9c27b0', fontWeight: '500', fontSize: '0.875rem' }}>Contact Person</label>
+                    <input 
+                      id="edit_contact_person" 
+                      name="contact_person" 
+                      value={editForm.contact_person} 
+                      onChange={handleEditChange} 
+                      required 
+                      aria-label="Contact Person"
+                      style={{ padding: '0.75rem', border: '1px solid #ddd', borderRadius: '6px', fontSize: '1rem' }}
+                    />
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+                    <label htmlFor="edit_contact_phone" style={{ color: '#9c27b0', fontWeight: '500', fontSize: '0.875rem' }}>Contact Phone</label>
+                    <input 
+                      id="edit_contact_phone" 
+                      name="contact_phone" 
+                      type="tel"
+                      value={editForm.contact_phone} 
+                      onChange={handleEditChange} 
+                      required 
+                      aria-label="Contact Phone"
+                      style={{ padding: '0.75rem', border: '1px solid #ddd', borderRadius: '6px', fontSize: '1rem' }}
+                    />
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+                    <label htmlFor="edit_contact_email" style={{ color: '#9c27b0', fontWeight: '500', fontSize: '0.875rem' }}>Contact Email</label>
+                    <input 
+                      id="edit_contact_email" 
+                      name="contact_email" 
+                      type="email"
+                      value={editForm.contact_email} 
+                      onChange={handleEditChange} 
+                      required 
+                      aria-label="Contact Email"
+                      style={{ padding: '0.75rem', border: '1px solid #ddd', borderRadius: '6px', fontSize: '1rem' }}
+                    />
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem', gridColumn: '1 / -1' }}>
+                    <label htmlFor="edit_contact_address" style={{ color: '#9c27b0', fontWeight: '500', fontSize: '0.875rem' }}>Contact Address</label>
+                    <textarea
+                      id="edit_contact_address" 
+                      name="contact_address" 
+                      value={editForm.contact_address} 
+                      onChange={handleEditChange} 
+                      required 
+                      aria-label="Contact Address"
+                      rows="3"
+                      style={{ 
+                        padding: '0.75rem', 
+                        border: '1px solid #ddd', 
+                        borderRadius: '6px', 
+                        fontSize: '1rem',
+                        minHeight: '80px',
+                        resize: 'vertical'
+                      }}
+                    />
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+                    <label htmlFor="edit_client_id" style={{ color: '#9c27b0', fontWeight: '500', fontSize: '0.875rem' }}>Client Name</label>
+                    <select 
+                      id="edit_client_id" 
+                      name="client_id" 
+                      value={editForm.client_id} 
+                      onChange={handleEditChange} 
+                      required 
+                      aria-label="Client Name"
+                      style={{ padding: '0.75rem', border: '1px solid #ddd', borderRadius: '6px', fontSize: '1rem', backgroundColor: 'white' }}
+                    >
+                      <option value="">{t('select_client')}</option>
+                      {clients.map(c => (
+                        <option key={c.value} value={c.value}>{c.label}</option>
+                      ))}
+                    </select>
+                  </div>
+                  {editError && <div style={{ color: 'red', marginTop: '1rem', gridColumn: 'span 2' }}>{editError}</div>}
+                </div>
+              <div style={{
+                display: 'flex',
+                justifyContent: 'flex-end',
+                gap: '1rem',
+                marginTop: '2rem'
+              }}>
+                <button 
+                  type="button" 
+                  className="btn-secondary" 
+                  onClick={closeEditModal}
+                  style={{
+                    background: 'white',
+                    color: '#9c27b0',
+                    border: '1px solid #9c27b0',
+                    padding: '0.75rem 1.5rem',
+                    borderRadius: '6px',
+                    fontWeight: '500',
+                    cursor: 'pointer'
+                  }}
+                >
+                  {t('cancel')}
+                </button>
+                <button 
+                  type="button" 
+                  className="btn-primary" 
+                  disabled={loading}
+                  onClick={handleEditSubmit}
+                  style={{
+                    background: '#9c27b0',
+                    color: 'white',
+                    border: 'none',
+                    padding: '0.75rem 1.5rem',
+                    borderRadius: '6px',
+                    fontWeight: '500',
+                    cursor: 'pointer'
+                  }}
+                >
+                  {loading ? t('saving') : t('save_changes')}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+        {/* PDF Modal */}
+        {pdfModal.show && (
+          <div className="modal-overlay" onClick={() => setPdfModal({ show: false, url: '', title: '' })}>
+            <div className="modal-content pdf-modal" onClick={e => e.stopPropagation()}>
+              <div className="modal-header">
+                <h3>{pdfModal.title}</h3>
+                <IconButton 
+                  aria-label="close" 
+                  onClick={() => setPdfModal({ show: false, url: '', title: '' })}
+                  size="small"
+                >
+                  <CloseIcon />
+                </IconButton>
+              </div>
+              <div className="modal-body pdf-container">
+                {pdfModal.url ? (
+                  <iframe 
+                    src={pdfModal.url} 
+                    className="pdf-iframe" 
+                    title="PDF Preview"
+                    aria-label="Contract PDF Document"
+                  />
+                ) : (
+                  <div className="pdf-loading">
+                    <CircularProgress size={40} />
+                    <p>Loading PDF...</p>
+                  </div>
+                )}
+              </div>
+              <div className="modal-actions">
+                <button 
+                  className="btn-secondary" 
+                  onClick={() => setPdfModal({ show: false, url: '', title: '' })}
+                >
+                  Close
+                </button>
+                <a 
+                  href={pdfModal.url} 
+                  download={`${pdfModal.title.replace(' ', '_')}.pdf`}
+                  className="btn-primary" 
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  <GetAppIcon style={{ marginRight: '0.5rem' }} />
+                  Download
+                </a>
+              </div>
+            </div>
+          </div>
+        )}
+        {/* Toast Notification */}
+        {toast && (
+          <div className={`toast-notification ${toast.includes('Error') || toast.includes('Failed') ? 'toast-error' : 'toast-success'}`}>
+            {toast.includes('Error') || toast.includes('Failed') ? (
+              <ErrorOutlineIcon className="toast-icon" />
+            ) : (
+              <CheckCircleOutlineIcon className="toast-icon" />
+            )}
+            <span>{toast}</span>
+          </div>
+        )}
+      </Box>
+    </Box>
+  );
+}
+
+export default Contracts;

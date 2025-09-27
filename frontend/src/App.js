@@ -11,11 +11,14 @@ import ResetPassword from './pages/ResetPassword';
 import Dashboard from './pages/Dashboard';
 import ProtectedRoute from './components/ProtectedRoute';
 import { AuthProvider } from './firebase/AuthContext';
+import { app } from './firebase/init';
 import './responsive.css'; // Import the responsive CSS
 
 // Lazy load pages
 const Clients = React.lazy(() => import('./pages/Clients'));
 const Contracts = React.lazy(() => import('./pages/Contracts'));
+const Devis = React.lazy(() => import('./pages/Devis'));
+const Factures = React.lazy(() => import('./pages/Factures'));
 const Balance = React.lazy(() => import('./pages/Balance'));
 const Salary = React.lazy(() => import('./pages/Salary'));
 const Miscellaneous = React.lazy(() => import('./pages/Miscellaneous'));
@@ -69,6 +72,16 @@ function App() {
                   <Route path="/contracts" element={
                     <ProtectedRoute>
                       <Contracts />
+                    </ProtectedRoute>
+                  } />
+                  <Route path="/devis" element={
+                    <ProtectedRoute>
+                      <Devis />
+                    </ProtectedRoute>
+                  } />
+                  <Route path="/factures" element={
+                    <ProtectedRoute>
+                      <Factures />
                     </ProtectedRoute>
                   } />
                   <Route path="/balance" element={

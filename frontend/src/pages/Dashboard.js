@@ -1,63 +1,103 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Box, Drawer, List, ListItem, ListItemIcon, ListItemText, Toolbar, AppBar, Typography, Avatar, useTheme, Divider, Tooltip as MuiTooltip, CssBaseline, IconButton, Menu, MenuItem, Snackbar, Grid, Button } from '@mui/material';
-import { People, Description, AccountBalance, AttachMoney, MoreHoriz, Dashboard as DashboardIcon, Menu as MenuIcon, Assignment, Notifications, Group, ExitToApp, AccountCircle } from '@mui/icons-material';
-import RecentActivity from "../components/RecentActivity";
-import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom';
-import '../dashboard.css';
-import '../sidebar.css';
-import Navbar from '../components/Navbar';
-import '../topbar.css';
-import '../toast.css';
-import '../modern-dashboard.css';
+import {
+  Box, Typography, Grid, Card, CardContent, Paper, Fade, Zoom,
+  useTheme, alpha, styled, CssBaseline, CircularProgress, Chip
+} from '@mui/material';
+import {
+  People, Description, AccountBalance, AttachMoney, MoreHoriz,
+  TrendingUp, TrendingDown, Assessment, Timeline, Analytics,
+  Group, Assignment, Business, Receipt
+} from '@mui/icons-material';
+import { useLocation, useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { useAuth } from '../firebase/AuthContext';
-import LogoutButton from '../components/LogoutButton';
+import Navbar from '../components/Navbar';
+import Sidebar from '../components/Sidebar';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid, ResponsiveContainer, Label, PieChart, Pie, Cell, Legend } from 'recharts';
 
-const drawerWidth = 240;
+// Styled Components
+const StatsCard = styled(Card)(({ theme, color }) => ({
+  background: `linear-gradient(135deg, ${getCardGradient(color)})`,
+  color: 'white',
+  borderRadius: '16px',
+  boxShadow: '0 4px 20px rgba(0, 0, 0, 0.1)',
+  transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+  position: 'relative',
+  overflow: 'hidden',
+  '&:hover': {
+    transform: 'translateY(-4px)',
+    boxShadow: '0 8px 30px rgba(0, 0, 0, 0.15)',
+  },
+  '&::before': {
+    content: '""',
+    position: 'absolute',
+    top: 0,
+    right: 0,
+    width: '100px',
+    height: '100px',
+    background: 'rgba(255, 255, 255, 0.1)',
+    borderRadius: '50%',
+    transform: 'translate(30px, -30px)',
+  }
+}));
+
+const ChartCard = styled(Paper)(({ theme }) => ({
+  borderRadius: '16px',
+  padding: theme.spacing(3),
+  background: 'rgba(255, 255, 255, 0.95)',
+  backdropFilter: 'blur(10px)',
+  boxShadow: '0 4px 20px rgba(0, 0, 0, 0.08)',
+  border: '1px solid rgba(255, 255, 255, 0.2)',
+  transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+  '&:hover': {
+    transform: 'translateY(-2px)',
+    boxShadow: '0 8px 30px rgba(0, 0, 0, 0.12)',
+  }
+}));
+
+const WelcomeCard = styled(Paper)(({ theme }) => ({
+  background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+  color: 'white',
+  borderRadius: '20px',
+  padding: theme.spacing(4),
+  marginBottom: theme.spacing(4),
+  position: 'relative',
+  overflow: 'hidden',
+  '&::before': {
+    content: '""',
+    position: 'absolute',
+    top: 0,
+    right: 0,
+    width: '200px',
+    height: '200px',
+    background: 'rgba(255, 255, 255, 0.1)',
+    borderRadius: '50%',
+    transform: 'translate(50px, -50px)',
+  }
+}));
+
+// Helper function for card gradients
+function getCardGradient(color) {
+  const gradients = {
+    clients: '#667eea 0%, #764ba2 100%',
+    contracts: '#4CAF50 0%, #45a049 100%',
+    invoices: '#FF9800 0%, #F57C00 100%',
+    employees: '#2196F3 0%, #1976D2 100%',
+    default: '#9C27B0 0%, #673AB7 100%'
+  };
+  return gradients[color] || gradients.default;
+}
 
 const Dashboard = () => {
   const { t } = useTranslation();
-  const location = useLocation();
   const theme = useTheme();
-  const navigate = useNavigate();
-  const { currentUser, logout } = useAuth();
+  const { currentUser } = useAuth();
+  
+  // UI state
   const [mobileOpen, setMobileOpen] = useState(false);
-  const [anchorEl, setAnchorEl] = useState(null);
-  const [userMenuAnchorEl, setUserMenuAnchorEl] = useState(null);
-  const [toastOpen, setToastOpen] = useState(false);
-  const open = Boolean(anchorEl);
-  const userMenuOpen = Boolean(userMenuAnchorEl);
   
-  const menuItems = [
-    { text: t('dashboard'), icon: <DashboardIcon />, path: '/' },
-    { text: t('clients'), icon: <People />, path: '/clients' },
-    { text: t('contracts'), icon: <Description />, path: '/contracts' },
-    { text: t('balance'), icon: <AccountBalance />, path: '/balance' },
-    { text: t('salary'), icon: <AttachMoney />, path: '/salary' },
-    { text: t('miscellaneous'), icon: <MoreHoriz />, path: '/misc' },
-  ];
-
-  const handleDrawerToggle = () => {
-    setMobileOpen(!mobileOpen);
-  };
-  
-  const handleUserMenuOpen = (event) => {
-    setUserMenuAnchorEl(event.currentTarget);
-  };
-  
-  const handleUserMenuClose = () => {
-    setUserMenuAnchorEl(null);
-  };
-  
-  const handleLogout = async () => {
-    handleUserMenuClose();
-    const { success } = await logout();
-    if (success) {
-      navigate('/login');
-    }
-  };
+  const handleDrawerToggle = () => setMobileOpen(!mobileOpen);
 
   // Dashboard stats
   const [stats, setStats] = useState([
@@ -73,8 +113,6 @@ const Dashboard = () => {
   const [loadingRecent, setLoadingRecent] = useState(true);
   
   useEffect(() => {
-    setToastOpen(true);
-    
     // Fetch real dashboard stats
     const fetchStats = async () => {
       setLoadingStats(true);
@@ -165,263 +203,192 @@ const Dashboard = () => {
     fetchContractGrowth();
   }, []);
 
-  const drawer = (
-    <div className="sidebar">
-      <div className="menu">
-        {menuItems.map((item) => (
-          <div
-            key={item.text}
-            className={`menu-item${location.pathname === item.path ? ' active' : ''}`}
-            onClick={() => window.location.href = item.path}
-          >
-            {item.icon}
-            <span>{item.text}</span>
-          </div>
-        ))}
-      </div>
-      <Divider sx={{ bgcolor: 'rgba(255,255,255,0.2)', my: 2 }} />
-      <Box textAlign="center" pb={2}>
-        <Typography variant="caption" color="rgba(25, 118, 210, 0.5)">
-          {new Date().getFullYear()} NR-GIE
-        </Typography>
-      </Box>
-    </div>
-  );
 
   return (
-    <>
-      <Box sx={{ display: 'flex', minHeight: '100vh', bgcolor: '#f8f9fa' }}>
-        <CssBaseline />
-        {/* App Bar */}
-        <AppBar position="fixed" sx={{ width: { sm: `calc(100% - ${drawerWidth}px)` }, ml: { sm: `${drawerWidth}px` }, bgcolor: 'white', boxShadow: '0 2px 10px rgba(0,0,0,0.05)' }}>
-          <Toolbar>
-            <IconButton
-              color="inherit"
-              aria-label="open drawer"
-              edge="start"
-              onClick={handleDrawerToggle}
-              sx={{ mr: 2, display: { sm: 'none' }, color: '#555' }}
-            >
-              <MenuIcon />
-            </IconButton>
-            <Typography variant="h6" noWrap component="div" sx={{ flexGrow: 1 }}>
-              {t('dashboard')}
+    <Box sx={{ display: 'flex', minHeight: '100vh' }}>
+      <CssBaseline />
+      <Navbar />
+      <Sidebar />
+      
+      {/* Main Content */}
+      <Box component="main" sx={{ flexGrow: 1, p: 3, pt: 10, backgroundColor: '#f8fafc' }}>
+        {/* Welcome Section */}
+        <WelcomeCard elevation={0}>
+          <Box sx={{ position: 'relative', zIndex: 1 }}>
+            <Typography variant="h3" fontWeight={800} gutterBottom>
+              {t('welcome_back')}, {currentUser?.displayName || currentUser?.email?.split('@')[0] || 'User'}!
             </Typography>
-            
-            {/* Notifications */}
-            <IconButton color="inherit" sx={{ color: '#555', mr: 1 }}>
-              <Notifications />
-            </IconButton>
-            
-            {/* User Menu */}
-            <Box sx={{ display: 'flex', alignItems: 'center' }}>
-              <Button
-                onClick={handleUserMenuOpen}
-                color="inherit"
-                sx={{ 
-                  textTransform: 'none', 
-                  color: '#555',
-                  '&:hover': { bgcolor: 'rgba(0,0,0,0.04)' } 
-                }}
-                startIcon={
-                  currentUser?.photoURL ? 
-                  <Avatar 
-                    src={currentUser.photoURL} 
-                    alt={currentUser.displayName || currentUser.email} 
-                    sx={{ width: 32, height: 32 }}
-                  /> : 
-                  <AccountCircle />
-                }
-              >
-                <Typography variant="body2" sx={{ display: { xs: 'none', sm: 'block' } }}>
-                  {currentUser?.displayName || currentUser?.email?.split('@')[0] || 'User'}
-                </Typography>
-              </Button>
-              
-              <Menu
-                anchorEl={userMenuAnchorEl}
-                open={userMenuOpen}
-                onClose={handleUserMenuClose}
-                PaperProps={{
-                  elevation: 3,
-                  sx: { minWidth: 180, mt: 1 }
-                }}
-              >
-                <Box sx={{ px: 2, py: 1 }}>
-                  <Typography variant="h5" sx={{ mb: 4, color: 'text.primary' }}>
-                    {t('welcome_back')}, {currentUser?.displayName || t('user')}!
-                  </Typography>
-                  <Typography variant="h6" sx={{ mb: 2, color: 'text.secondary' }}>
-                    {t('quick_stats')}
-                  </Typography>
-                  <Typography variant="body2" color="text.secondary" sx={{ wordBreak: 'break-all' }}>
-                    {currentUser?.email}
-                  </Typography>
-                </Box>
-                <Divider sx={{ my: 1 }} />
-                <MenuItem onClick={handleLogout}>
-                  <ListItemIcon>
-                    <ExitToApp fontSize="small" />
-                  </ListItemIcon>
-                  <ListItemText>{t('logout')}</ListItemText>
-                </MenuItem>
-              </Menu>
-            </Box>
-          </Toolbar>
-        </AppBar>
-        {/* Sidebar */}
-        <Box component="nav" sx={{ width: { md: drawerWidth }, flexShrink: { md: 0 } }}>
-          {/* Mobile Drawer */}
-          <Drawer
-            variant="temporary"
-            open={mobileOpen}
-            onClose={handleDrawerToggle}
-            ModalProps={{ keepMounted: true }}
-            sx={{ display: { xs: 'block', md: 'none' }, '& .MuiDrawer-paper': { boxSizing: 'border-box', width: drawerWidth } }}
-          >
-            {drawer}
-          </Drawer>
-          {/* Desktop Drawer */}
-          <Drawer
-            variant="permanent"
-            sx={{ display: { xs: 'none', md: 'block' }, '& .MuiDrawer-paper': { boxSizing: 'border-box', width: drawerWidth } }}
-          >
-            {drawer}
-          </Drawer>
-        </Box>
-        {/* Main Content */}
-        <Box component="main" sx={{ flexGrow: 1, px: { xs: 1, md: 4 }, mt: { xs: 7.5, md: 8 }, pb: 4, minHeight: '100vh', transition: 'all 0.3s', background: 'rgba(255,255,255,0.7)', boxShadow: { md: 3, xs: 0 } }}>
-          <Navbar handleDrawerToggle={handleDrawerToggle} />
-          <Box className="dashboard-main-glass">
+            <Typography variant="h6" sx={{ opacity: 0.9, mb: 3 }}>
+              {t('track_your_metrics') || 'Track your business metrics and performance'}
+            </Typography>
+            <Chip 
+              icon={<Analytics />}
+              label={`${new Date().toLocaleDateString()} - Dashboard Overview`}
+              sx={{ 
+                backgroundColor: 'rgba(255, 255, 255, 0.2)',
+                color: 'white',
+                fontWeight: 600
+              }}
+            />
+          </Box>
+        </WelcomeCard>
 
-
-
-
-            <div className="dashboard-hero">
-              <Typography variant="h5" fontWeight={700} sx={{ mb: 1 }}>{t('welcome_to_dashboard')}</Typography>
-              <Typography variant="body1" color="textSecondary">{t('track_your_metrics')}</Typography>
-            </div>
-
-                        {/* Stats Cards */}
-                        <Box sx={{ mb: 5, width: '100%', px: 0, py: 2 }}>
-            <Grid container spacing={0} sx={{ width: '100%', minHeight: '140px' }}>
-              {stats.map((stat, idx) => (
-                <Grid item xs={12} sm={6} md={3} key={idx} sx={{ p: 1.5, flex: '1 1 0', minWidth: '24%', transform: 'translateY(-8px)' }}>
-                  <div 
-                    className={`stat-card stat-card-${stat.color}`}
-                    role="region"
-                    aria-label={`${t(stat.label)} statistics`}
-                    tabIndex="0"
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter' || e.key === ' ') {
-                        // Handle interaction - could show more details, etc.
-                        e.preventDefault();
-                      }
-                    }}
-                  >
-                    <div className="stat-card-content">
-                      <Typography 
-                        variant="body2" 
-                        className="stat-card-label"
-                        component="h3"
-                      >
-                        {t(stat.label)}
-                      </Typography>
-                      <Typography 
-                        variant="h4" 
-                        className="stat-card-value"
-                        aria-live="polite"
-                      >
-                        {loadingStats ? '...' : stat.value}
-                      </Typography>
-                    </div>
-                    <div className={`stat-card-icon-wrapper stat-card-icon-${stat.color}`}>
-                      {stat.icon}
-                    </div>
-                  </div>
-                </Grid>
-              ))}
+        {/* Stats Cards */}
+        <Grid container spacing={3} sx={{ mb: 4 }}>
+          {stats.map((stat, idx) => (
+            <Grid item xs={12} sm={6} md={3} key={idx}>
+              <Zoom in={true} timeout={300 + idx * 100}>
+                <StatsCard color={stat.color}>
+                  <CardContent sx={{ position: 'relative', zIndex: 1 }}>
+                    <Box display="flex" justifyContent="space-between" alignItems="flex-start">
+                      <Box>
+                        <Typography variant="body2" sx={{ opacity: 0.8, mb: 1 }}>
+                          {t(stat.label)}
+                        </Typography>
+                        <Typography variant="h3" fontWeight={700}>
+                          {loadingStats ? (
+                            <CircularProgress size={24} color="inherit" />
+                          ) : (
+                            stat.value
+                          )}
+                        </Typography>
+                      </Box>
+                      <Box sx={{ 
+                        p: 1.5, 
+                        borderRadius: '12px', 
+                        backgroundColor: 'rgba(255, 255, 255, 0.2)' 
+                      }}>
+                        {stat.icon}
+                      </Box>
+                    </Box>
+                  </CardContent>
+                </StatsCard>
+              </Zoom>
             </Grid>
-          </Box>
-            
+          ))}
+        </Grid>
 
-            
-            {/* Recent Activity */}
-            <Box sx={{ 
-              mt: 4,
-              '& .MuiPaper-root': {
-                height: '100%',
-                display: 'flex',
-                flexDirection: 'column'
-              }
-            }}>
-              <RecentActivity recent={recentActivity} loadingRecent={loadingRecent} />
-            </Box>
-            
-            {/* Contract Growth Chart */}
-            <Box sx={{ mt: 4, p: 3, borderRadius: 2, background: 'rgba(255,255,255,0.13)', boxShadow: '0 12px 32px 0 rgba(180,185,200,0.15)', backdropFilter: 'blur(10px)', border: '1.5px solid rgba(230,230,240,0.13)', transform: 'translateY(-8px)' }}>
-              <Typography variant="h6" fontWeight={700} gutterBottom>{t('contract_growth')}</Typography>
-              <Box sx={{ height: 260, width: '100%', minWidth: 320 }}>
-                {loadingGrowth ? (
-                  <Typography variant="body2">{t('loading')}</Typography>
-                ) : contractGrowth.length === 0 ? (
-                  <Typography variant="h6" sx={{ mt: 4, mb: 2, color: 'text.secondary' }}>
-                    {t('no_contract_growth_data')}
-                  </Typography>
-                ) : (
-                  <ResponsiveContainer width="100%" height={220}>
-                    <BarChart data={contractGrowth} margin={{ top: 10, right: 30, left: 0, bottom: 30 }}>
-                      <defs>
-                        <linearGradient id="barGradient" x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="0%" stopColor="#9c27b0" stopOpacity={0.95}/>
-                          <stop offset="100%" stopColor="#4caf50" stopOpacity={0.7}/>
-                        </linearGradient>
-                        <filter id="barShadow" x="-20%" y="-20%" width="140%" height="140%">
-                          <feDropShadow dx="0" dy="6" stdDeviation="6" flood-color="#9c27b0" flood-opacity="0.25" />
-                        </filter>
-                      </defs>
-                      <CartesianGrid strokeDasharray="4 4" vertical={false} stroke="#ececf7" />
-                      <XAxis dataKey="month" tickFormatter={m => {
-                        const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-                        const [y, mo] = m.split('-');
-                        return months[parseInt(mo, 10) - 1];
-                      }} tick={{ fontSize: 13, fill: '#9c27b0' }} axisLine={false} tickLine={false}>
-                        <Label value="Month" offset={-10} position="insideBottom" style={{ fill: '#9c27b0', fontWeight: 600 }} />
-                      </XAxis>
-                      <YAxis allowDecimals={false} tick={{ fontSize: 13, fill: '#4caf50' }} axisLine={false} tickLine={false}>
-                        <Label value="Contracts" angle={-90} position="insideLeft" style={{ textAnchor: 'middle', fill: '#4caf50', fontWeight: 600 }} />
-                      </YAxis>
-                      <Tooltip 
-                        formatter={(value) => [value, 'Contracts']} 
-                        contentStyle={{ 
-                          borderRadius: 10, 
-                          background: '#fff', 
-                          border: '1px solid rgba(156, 39, 176, 0.2)', 
-                          boxShadow: '0 8px 24px 0 rgba(156, 39, 176, 0.15)' 
-                        }} 
-                        labelStyle={{ color: '#9c27b0', fontWeight: 600 }} 
-                        itemStyle={{ color: '#4caf50', fontWeight: 500 }} 
-                        cursor={{ fill: 'rgba(156, 39, 176, 0.1)', opacity: 0.3 }}
-                      />
-                      <Bar 
-                        dataKey="count" 
-                        fill="url(#barGradient)" 
-                        radius={[10, 10, 0, 0]} 
-                        filter="url(#barShadow)" 
-                        isAnimationActive={true} 
-                        animationDuration={1200} 
-                        barSize={30}
-                      />
-                    </BarChart>
-                  </ResponsiveContainer>
-                )}
-              </Box>
-            </Box>
-          </Box>
+        {/* Charts Section */}
+        <Grid container spacing={3}>
+          {/* Contract Growth Chart */}
+          <Grid item xs={12} lg={8}>
+            <Fade in={true} timeout={800}>
+              <ChartCard>
+                <Typography variant="h6" fontWeight={700} gutterBottom sx={{ mb: 3 }}>
+                  <Timeline sx={{ mr: 1, verticalAlign: 'middle' }} />
+                  {t('contract_growth') || 'Contract Growth'}
+                </Typography>
+                <Box sx={{ height: 300, width: '100%' }}>
+                  {loadingGrowth ? (
+                    <Box display="flex" justifyContent="center" alignItems="center" height="100%">
+                      <CircularProgress />
+                    </Box>
+                  ) : contractGrowth.length === 0 ? (
+                    <Box display="flex" justifyContent="center" alignItems="center" height="100%" flexDirection="column">
+                      <Assessment sx={{ fontSize: 48, color: 'text.disabled', mb: 2 }} />
+                      <Typography variant="h6" color="textSecondary">
+                        {t('no_contract_growth_data') || 'No contract growth data available'}
+                      </Typography>
+                    </Box>
+                  ) : (
+                    <ResponsiveContainer width="100%" height="100%">
+                      <BarChart data={contractGrowth} margin={{ top: 20, right: 30, left: 20, bottom: 20 }}>
+                        <defs>
+                          <linearGradient id="barGradient" x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="0%" stopColor="#667eea" stopOpacity={0.9}/>
+                            <stop offset="100%" stopColor="#764ba2" stopOpacity={0.6}/>
+                          </linearGradient>
+                        </defs>
+                        <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+                        <XAxis 
+                          dataKey="month" 
+                          tickFormatter={m => {
+                            const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+                            const [y, mo] = m.split('-');
+                            return months[parseInt(mo, 10) - 1];
+                          }}
+                          tick={{ fontSize: 12, fill: '#666' }}
+                          axisLine={false}
+                          tickLine={false}
+                        />
+                        <YAxis 
+                          allowDecimals={false}
+                          tick={{ fontSize: 12, fill: '#666' }}
+                          axisLine={false}
+                          tickLine={false}
+                        />
+                        <Tooltip 
+                          formatter={(value) => [value, 'Contracts']} 
+                          contentStyle={{ 
+                            borderRadius: 12, 
+                            background: 'white', 
+                            border: '1px solid #e0e0e0', 
+                            boxShadow: '0 4px 20px rgba(0, 0, 0, 0.1)' 
+                          }}
+                        />
+                        <Bar 
+                          dataKey="count" 
+                          fill="url(#barGradient)" 
+                          radius={[8, 8, 0, 0]} 
+                          barSize={40}
+                        />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  )}
+                </Box>
+              </ChartCard>
+            </Fade>
+          </Grid>
 
-        </Box>
+          {/* Activity Overview */}
+          <Grid item xs={12} lg={4}>
+            <Fade in={true} timeout={1000}>
+              <ChartCard sx={{ height: '100%' }}>
+                <Typography variant="h6" fontWeight={700} gutterBottom sx={{ mb: 3 }}>
+                  <Assessment sx={{ mr: 1, verticalAlign: 'middle' }} />
+                  {t('recent_activity') || 'Recent Activity'}
+                </Typography>
+                <Box sx={{ height: 300, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  {loadingRecent ? (
+                    <CircularProgress />
+                  ) : recentActivity.length === 0 ? (
+                    <Box textAlign="center">
+                      <Timeline sx={{ fontSize: 48, color: 'text.disabled', mb: 2 }} />
+                      <Typography variant="body1" color="textSecondary">
+                        {t('no_recent_activity') || 'No recent activity'}
+                      </Typography>
+                    </Box>
+                  ) : (
+                    <ResponsiveContainer width="100%" height="100%">
+                      <PieChart>
+                        <Pie
+                          data={activityPieData}
+                          cx="50%"
+                          cy="50%"
+                          innerRadius={60}
+                          outerRadius={100}
+                          paddingAngle={5}
+                          dataKey="value"
+                        >
+                          {activityPieData.map((entry, index) => (
+                            <Cell 
+                              key={`cell-${index}`} 
+                              fill={Object.values(activityPieColors)[index % Object.values(activityPieColors).length]} 
+                            />
+                          ))}
+                        </Pie>
+                        <Tooltip />
+                        <Legend />
+                      </PieChart>
+                    </ResponsiveContainer>
+                  )}
+                </Box>
+              </ChartCard>
+            </Fade>
+          </Grid>
+        </Grid>
       </Box>
-    </>
+    </Box>
   );
 };
 
