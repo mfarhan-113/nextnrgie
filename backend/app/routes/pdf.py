@@ -1026,8 +1026,12 @@ async def generate_devis_pdf(payload: dict):
     if client.get("phone"): p.drawString(right, right_col_y - 45, client.get("phone"))
     if client.get("tva"): p.drawString(right, right_col_y - 60, f"Numéro de TVA: {client.get('tva')}")
 
-    # Table header
+    # Chantier (site/project) - Add "CHANTIER BEIGE MONCEAU" above the table
     chantier_y = left_col_y - 100
+    p.setFont("Helvetica-Bold", 12)
+    p.drawString(left, chantier_y, "CHANTIER BEIGE MONCEAU")
+    
+    # Table header
     table_y = chantier_y - 30
     table_header_y = table_y + 20
 
