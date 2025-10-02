@@ -10,3 +10,20 @@ __pycache__/
 *.db
 .DS_Store
 *.log
+
+# Node/React
+frontend/node_modules/
+frontend/build/
+frontend/.env*
+# Python
+backend/venv/
+__pycache__/
+*.pyc
+# Secrets
+backend/.env
+*.env
+# Archives
+*.zip
+*.tar
+*.tar.gz
+
