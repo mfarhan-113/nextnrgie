@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, Response
-from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import Session
 from app.core.database import get_db
 from app.models.invoice import Invoice
 from app.models.contract import Contract
@@ -7,7 +7,7 @@ from app.models.client import Client
 from app.models.contract_detail import ContractDetail
 from app.models.facture import Facture
 from app.schemas.facture import Facture as FactureSchema
-from sqlalchemy.future import select
+from sqlalchemy import select
 from reportlab.lib.pagesizes import letter
 from reportlab.pdfgen import canvas
 from io import BytesIO
@@ -17,15 +17,15 @@ import os
 router = APIRouter(prefix="/pdf", tags=["pdf"])
 
 @router.get("/invoice/{invoice_id}")
-async def generate_invoice_pdf(invoice_id: int, db: AsyncSession = Depends(get_db)):
+def generate_invoice_pdf(invoice_id: int, db: Session = Depends(get_db)):
     from reportlab.lib.utils import ImageReader
     import os
 
-    result = await db.execute(select(Invoice).where(Invoice.id == invoice_id))
+    result = db.execute(select(Invoice).where(Invoice.id == invoice_id))
     invoice = result.scalars().first()
     if not invoice:
         raise HTTPException(status_code=404, detail="Invoice not found")
-    contract_result = await db.execute(select(Contract).where(Contract.id == invoice.contract_id))
+    contract_result = db.execute(select(Contract).where(Contract.id == invoice.contract_id))
     contract = contract_result.scalars().first()
 
     buffer = BytesIO()
@@ -95,14 +95,14 @@ async def generate_invoice_pdf(invoice_id: int, db: AsyncSession = Depends(get_d
 
     # RIGHT: Client
     p.setFont("Helvetica-Bold", 11)
-    client_result = await db.execute(select(Client).where(Client.id == contract.client_id))
+    client_result = db.execute(select(Client).where(Client.id == contract.client_id))
     client = client_result.scalars().first()
     
     if client:
-        p.drawString(right, right_col_y, client.client_name)
+        p.drawString(right, right_col_y, (client.client_name or ""))
         p.setFont("Helvetica", 10)
-        p.drawString(right, right_col_y - 15, client.email)
-        p.drawString(right, right_col_y - 30, client.phone)
+        p.drawString(right, right_col_y - 15, (client.email or ""))
+        p.drawString(right, right_col_y - 30, (client.phone or ""))
         if client.tva_number:
             p.drawString(right, right_col_y - 45, client.tva_number)
             p.drawString(right, right_col_y - 60, f"Numéro de TVA: {client.tva_number}")
@@ -166,7 +166,7 @@ async def generate_invoice_pdf(invoice_id: int, db: AsyncSession = Depends(get_d
     p.setStrokeColorRGB(0, 0, 0)  # Black for lines
     
     # Fetch contract details
-    contract_details_result = await db.execute(select(ContractDetail).where(ContractDetail.contract_id == contract.id))
+    contract_details_result = db.execute(select(ContractDetail).where(ContractDetail.contract_id == contract.id))
     contract_details = contract_details_result.scalars().all()
     
     # Reset fill color to black for text
@@ -240,6 +240,7 @@ async def generate_invoice_pdf(invoice_id: int, db: AsyncSession = Depends(get_d
             # Move to next row
             y_position -= row_height
     else:
+        row_height = 20  # Define row_height for the else case
         # If no details, add a placeholder row
         p.setFont("Helvetica", 9)
         p.drawString(header_x + 5, y_position - 15, "Services as per contract")
@@ -311,16 +312,16 @@ async def generate_invoice_pdf(invoice_id: int, db: AsyncSession = Depends(get_d
 
 
 @router.get("/estimate/{contract_id}")
-async def generate_estimate_pdf(contract_id: int, db: AsyncSession = Depends(get_db)):
+def generate_estimate_pdf(contract_id: int, db: Session = Depends(get_db)):
     from reportlab.lib.utils import ImageReader
     import os
     
-    result = await db.execute(select(Contract).where(Contract.id == contract_id))
+    result = db.execute(select(Contract).where(Contract.id == contract_id))
     contract = result.scalars().first()
     if not contract:
         raise HTTPException(status_code=404, detail="Contract not found")
     
-    client_result = await db.execute(select(Client).where(Client.id == contract.client_id))
+    client_result = db.execute(select(Client).where(Client.id == contract.client_id))
     client = client_result.scalars().first()
     
     buffer = BytesIO()
@@ -405,7 +406,7 @@ async def generate_estimate_pdf(contract_id: int, db: AsyncSession = Depends(get
     # RIGHT: Client
     p.setFont("Helvetica-Bold", 11)
     if client:
-        p.drawString(right, right_col_y, client.client_name)
+        p.drawString(right, right_col_y, (client.client_name or ""))
         p.setFont("Helvetica", 10)
         # TSA directly under client name if available
         line_offset = 15
@@ -414,11 +415,11 @@ async def generate_estimate_pdf(contract_id: int, db: AsyncSession = Depends(get
             line_offset += 15
         # Address under TSA if available
         if getattr(client, 'client_address', None):
-            p.drawString(right, right_col_y - line_offset, client.client_address)
+            p.drawString(right, right_col_y - line_offset, (client.client_address or ""))
             line_offset += 15
         # Phone
         if getattr(client, 'phone', None):
-            p.drawString(right, right_col_y - line_offset, client.phone)
+            p.drawString(right, right_col_y - line_offset, (client.phone or ""))
             line_offset += 15
         # TVA number
         if getattr(client, 'tva_number', None):
@@ -478,7 +479,7 @@ async def generate_estimate_pdf(contract_id: int, db: AsyncSession = Depends(get
         current_x += header["width"]
     
     # Fetch facture items
-    facture_items = await db.execute(select(Facture).where(Facture.contract_id == contract.id))
+    facture_items = db.execute(select(Facture).where(Facture.contract_id == contract.id))
     facture_items = facture_items.scalars().all()
     
     # Reset fill color to black for text
@@ -574,6 +575,7 @@ async def generate_estimate_pdf(contract_id: int, db: AsyncSession = Depends(get
             # Move to next row
             y_position -= row_height
     else:
+        row_height = 20  # Define row_height for the else case
         # If no details, add a placeholder row
         p.setFont("Helvetica", 9)
         p.drawString(header_x + 5, y_position - 15, "Services as per contract")
@@ -686,15 +688,15 @@ async def generate_estimate_pdf(contract_id: int, db: AsyncSession = Depends(get
     return Response(buffer.read(), media_type="application/pdf", headers={"Content-Disposition": f"inline; filename=estimate_{contract.command_number}.pdf"})
 
 @router.get("/facture/{contract_id}")
-async def generate_facture_pdf_by_contract(contract_id: int, db: AsyncSession = Depends(get_db)):
+def generate_facture_pdf_by_contract(contract_id: int, db: Session = Depends(get_db)):
     """
     Generate a PDF for facture by contract ID - this is what the frontend expects!
     """
     # This is the same as estimate but with "Facture" title instead of "Devis"
-    return await generate_estimate_pdf(contract_id, db)
+    return generate_estimate_pdf(contract_id, db)
 
 @router.post("/facture")
-async def generate_facture_pdf(facture_data: dict, db: AsyncSession = Depends(get_db)):
+def generate_facture_pdf(facture_data: dict, db: Session = Depends(get_db)):
     """
     Generate a PDF for a facture
     """
@@ -919,7 +921,7 @@ async def generate_facture_pdf(facture_data: dict, db: AsyncSession = Depends(ge
     })
 
 @router.post("/devis")
-async def generate_devis_pdf(payload: dict):
+def generate_devis_pdf(payload: dict):
     """
     Generate a Devis PDF from a payload (client + items).
     Expected payload format:

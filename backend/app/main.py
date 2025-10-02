@@ -1,6 +1,6 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from app.routes import auth, client, contract, contract_detail, invoice, salary, misc, pdf, dashboard, facture
+from app.routes import dashboard, client, contract, facture, salary, auth, pdf  # All routes
 
 app = FastAPI()
 
@@ -12,16 +12,13 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-app.include_router(auth.router)
+app.include_router(dashboard.router)
 app.include_router(client.router)
 app.include_router(contract.router)
-app.include_router(contract_detail.router)
-app.include_router(invoice.router)
-app.include_router(salary.router)
-app.include_router(misc.router)
-app.include_router(pdf.router)
-app.include_router(dashboard.router)
 app.include_router(facture.router)
+app.include_router(salary.router)
+app.include_router(auth.router)
+app.include_router(pdf.router)
 
 @app.get("/")
 def root():

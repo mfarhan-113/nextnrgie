@@ -1,13 +1,12 @@
-from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
-from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.orm import sessionmaker
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker, declarative_base
 from app.core.config import settings
 
-# Replace 'pymysql' with 'asyncmy' for async MySQL support
-DATABASE_URL = settings.SQLALCHEMY_DATABASE_URL.replace("pymysql", "asyncmy", 1)
+# Use synchronous pymysql for XAMPP compatibility
+DATABASE_URL = settings.SQLALCHEMY_DATABASE_URL  # Keep pymysql for sync
 
-# Create async engine
-engine = create_async_engine(
+# Create sync engine
+engine = create_engine(
     DATABASE_URL,
     echo=True,
     future=True,
@@ -15,25 +14,19 @@ engine = create_async_engine(
     pool_recycle=3600
 )
 
-# Create async session factory
-async_session = sessionmaker(
-    bind=engine,
-    class_=AsyncSession,
-    expire_on_commit=False,
-    autoflush=False,
-    autocommit=False
-)
+# Create sync session factory
+SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 Base = declarative_base()
 
 # Dependency to get DB session
-async def get_db() -> AsyncSession:
-    async with async_session() as session:
-        try:
-            yield session
-            await session.commit()
-        except Exception as e:
-            await session.rollback()
-            raise e
-        finally:
-            await session.close()
+def get_db():
+    db = SessionLocal()
+    try:
+        yield db
+        db.commit()
+    except Exception as e:
+        db.rollback()
+        raise e
+    finally:
+        db.close()
