@@ -1,5 +1,8 @@
+import logging
 from fastapi import APIRouter, Depends, HTTPException, Response
 from sqlalchemy.orm import Session
+from sqlalchemy import event, select
+from sqlalchemy.engine import Engine
 from app.core.database import get_db
 from app.models.invoice import Invoice
 from app.models.contract import Contract
@@ -7,12 +10,39 @@ from app.models.client import Client
 from app.models.contract_detail import ContractDetail
 from app.models.facture import Facture
 from app.schemas.facture import Facture as FactureSchema
-from sqlalchemy import select
 from reportlab.lib.pagesizes import letter
 from reportlab.pdfgen import canvas
 from io import BytesIO
 from datetime import datetime
 import os
+
+# Configure logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    handlers=[
+        logging.StreamHandler(),
+        logging.FileHandler('pdf_generation.log')
+    ]
+)
+logger = logging.getLogger(__name__)
+
+# SQL query logging
+@event.listens_for(Engine, 'before_cursor_execute')
+def receive_before_cursor_execute(conn, cursor, statement, params, context, executemany):
+    if not statement.startswith('SELECT 1'):  # Ignore connection test queries
+        logger.info(f"\n--- SQL QUERY ---\n{statement}")
+        if params:
+            logger.info(f"Parameters: {params}")
+
+@event.listens_for(Engine, 'after_cursor_execute')
+def receive_after_cursor_execute(conn, cursor, statement, params, context, executemany):
+    if not statement.startswith('SELECT 1'):
+        if cursor.rowcount >= 0:
+            logger.info(f"Rows affected: {cursor.rowcount}")
+        if cursor.description:
+            columns = [desc[0] for desc in cursor.description]
+            logger.info(f"Returned columns: {columns}")
 
 router = APIRouter(prefix="/pdf", tags=["pdf"])
 
@@ -21,12 +51,43 @@ def generate_invoice_pdf(invoice_id: int, db: Session = Depends(get_db)):
     from reportlab.lib.utils import ImageReader
     import os
 
+    logger.info(f"\n=== Starting PDF Generation for Invoice ID: {invoice_id} ===")
+    
+    # Log the SQL query for invoice
+    logger.info("\n[1/3] Fetching invoice data...")
     result = db.execute(select(Invoice).where(Invoice.id == invoice_id))
     invoice = result.scalars().first()
     if not invoice:
+        logger.error(f"Invoice with ID {invoice_id} not found")
         raise HTTPException(status_code=404, detail="Invoice not found")
-    contract_result = db.execute(select(Contract).where(Contract.id == invoice.contract_id))
-    contract = contract_result.scalars().first()
+        
+    logger.info(f"Found invoice: ID={invoice.id}, Contract ID={invoice.contract_id}")
+    # Log the SQL query for factures
+    logger.info("\n[3/3] Fetching factures data...")
+    factures_result = db.execute(select(Facture).where(Facture.contract_id == invoice.contract_id))
+    factures = factures_result.scalars().all()
+    logger.info(f"Found {len(factures)} factures for contract ID {invoice.contract_id}")
+    
+    # Log detailed facture information
+    logger.info("\n=== FACTURE DETAILS ===")
+    for i, facture in enumerate(factures, 1):
+        logger.info(f"Facture #{i}:")
+        logger.info(f"  ID: {facture.id}")
+        logger.info(f"  Description: {facture.description}")
+        logger.info(f"  Quantity: {facture.qty}")
+        logger.info(f"  Unit Price: {facture.unit_price} €")
+        logger.info(f"  TVA: {facture.tva}%")
+        logger.info(f"  Total HT: {facture.total_ht} €")
+        logger.info(f"  Created At: {facture.created_at}")
+    logger.info("=====================\n")
+    
+    # Get client data
+    client_result = db.execute(select(Client).where(Client.id == invoice.client_id))
+    client = client_result.scalars().first()
+    if client:
+        logger.info(f"Found client: ID={client.id}, Name={client.client_name}")
+    else:
+        logger.warning("No client found for this invoice")
 
     buffer = BytesIO()
     p = canvas.Canvas(buffer, pagesize=letter)
@@ -220,8 +281,9 @@ def generate_invoice_pdf(invoice_id: int, db: Session = Depends(get_db)):
             p.drawString(current_x + headers[2]["width"] - unit_price_width - 5, y_position - 15, unit_price_text)
             current_x += headers[2]["width"]
             
-            # TVA (forced 0%)
-            tva_text = f"{0.00:.2f}%"
+            # TVA from facture
+            tva_rate = item.tva if hasattr(item, 'tva') else 0.0
+            tva_text = f"{tva_rate:.2f}%"
             tva_width = p.stringWidth(tva_text, "Helvetica", 9)
             p.drawString(current_x + headers[3]["width"] - tva_width - 5, y_position - 15, tva_text)
             current_x += headers[3]["width"]
@@ -256,8 +318,11 @@ def generate_invoice_pdf(invoice_id: int, db: Session = Depends(get_db)):
         p.drawString(current_x + headers[2]["width"] - price_width - 5, y_position - 15, price_text)
         current_x += headers[2]["width"]
         
-        # TVA (forced 0%)
-        p.drawString(current_x + headers[3]["width"] - 25, y_position - 15, "0.00%")
+        # TVA (use contract TVA if available, otherwise 0%)
+        tva_rate = getattr(contract, 'tva', 0.0)
+        tva_text = f"{tva_rate:.2f}%"
+        tva_width = p.stringWidth(tva_text, "Helvetica", 9)
+        p.drawString(current_x + headers[3]["width"] - tva_width - 5, y_position - 15, tva_text)
         current_x += headers[3]["width"]
         
         # Total HT
@@ -371,7 +436,7 @@ def generate_estimate_pdf(contract_id: int, db: Session = Depends(get_db)):
     
     # Numéro de bon de commande
     p.setFont("Helvetica-Bold", 11)
-    p.drawString(left, y, "Numéro de bon de commande")
+    p.drawString(left, y, "Numéro de contrat")
     p.setFont("Helvetica", 12)
     p.drawString(left + 170, y, f"{contract.command_number}" if hasattr(contract, 'command_number') else '')
     y -= line_height
@@ -553,8 +618,9 @@ def generate_estimate_pdf(contract_id: int, db: Session = Depends(get_db)):
             p.drawString(current_x + headers[2]["width"] - unit_price_width - 5, y_position - 15, unit_price_text)
             current_x += headers[2]["width"]
             
-            # TVA (forced 0%)
-            tva_text = f"{0.00:.2f}%"
+            # TVA from facture
+            tva_rate = item.tva if hasattr(item, 'tva') else 0.0
+            tva_text = f"{tva_rate:.2f}%"
             tva_width = p.stringWidth(tva_text, "Helvetica", 9)
             p.drawString(current_x + headers[3]["width"] - tva_width - 5, y_position - 15, tva_text)
             current_x += headers[3]["width"]
@@ -591,8 +657,11 @@ def generate_estimate_pdf(contract_id: int, db: Session = Depends(get_db)):
         p.drawString(current_x + headers[2]["width"] - price_width - 5, y_position - 15, price_text)
         current_x += headers[2]["width"]
         
-        # TVA (forced 0%)
-        p.drawString(current_x + headers[3]["width"] - 25, y_position - 15, "0.00%")
+        # TVA (use contract TVA if available, otherwise 0%)
+        tva_rate = getattr(contract, 'tva', 0.0)
+        tva_text = f"{tva_rate:.2f}%"
+        tva_width = p.stringWidth(tva_text, "Helvetica", 9)
+        p.drawString(current_x + headers[3]["width"] - tva_width - 5, y_position - 15, tva_text)
         current_x += headers[3]["width"]
         
         # Total HT
@@ -624,17 +693,17 @@ def generate_estimate_pdf(contract_id: int, db: Session = Depends(get_db)):
     total_width_text = p.stringWidth(total_text, "Helvetica-Bold", 10)
     p.drawString(header_x + total_width - total_width_text - 5, y_position - 15, total_text)
     
-    # TVA (forced 0%)
+    # Calculate total TVA from all factures
     y_position = ensure_space(y_position - 20, 140)
-    tva_amount = 0.0
+    tva_amount = sum(item.total_ht * (getattr(item, 'tva', 0.0) / 100) for item in factures) if 'factures' in locals() else 0.0
     p.drawString(header_x + 5, y_position - 15, "TVA:")
     tva_text = f"{tva_amount:.2f} €"
     tva_width_text = p.stringWidth(tva_text, "Helvetica-Bold", 10)
     p.drawString(header_x + total_width - tva_width_text - 5, y_position - 15, tva_text)
     
-    # Total TTC
+    # Total TTC (HT + TVA)
     y_position = ensure_space(y_position - 20, 140)
-    total_ttc = total_amount
+    total_ttc = total_amount + tva_amount
     p.drawString(header_x + 5, y_position - 15, "Total TTC:")
     ttc_text = f"{total_ttc:.2f} €"
     ttc_width_text = p.stringWidth(ttc_text, "Helvetica-Bold", 10)
@@ -692,7 +761,57 @@ def generate_facture_pdf_by_contract(contract_id: int, db: Session = Depends(get
     """
     Generate a PDF for facture by contract ID - this is what the frontend expects!
     """
-    # This is the same as estimate but with "Facture" title instead of "Devis"
+    logger.info(f"\n=== Generating Facture PDF for Contract ID: {contract_id} ===")
+    
+    # Get contract data
+    contract = db.execute(select(Contract).where(Contract.id == contract_id)).scalars().first()
+    if not contract:
+        logger.error(f"Contract with ID {contract_id} not found")
+        raise HTTPException(status_code=404, detail="Contract not found")
+    
+    # Get client data
+    client = db.execute(select(Client).where(Client.id == contract.client_id)).scalars().first()
+    if not client:
+        logger.error(f"Client not found for contract ID {contract_id}")
+        raise HTTPException(status_code=404, detail="Client not found")
+    
+    logger.info(f"Client: {client.client_name} (ID: {client.id})")
+    
+    # Get all factures for this contract
+    factures = db.execute(
+        select(Facture)
+        .where(Facture.contract_id == contract_id)
+        .order_by(Facture.created_at)
+    ).scalars().all()
+    
+    if not factures:
+        logger.warning(f"No factures found for contract ID {contract_id}")
+        raise HTTPException(status_code=404, detail="No factures found for this contract")
+    
+    # Log all facture details
+    logger.info(f"Found {len(factures)} factures:")
+    for i, facture in enumerate(factures, 1):
+        logger.info(f"\nFacture #{i}:")
+        logger.info(f"  ID: {facture.id}")
+        logger.info(f"  Description: {facture.description}")
+        logger.info(f"  Quantity: {facture.qty}")
+        logger.info(f"  Unit Price: {facture.unit_price} €")
+        logger.info(f"  TVA: {facture.tva}%")
+        logger.info(f"  Total HT: {facture.total_ht} €")
+        logger.info(f"  Created At: {facture.created_at}")
+    
+    # Calculate totals
+    total_ht = sum(f.total_ht for f in factures)
+    total_tva = sum(f.total_ht * (f.tva / 100) for f in factures)
+    total_ttc = total_ht + total_tva
+    
+    logger.info("\n=== TOTALS ===")
+    logger.info(f"Total HT: {total_ht:.2f} €")
+    logger.info(f"Total TVA: {total_tva:.2f} €")
+    logger.info(f"Total TTC: {total_ttc:.2f} €")
+    logger.info("================\n")
+    
+    # Generate the PDF
     return generate_estimate_pdf(contract_id, db)
 
 @router.post("/facture")
@@ -701,6 +820,34 @@ def generate_facture_pdf(facture_data: dict, db: Session = Depends(get_db)):
     Generate a PDF for a facture
     """
     from reportlab.lib.utils import ImageReader
+    
+    logger.info("\n=== Starting Facture PDF Generation ===")
+    
+    # Log detailed facture information
+    logger.info("\n=== FACTURE DATA ===")
+    logger.info(f"Facture ID: {facture_data.get('id', 'N/A')}")
+    logger.info(f"Contract ID: {facture_data.get('contract_id', 'N/A')}")
+    logger.info(f"Description: {facture_data.get('description', 'N/A')}")
+    logger.info(f"Quantity: {facture_data.get('qty', 'N/A')}")
+    logger.info(f"Unit Price: {facture_data.get('unit_price', 'N/A')} €")
+    logger.info(f"TVA: {facture_data.get('tva', 'N/A')}%")
+    logger.info(f"Total HT: {facture_data.get('total_ht', 'N/A')} €")
+    logger.info(f"Client: {facture_data.get('client_name', 'N/A')}")
+    logger.info("==================\n")
+    
+    # Log important facture data
+    facture_id = facture_data.get('id', 'N/A')
+    contract_id = facture_data.get('contract_id', 'N/A')
+    logger.info(f"Processing Facture ID: {facture_id}, Contract ID: {contract_id}")
+    
+    if 'description' in facture_data:
+        logger.info(f"Description: {facture_data['description']}")
+    if 'qty' in facture_data and 'unit_price' in facture_data:
+        logger.info(f"Qty: {facture_data['qty']}, Unit Price: {facture_data['unit_price']}")
+    if 'client_name' in facture_data:
+        logger.info(f"Client: {facture_data['client_name']}")
+    
+    logger.info("Starting PDF generation...")
     
     buffer = BytesIO()
     p = canvas.Canvas(buffer, pagesize=letter)
@@ -849,12 +996,12 @@ def generate_facture_pdf(facture_data: dict, db: Session = Depends(get_db)):
     p.drawString(500, y, f"{total_ht:.2f} €")
     y -= 20
     
-    # TVA forced to 0%
-    tva_rate = 0.0
-    tva_amount = 0.0
-    total_ttc = total_ht
+    # Calculate TVA from facture data
+    tva_rate = float(facture_data.get('tva', 0.0))  # Get TVA rate from facture data
+    tva_amount = total_ht * (tva_rate / 100)  # Calculate TVA amount
+    total_ttc = total_ht + tva_amount
     
-    p.drawString(400, y, f"TVA (0%):")
+    p.drawString(400, y, f"TVA ({tva_rate:.1f}%):")
     p.drawString(500, y, f"{tva_amount:.2f} €")
     y -= 20
     
@@ -915,6 +1062,12 @@ def generate_facture_pdf(facture_data: dict, db: Session = Depends(get_db)):
 
     p.save()
     buffer.seek(0)
+    
+    # Log PDF generation completion
+    file_size = len(buffer.getvalue()) / 1024  # Size in KB
+    logger.info(f"PDF generation completed. File size: {file_size:.2f} KB")
+    logger.info("=== End of Facture PDF Generation ===\n")
+    
     return Response(content=buffer.getvalue(), media_type="application/pdf", headers={
         "Cache-Control": "no-store, max-age=0",
         "Pragma": "no-cache"

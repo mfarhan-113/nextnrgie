@@ -15,16 +15,16 @@ router = APIRouter(prefix="/contracts", tags=["contracts"])
 @router.post("/", response_model=ContractOut)
 def add_contract(contract: ContractCreate, db: Session = Depends(get_db)):
     try:
-        # Generate a command number if empty
+        # Generate a contract number if empty
         if not contract.command_number or not contract.command_number.strip():
             current_date = datetime.now()
-            contract.command_number = f"CMD-{current_date.strftime('%Y%m%d')}-{current_date.strftime('%H%M%S')}"
-        # Check if command number exists
+            contract.command_number = f"CON-{current_date.strftime('%Y%m%d')}-{current_date.strftime('%H%M%S')}"
+        # Check if contract number exists
         else:
             result = db.execute(select(Contract).where(Contract.command_number == contract.command_number))
             existing_contract = result.scalars().first()
             if existing_contract:
-                # Generate a unique command number with timestamp to avoid conflicts
+                # Generate a unique contract number with timestamp to avoid conflicts
                 timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
                 contract.command_number = f"{contract.command_number}-{timestamp}"
         
@@ -34,7 +34,8 @@ def add_contract(contract: ContractCreate, db: Session = Depends(get_db)):
             raise HTTPException(status_code=404, detail="Client not found")
         
         # Create contract
-        db_contract = Contract(**contract.dict())
+        contract_data = contract.dict()
+        db_contract = Contract(**contract_data)
         db.add(db_contract)
         db.commit()
         db.refresh(db_contract)
@@ -81,7 +82,7 @@ def delete_contract(contract_id: int, db: Session = Depends(get_db)):
             print(f"Contract with ID {contract_id} not found")
             raise HTTPException(status_code=404, detail="Contract not found")
         
-        print(f"Found contract: ID={contract.id}, Command Number={contract.command_number}")
+        print(f"Found contract: ID={contract.id}, Contract Number={contract.command_number}")
         
         # Check for related records that might prevent deletion
         from app.models.facture import Facture
@@ -130,14 +131,16 @@ def update_contract(contract_id: int, contract: ContractCreate, db: Session = De
     if db_contract is None:
         raise HTTPException(status_code=404, detail="Contract not found")
     
-    # Check if command number is being changed and if it already exists
+    # Check if contract number is being changed and if it already exists
     if contract.command_number != db_contract.command_number:
         result = db.execute(select(Contract).where(Contract.command_number == contract.command_number))
         if result.scalars().first():
-            raise HTTPException(status_code=400, detail="Command number already exists")
+            raise HTTPException(status_code=400, detail="Contract number already exists")
     
     # Update contract data
-    for key, value in contract.dict().items():
+    update_data = contract.dict()
+
+    for key, value in update_data.items():
         setattr(db_contract, key, value)
     
     db.commit()

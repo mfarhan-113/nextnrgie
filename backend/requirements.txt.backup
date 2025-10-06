@@ -1,11 +1,12 @@
 fastapi
 uvicorn[standard]
 sqlalchemy
-pymysql>=1.0.0
+asyncpg
 alembic
 python-jose[cryptography]
 passlib[bcrypt]
 pydantic[email]
+psycopg2-binary
 python-multipart
 reportlab
-cryptography
+pymysql>=1.0.0

@@ -1,79 +1,93 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
-from app.core.database import get_db
-from app.schemas.facture import FactureCreate, Facture, FactureUpdate
-from app.models.facture import Facture as FactureModel
-from app.models.contract import Contract
-from sqlalchemy import select
-from typing import List
+from typing import List, Optional
+from .. import models, schemas, crud
+from ..core.database import get_db
 
-router = APIRouter(prefix="/factures", tags=["factures"])
+router = APIRouter(prefix="/api/factures", tags=["factures"])
 
-@router.get("/", response_model=List[Facture])
-def get_all_factures(db: Session = Depends(get_db)):
-    """Get all factures"""
-    result = db.execute(select(FactureModel))
-    return result.scalars().all()
-
-@router.post("/", response_model=Facture)
-def create_facture(facture: FactureCreate, db: Session = Depends(get_db)):
+@router.post("/", response_model=schemas.Facture, status_code=status.HTTP_201_CREATED)
+def create_facture(facture: schemas.FactureCreate, db: Session = Depends(get_db)):
+    """
+    Create a new facture.
+    """
     # Verify contract exists
-    result = db.execute(select(Contract).where(Contract.id == facture.contract_id))
-    if not result.scalars().first():
-        raise HTTPException(status_code=404, detail="Contract not found")
+    db_contract = db.query(models.Contract).filter(models.Contract.id == facture.contract_id).first()
+    if not db_contract:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Contract with id {facture.contract_id} not found"
+        )
     
-    # Create facture
-    db_facture = FactureModel(**facture.dict())
-    db.add(db_facture)
-    db.commit()
-    db.refresh(db_facture)
+    # Create the facture
+    db_facture = crud.create_facture(db=db, facture=facture)
     return db_facture
 
-@router.get("/contract/{contract_id}", response_model=List[Facture])
-def get_factures_by_contract(contract_id: int, db: Session = Depends(get_db)):
-    # Verify contract exists
-    result = db.execute(select(Contract).where(Contract.id == contract_id))
-    if not result.scalars().first():
-        raise HTTPException(status_code=404, detail="Contract not found")
-    
-    # Get factures for contract
-    result = db.execute(select(FactureModel).where(FactureModel.contract_id == contract_id))
-    return result.scalars().all()
+@router.get("/{facture_id}", response_model=schemas.Facture)
+def read_facture(facture_id: int, db: Session = Depends(get_db)):
+    """
+    Get a specific facture by ID.
+    """
+    db_facture = crud.get_facture(db, facture_id=facture_id)
+    if db_facture is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Facture with id {facture_id} not found"
+        )
+    return db_facture
 
-@router.get("/{facture_id}", response_model=Facture)
-def get_facture(facture_id: int, db: Session = Depends(get_db)):
-    result = db.execute(select(FactureModel).where(FactureModel.id == facture_id))
-    facture = result.scalars().first()
-    if not facture:
-        raise HTTPException(status_code=404, detail="Facture not found")
-    return facture
-
-@router.put("/{facture_id}", response_model=Facture)
-def update_facture(
-    facture_id: int, 
-    facture_update: FactureUpdate, 
+@router.get("/contract/{contract_id}", response_model=List[schemas.Facture])
+def read_factures_by_contract(
+    contract_id: int, 
+    skip: int = 0, 
+    limit: int = 100, 
     db: Session = Depends(get_db)
 ):
-    result = db.execute(select(FactureModel).where(FactureModel.id == facture_id))
-    db_facture = result.scalars().first()
-    if not db_facture:
-        raise HTTPException(status_code=404, detail="Facture not found")
+    """
+    Get all factures for a specific contract.
+    """
+    # Verify contract exists
+    db_contract = db.query(models.Contract).filter(models.Contract.id == contract_id).first()
+    if not db_contract:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Contract with id {contract_id} not found"
+        )
     
-    update_data = facture_update.dict(exclude_unset=True)
-    for field, value in update_data.items():
-        setattr(db_facture, field, value)
-    
-    db.commit()
-    db.refresh(db_facture)
+    factures = crud.get_factures_by_contract(
+        db, 
+        contract_id=contract_id, 
+        skip=skip, 
+        limit=limit
+    )
+    return factures
+
+@router.put("/{facture_id}", response_model=schemas.Facture)
+def update_facture(
+    facture_id: int, 
+    facture: schemas.FactureUpdate, 
+    db: Session = Depends(get_db)
+):
+    """
+    Update a facture.
+    """
+    db_facture = crud.update_facture(db, facture_id=facture_id, facture=facture)
+    if db_facture is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Facture with id {facture_id} not found"
+        )
     return db_facture
 
-@router.delete("/{facture_id}")
+@router.delete("/{facture_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_facture(facture_id: int, db: Session = Depends(get_db)):
-    result = db.execute(select(FactureModel).where(FactureModel.id == facture_id))
-    db_facture = result.scalars().first()
-    if not db_facture:
-        raise HTTPException(status_code=404, detail="Facture not found")
-    
-    db.delete(db_facture)
-    db.commit()
-    return {"detail": "Facture deleted successfully"}
+    """
+    Delete a facture.
+    """
+    db_facture = crud.delete_facture(db, facture_id=facture_id)
+    if db_facture is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Facture with id {facture_id} not found"
+        )
+    return None

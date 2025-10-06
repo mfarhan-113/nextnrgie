@@ -1,21 +1,21 @@
-from sqlalchemy import Column, Integer, String, ForeignKey, DateTime
+from sqlalchemy import Column, Integer, String, Text, ForeignKey
 from sqlalchemy.orm import relationship
-from sqlalchemy.sql import func
-from .base import Base
+from .base import Base, BaseModel
 
-class Client(Base):
+class Client(Base, BaseModel):
     __tablename__ = "clients"
     id = Column(Integer, primary_key=True, index=True)
-    client_number = Column(String, unique=True, index=True, nullable=False)
-    client_name = Column(String, nullable=True)
-    email = Column(String, nullable=False)
-    phone = Column(String, nullable=False)
-    tva_number = Column(String, nullable=True)
-    tsa_number = Column(String, nullable=True)
-    contact_person = Column(String, nullable=True)
-    contact_person_phone = Column(String, nullable=True)
-    contact_person_designation = Column(String, nullable=True)
-    client_address = Column(String, nullable=True)
+    client_number = Column(String(50), unique=True, index=True)
+    client_name = Column(String(255))
+    email = Column(String(255))
+    phone = Column(String(50))
+    tva_number = Column(String(100))
+    tsa_number = Column(String(100))
+    contact_person = Column(String(255))
+    contact_person_phone = Column(String(50))
+    contact_person_designation = Column(String(255))
+    client_address = Column(Text)
     owner_id = Column(Integer, ForeignKey("users.id"))
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+    # Relationship to owner (User)
     owner = relationship("User", back_populates="clients")
