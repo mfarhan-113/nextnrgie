@@ -25,7 +25,7 @@ async def add_contract_detail(detail: ContractDetailCreate, db: AsyncSession = D
     
     return db_detail
 
-@router.get("/contract/{contract_id}", response_model=List[ContractDetailOut])
+@router.get("/contracts/{contract_id}", response_model=List[ContractDetailOut])
 async def get_contract_details(contract_id: int, db: AsyncSession = Depends(get_db)):
     # Verify contract exists
     result = await db.execute(select(Contract).where(Contract.id == contract_id))

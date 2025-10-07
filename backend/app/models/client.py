@@ -10,12 +10,13 @@ class Client(Base, BaseModel):
     email = Column(String(255))
     phone = Column(String(50))
     tva_number = Column(String(100))
-    tsa_number = Column(String(100))
+    siret_number = Column(String(100))
     contact_person = Column(String(255))
     contact_person_phone = Column(String(50))
     contact_person_designation = Column(String(255))
     client_address = Column(Text)
     owner_id = Column(Integer, ForeignKey("users.id"))
 
-    # Relationship to owner (User)
+    # Relationships
     owner = relationship("User", back_populates="clients")
+    contracts = relationship("Contract", back_populates="client", cascade="all, delete-orphan")

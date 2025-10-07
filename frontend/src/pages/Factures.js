@@ -16,13 +16,6 @@ import Button from '@mui/material/Button';
 import Fade from '@mui/material/Fade';
 import { 
   CssBaseline, 
-  Paper, 
-  Table, 
-  TableBody, 
-  TableCell, 
-  TableContainer, 
-  TableHead, 
-  TableRow,
   styled,
   alpha
 } from '@mui/material';
@@ -33,7 +26,6 @@ import InfoIcon from '@mui/icons-material/Info';
 import EditIcon from '@mui/icons-material/Edit';
 import DeleteIcon from '@mui/icons-material/Delete';
 import CloseIcon from '@mui/icons-material/Close';
-import MenuIcon from '@mui/icons-material/Menu';
 import AddIcon from '@mui/icons-material/Add';
 
 // Components
@@ -81,44 +73,12 @@ const PdfPreviewContent = styled('div')({
   flex: 1,
   position: 'relative',
   overflow: 'hidden',
-});
-
-const LoadingPdf = styled('div')({
   display: 'flex',
   flexDirection: 'column',
   justifyContent: 'center',
   alignItems: 'center',
   height: '100%',
   color: '#666',
-});
-
-const ModernTableContainer = styled(TableContainer)({
-  marginTop: '20px',
-  boxShadow: '0 1px 3px rgba(0,0,0,0.12), 0 1px 2px rgba(0,0,0,0.24)',
-  borderRadius: '8px',
-  overflow: 'hidden',
-});
-
-const StyledTable = styled(Table)({
-  minWidth: '100%',
-  borderCollapse: 'collapse',
-});
-
-const StyledTableHead = styled(TableHead)({
-  '& th': {
-    backgroundColor: '#f5f5f5',
-    padding: '12px 16px',
-    textAlign: 'left',
-    fontWeight: 600,
-    color: '#333',
-    borderBottom: '2px solid #e0e0e0',
-  },
-});
-
-const StyledTableRow = styled(TableRow)({
-  '&:hover': {
-    backgroundColor: '#f9f9f9',
-  },
   '& td': {
     padding: '12px 16px',
     borderBottom: '1px solid #f0f0f0',
@@ -189,27 +149,63 @@ function Factures() {
   const [loadingPdf, setLoadingPdf] = useState(false);
   const [detailsOpen, setDetailsOpen] = useState(false);
   const [selectedContract, setSelectedContract] = useState(null);
-  const [editFactureOpen, setEditFactureOpen] = useState(false);
-  const [editingFacture, setEditingFacture] = useState(null);
-  const [editForm, setEditForm] = useState({
-    description: '',
-    qty: '',
-    unit_price: '',
-    tva: '',
-    total_ht: ''
+  // Remove unused state variables that are now part of formState
+  // const [showFactureForm, setShowFactureForm] = useState(false);
+  // const [editFactureOpen, setEditFactureOpen] = useState(false);
+  // const [editingFacture, setEditingFacture] = useState(null);
+  // const [editForm, setEditForm] = useState({
+  //   description: '',
+  //   qty: 1,
+  //   unit_price: 0,
+  //   tva: 20,
+  //   total_ht: 0
+  // });
+
+  // Form state management
+  const [formState, setFormState] = useState({
+    showFactureForm: false,
+    selectedContractId: '',
+    contractFactures: [],
+    factureForm: {
+      description: '',
+      qty: 1,
+      unit_price: 0,
+      tva: 20, // Default TVA 20%
+      total_ht: 0
+    },
+    editForm: {
+      id: null,
+      description: '',
+      qty: 1,
+      unit_price: 0,
+      tva: 20,
+      total_ht: 0
+    },
+    editFactureOpen: false
   });
-  
-  // State for facture form
-  const [showFactureForm, setShowFactureForm] = useState(false);
-  const [factureForm, setFactureForm] = useState({
-    description: '',
-    qty: '',
-    unit_price: '',
-    tva: '',
-    total_ht: ''
-  });
-  const [selectedContractId, setSelectedContractId] = useState('');
-  const [contractFactures, setContractFactures] = useState([]);
+
+  // Helper to update form state
+  const updateFormState = (updates) => {
+    setFormState(prev => {
+      const newState = { ...prev, ...updates };
+      
+      if (updates.factureForm) {
+        newState.factureForm = {
+          ...(prev.factureForm || {}),
+          ...updates.factureForm
+        };
+      }
+      
+      if (updates.editForm) {
+        newState.editForm = {
+          ...(prev.editForm || {}),
+          ...updates.editForm
+        };
+      }
+      
+      return newState;
+    });
+  };
 
   // Generate PDF for a contract - SUPER SIMPLE VERSION
   const generatePdf = async (contract) => {
@@ -236,64 +232,127 @@ function Factures() {
 
   // Fetch factures for selected contract
   const fetchContractFactures = async (contractId) => {
+    if (!contractId) {
+      console.warn('No contract ID provided');
+      updateFormState({ contractFactures: [], contractDetails: {} });
+      return;
+    }
+
+    console.log(`Fetching data for contract ID: ${contractId}`);
+    
     try {
-      const response = await axios.get(
-        `${process.env.REACT_APP_API_URL}/factures/contract/${contractId}`,
+      // First get contract details
+      console.log(`Fetching contract details from: ${process.env.REACT_APP_API_URL}/contract-details/contracts/${contractId}`);
+      const contractResponse = await axios.get(
+        `${process.env.REACT_APP_API_URL}/contract-details/contracts/${contractId}`,
         {
           headers: {
-            'Authorization': `Bearer ${localStorage.getItem('token')}`
+            'Authorization': `Bearer ${localStorage.getItem('token')}`,
+            'Content-Type': 'application/json'
           }
         }
       );
-      setContractFactures(response.data || []);
+      console.log('Contract details response:', contractResponse.data);
+      
+      // Then get the factures for this contract
+      console.log(`Fetching factures from: ${process.env.REACT_APP_API_URL}/api/factures/contract/${contractId}`);
+      const facturesResponse = await axios.get(
+        `${process.env.REACT_APP_API_URL}/api/factures/contract/${contractId}`,
+        {
+          headers: {
+            'Authorization': `Bearer ${localStorage.getItem('token')}`,
+            'Content-Type': 'application/json'
+          },
+          // Add error handling for 404 specifically
+          validateStatus: (status) => status < 500
+        }
+      );
+      
+      console.log('Factures response:', facturesResponse.data);
+      
+      updateFormState({ 
+        contractFactures: facturesResponse.data || [],
+        contractDetails: contractResponse.data?.[0] || {}
+      });
+      
     } catch (error) {
-      console.warn('Could not fetch contract factures:', error);
-      setContractFactures([]);
+      console.error('Error in fetchContractFactures:', {
+        message: error.message,
+        response: error.response?.data,
+        status: error.response?.status,
+        config: {
+          url: error.config?.url,
+          method: error.config?.method,
+          headers: error.config?.headers
+        }
+      });
+      
+      // If it's a 404, try the alternative endpoint
+      if (error.response?.status === 404) {
+        console.log('Trying alternative endpoint...');
+        try {
+          const altResponse = await axios.get(
+            `${process.env.REACT_APP_API_URL}/api/contracts/${contractId}/details`,
+            {
+              headers: {
+                'Authorization': `Bearer ${localStorage.getItem('token')}`,
+                'Content-Type': 'application/json'
+              }
+            }
+          );
+          
+          console.log('Alternative endpoint response:', altResponse.data);
+          updateFormState({
+            contractFactures: [],
+            contractDetails: Array.isArray(altResponse.data) ? altResponse.data[0] : altResponse.data
+          });
+          return;
+        } catch (altError) {
+          console.error('Alternative endpoint also failed:', altError);
+        }
+      }
+      
+      updateFormState({ 
+        contractFactures: [],
+        contractDetails: {}
+      });
     }
   };
 
   // Handle contract selection change
   const handleContractChange = (e) => {
     const contractId = e.target.value;
-    setSelectedContractId(contractId);
+    updateFormState({ selectedContractId: contractId });
     if (contractId) {
       fetchContractFactures(contractId);
     } else {
-      setContractFactures([]);
+      updateFormState({ contractFactures: [] });
     }
   };
 
   // Calculate remaining contract amount
-  const getRemainingAmount = () => {
-    if (!selectedContractId) return 0;
-    const selectedContract = contracts.find(c => c.id === parseInt(selectedContractId));
-    if (!selectedContract) return 0;
-    
-    const contractPrice = parseFloat(selectedContract.price) || 0;
-    const invoicedAmount = contractFactures.reduce((sum, f) => sum + (parseFloat(f.total_ht) || 0), 0);
-    return contractPrice - invoicedAmount;
-  };
-
-  // Check if current facture amount exceeds remaining
-  const isAmountValid = () => {
-    const currentAmount = parseFloat(factureForm.total_ht) || 0;
-    const remaining = getRemainingAmount();
-    return currentAmount <= remaining;
-  };
-
   // Handle facture form input changes
   const handleFactureChange = (e) => {
     const { name, value } = e.target;
-    let updatedForm = { ...factureForm, [name]: value };
+    const updatedForm = {
+      ...formState.factureForm,
+      [name]: name === 'qty' || name === 'unit_price' || name === 'tva' || name === 'total_ht' 
+        ? parseFloat(value) || 0 
+        : value
+    };
     
-    // Auto-calculate total_ht when qty or unit_price changes
-    if (name === 'qty' || name === 'unit_price') {
-      const qty = name === 'qty' ? parseFloat(value) || 0 : parseFloat(factureForm.qty) || 0;
-      const unitPrice = name === 'unit_price' ? parseFloat(value) || 0 : parseFloat(factureForm.unit_price) || 0;
-      updatedForm.total_ht = (qty * unitPrice).toFixed(2);
+    // Recalculate total when quantity, unit price, or TVA changes
+    if (['qty', 'unit_price', 'tva'].includes(name)) {
+      const qty = name === 'qty' ? parseFloat(value) || 0 : formState.factureForm.qty || 0;
+      const unitPrice = name === 'unit_price' ? parseFloat(value) || 0 : formState.factureForm.unit_price || 0;
+      const tvaRate = name === 'tva' ? (parseFloat(value) || 0) / 100 : (formState.factureForm.tva || 0) / 100;
+      
+      const subtotal = qty * unitPrice;
+      const tvaAmount = subtotal * tvaRate;
+      updatedForm.total_ht = subtotal + tvaAmount;
     }
     
-    setFactureForm(updatedForm);
+    updateFormState({ factureForm: updatedForm });
   };
 
   // Update contract price
@@ -337,90 +396,143 @@ function Factures() {
   // Handle facture form submission
   const handleFactureSubmit = async (e) => {
     e.preventDefault();
-    if (!selectedContractId) {
+    if (!formState.selectedContractId) {
       setError('Please select a contract');
       return;
     }
-
+  
     try {
-      const totalHt = parseFloat(factureForm.total_ht) || 0;
-      const selectedContract = contracts.find(c => c.id === parseInt(selectedContractId));
+      // Get values from form
+      const qty = parseFloat(formState.factureForm.qty) || 0;
+      const unitPrice = parseFloat(formState.factureForm.unit_price) || 0;
+      const tvaPercent = parseFloat(formState.factureForm.tva) || 0;
+      
+      // Calculate amounts
+      const subtotal = qty * unitPrice;
+      const tvaAmount = subtotal * (tvaPercent / 100);
+      const totalHt = subtotal + tvaAmount;
+      
+      const selectedContract = contracts.find(c => c.id === parseInt(formState.selectedContractId));
       
       if (!selectedContract) {
         setError('Selected contract not found');
         return;
       }
-
+  
       // Calculate new contract price
       const currentPrice = parseFloat(selectedContract.price) || 0;
-      const newPrice = Math.max(0, (currentPrice - totalHt).toFixed(2));
-
+      const newPrice = Math.max(0, (currentPrice + totalHt).toFixed(2));
+  
       // First, update the contract price
-      const updated = await updateContractPrice(selectedContractId, newPrice);
+      const updated = await updateContractPrice(formState.selectedContractId, newPrice);
       
       if (!updated) {
         setError('Failed to update contract price');
         return;
       }
+
+      // Prepare the request data - ensure all numbers are properly formatted
+      const requestData = {
+        contract_id: parseInt(formState.selectedContractId),
+        description: formState.factureForm.description || '',
+        qty: parseFloat(qty.toFixed(2)),
+        unit_price: parseFloat(unitPrice.toFixed(2)),
+        tva: parseFloat(tvaPercent.toFixed(2)), // Ensure it's a number with 2 decimal places
+        total_ht: parseFloat(totalHt.toFixed(2)) // Ensure it's a number with 2 decimal places
+      };
+      
+      // Log the calculated values for debugging
+      console.log('Subtotal:', subtotal);
+      console.log('TVA Amount:', tvaAmount);
+      console.log('Total HT (with TVA):', totalHt);
+
+      console.log('Sending facture data:', requestData);
+  
       const response = await axios.post(
-        `${process.env.REACT_APP_API_URL}/factures`,
-        {
-          ...factureForm,
-          contract_id: parseInt(selectedContractId),
-          qty: parseFloat(factureForm.qty) || 0,
-          unit_price: parseFloat(factureForm.unit_price) || 0,
-          tva: parseFloat(factureForm.tva) || 0,
-          total_ht: parseFloat(factureForm.total_ht) || 0
-        },
+        `${process.env.REACT_APP_API_URL}/api/factures`,
+        requestData,
         {
           headers: {
             'Authorization': `Bearer ${localStorage.getItem('token')}`,
             'Content-Type': 'application/json'
           }
         }
-      );
+      ).catch(error => {
+        console.error('Error creating facture:', error.response?.data || error.message);
+        throw error;
+      });
       
-      setSuccess('Facture added successfully!');
-      setShowFactureForm(false);
+      const newFacture = response.data;
+      
       // Update local state to reflect the new price
       const updatedContracts = contracts.map(contract => 
-        contract.id === parseInt(selectedContractId) 
+        contract.id === parseInt(formState.selectedContractId) 
           ? { ...contract, price: newPrice }
           : contract
       );
       setContracts(updatedContracts);
-
-      // Reset form
-      setFactureForm({
-        description: '',
-        qty: '',
-        unit_price: '',
-        tva: '',
-        total_ht: ''
+  
+      // Reset form and show success message
+      updateFormState({
+        factureForm: {
+          description: '',
+          qty: 1,
+          unit_price: 0,
+          tva: 20,
+          total_ht: 0
+        },
+        showFactureForm: false
       });
       
-      // Show success message
       setSuccess('Facture added and contract price updated successfully!');
       
-      // Close the form after a short delay
+      // Close the success message after a delay
       setTimeout(() => {
-        setShowFactureForm(false);
         setSuccess('');
-      }, 1500);
+      }, 3000);
+      
+      // Update the contract price in the contracts list by adding the new facture amount
+      setContracts(contracts.map(c => 
+        c.id === parseInt(formState.selectedContractId)
+          ? { ...c, price: (parseFloat(c.price || 0) + parseFloat(formState.factureForm.total_ht || 0)).toFixed(2) }
+          : c
+      ));
+      
+      // Update the selected contract if it's currently selected
+      if (selectedContract && selectedContract.id === parseInt(formState.selectedContractId)) {
+        setSelectedContract(prev => {
+          if (!prev) return null;
+          return {
+            ...prev,
+            factures: [...(prev.factures || []), newFacture]
+          };
+        });
+      }
+      
+      // Refresh the factures list
+      fetchContractFactures(formState.selectedContractId);
       
     } catch (error) {
       console.error('Error adding facture:', error);
-      setError('Failed to add facture: ' + (error.response?.data?.message || error.message));
+      setError('Failed to add facture: ' + (error.response?.data?.detail || error.message));
     }
   };
-
   // Open facture form
   const openFactureForm = () => {
     if (contracts.length === 0) {
       setError('No contracts available');
       return;
     }
-    setShowFactureForm(true);
+    updateFormState({ 
+      showFactureForm: true,
+      factureForm: {
+        description: '',
+        qty: 1,
+        unit_price: 0,
+        tva: 20,
+        total_ht: 0
+      }
+    });
   };
 
   // Close PDF preview
@@ -459,7 +571,7 @@ function Factures() {
       
       try {
         const facturesResponse = await axios.get(
-          `${process.env.REACT_APP_API_URL}/factures/contract/${contract.id}`,
+          `${process.env.REACT_APP_API_URL}/api/factures/contract/${contract.id}`,
           {
             headers: {
               'Authorization': `Bearer ${localStorage.getItem('token')}`
@@ -494,54 +606,73 @@ function Factures() {
 
   // Edit facture item
   const editFactureItem = (facture) => {
-    setEditingFacture(facture);
-    setEditForm({
-      description: facture.description || '',
-      qty: facture.qty || '',
-      unit_price: facture.unit_price || '',
-      tva: facture.tva || '',
-      total_ht: facture.total_ht || ''
+    updateFormState({
+      editingFacture: facture,
+      editForm: {
+        description: facture.description || '',
+        qty: facture.qty || 1,
+        unit_price: facture.unit_price || 0,
+        tva: facture.tva || 20,
+        total_ht: facture.total_ht || 0
+      },
+      editFactureOpen: true
     });
-    setEditFactureOpen(true);
   };
 
   // Handle edit form changes
   const handleEditFormChange = (e) => {
     const { name, value } = e.target;
-    let updatedForm = { ...editForm, [name]: value };
+    let updatedForm = {
+      ...formState.editForm,
+      [name]: name === 'qty' || name === 'unit_price' || name === 'tva' || name === 'total_ht' 
+        ? parseFloat(value) || 0 
+        : value
+    };
     
-    // Auto-calculate total_ht when qty or unit_price changes
-    if (name === 'qty' || name === 'unit_price') {
-      const qty = name === 'qty' ? parseFloat(value) || 0 : parseFloat(editForm.qty) || 0;
-      const unitPrice = name === 'unit_price' ? parseFloat(value) || 0 : parseFloat(editForm.unit_price) || 0;
-      updatedForm.total_ht = (qty * unitPrice).toFixed(2);
+    // Recalculate total when quantity, unit price, or TVA changes
+    if (['qty', 'unit_price', 'tva'].includes(name)) {
+      const qty = name === 'qty' ? parseFloat(value) || 0 : formState.editForm.qty || 0;
+      const unitPrice = name === 'unit_price' ? parseFloat(value) || 0 : formState.editForm.unit_price || 0;
+      const tvaRate = name === 'tva' ? (parseFloat(value) || 0) / 100 : (formState.editForm.tva || 0) / 100;
+      
+      const subtotal = qty * unitPrice;
+      const tvaAmount = subtotal * tvaRate;
+      updatedForm.total_ht = subtotal + tvaAmount;
     }
     
-    setEditForm(updatedForm);
+    updateFormState({ editForm: updatedForm });
   };
 
   // Save edited facture
   const saveEditedFacture = async (e) => {
     e.preventDefault();
-    if (!editingFacture) return;
+    if (!formState.editingFacture) return;
 
     try {
       setLoading(true);
       setError('');
       
-      const oldAmount = parseFloat(editingFacture.total_ht) || 0;
-      const newAmount = parseFloat(editForm.total_ht) || 0;
+      // Calculate new values with TVA
+      const qty = parseFloat(formState.editForm.qty) || 0;
+      const unitPrice = parseFloat(formState.editForm.unit_price) || 0;
+      const tvaRate = (parseFloat(formState.editForm.tva) || 0) / 100;
+      
+      const subtotal = qty * unitPrice;
+      const tvaAmount = subtotal * tvaRate;
+      const newAmount = subtotal + tvaAmount;
+      
+      const oldAmount = parseFloat(formState.editingFacture.total_ht) || 0;
       const amountDifference = newAmount - oldAmount;
       
-      // Update facture
-      const response = await axios.put(
-        `${process.env.REACT_APP_API_URL}/factures/${editingFacture.id}`,
+      // Update facture with calculated values
+      await axios.put(
+        `${process.env.REACT_APP_API_URL}/api/factures/${formState.editingFacture.id}`,
         {
-          description: editForm.description,
-          qty: parseFloat(editForm.qty) || 0,
-          unit_price: parseFloat(editForm.unit_price) || 0,
-          tva: parseFloat(editForm.tva) || 0,
-          total_ht: parseFloat(editForm.total_ht) || 0
+          description: formState.editForm.description,
+          qty: qty,
+          unit_price: unitPrice,
+          tva: tvaRate * 100, // Convert back to percentage for storage
+          total_ht: newAmount.toFixed(2)
         },
         {
           headers: {
@@ -552,12 +683,12 @@ function Factures() {
       );
       
       // Update contract price (subtract the difference since more/less is now invoiced)
-      const contractToUpdate = contracts.find(c => c.id === selectedContract.id);
+      const contractToUpdate = contracts.find(c => c.id === formState.selectedContractId);
       if (contractToUpdate) {
         const newPrice = parseFloat(contractToUpdate.price) - amountDifference;
         
         await axios.put(
-          `${process.env.REACT_APP_API_URL}/contracts/${selectedContract.id}`,
+          `${process.env.REACT_APP_API_URL}/contracts/${formState.selectedContractId}`,
           { 
             ...contractToUpdate,
             price: newPrice.toFixed(2)
@@ -572,27 +703,60 @@ function Factures() {
         
         // Update local states
         setContracts(contracts.map(c => 
-          c.id === selectedContract.id 
+          c.id === formState.selectedContractId 
             ? { ...c, price: newPrice.toFixed(2) }
             : c
         ));
         
-        // Update selected contract factures
-        const updatedFactures = selectedContract.factures.map(f => 
-          f.id === editingFacture.id 
-            ? { ...f, ...editForm, qty: parseFloat(editForm.qty), unit_price: parseFloat(editForm.unit_price), tva: parseFloat(editForm.tva), total_ht: parseFloat(editForm.total_ht) }
+        // Update contract factures in state
+        const updatedFactures = formState.contractFactures.map(f => 
+          f.id === formState.editingFacture.id 
+            ? { 
+                ...f, 
+                ...formState.editForm, 
+                qty: parseFloat(formState.editForm.qty), 
+                unit_price: parseFloat(formState.editForm.unit_price), 
+                tva: parseFloat(formState.editForm.tva), 
+                total_ht: parseFloat(formState.editForm.total_ht) 
+              }
             : f
         );
         
-        setSelectedContract({
-          ...selectedContract,
-          factures: updatedFactures
-        });
+        updateFormState({ contractFactures: updatedFactures });
+        
+        // Update selected contract's factures if it's the current contract
+        if (selectedContract && selectedContract.id === parseInt(formState.selectedContractId)) {
+          setSelectedContract(prev => ({
+            ...prev,
+            factures: (prev.factures || []).map(f => 
+              f.id === formState.editingFacture.id 
+                ? { 
+                    ...f, 
+                    ...formState.editForm, 
+                    qty: parseFloat(formState.editForm.qty), 
+                    unit_price: parseFloat(formState.editForm.unit_price), 
+                    tva: parseFloat(formState.editForm.tva), 
+                    total_ht: parseFloat(formState.editForm.total_ht) 
+                  } 
+                : f
+            )
+          }));
+        }
       }
       
       setSuccess('Facture updated successfully!');
-      setEditFactureOpen(false);
-      setEditingFacture(null);
+      updateFormState({ 
+        editFactureOpen: false,
+        editingFacture: null,
+        editForm: {
+          id: null,
+          description: '',
+          qty: 1,
+          unit_price: 0,
+          tva: 20,
+          total_ht: 0
+        }
+      });
       setTimeout(() => setSuccess(''), 3000);
       
     } catch (error) {
@@ -605,14 +769,17 @@ function Factures() {
 
   // Cancel edit
   const cancelEdit = () => {
-    setEditFactureOpen(false);
-    setEditingFacture(null);
-    setEditForm({
-      description: '',
-      qty: '',
-      unit_price: '',
-      tva: '',
-      total_ht: ''
+    updateFormState({ 
+      editFactureOpen: false,
+      editingFacture: null,
+      editForm: {
+        id: null,
+        description: '',
+        qty: 1,
+        unit_price: 0,
+        tva: 20,
+        total_ht: 0
+      }
     });
   };
 
@@ -627,7 +794,7 @@ function Factures() {
       setError('');
       
       await axios.delete(
-        `${process.env.REACT_APP_API_URL}/factures/${factureId}`,
+        `${process.env.REACT_APP_API_URL}/api/factures/${factureId}`,
         {
           headers: {
             'Authorization': `Bearer ${localStorage.getItem('token')}`
@@ -635,42 +802,46 @@ function Factures() {
         }
       );
       
-      // Update the selected contract's factures
-      if (selectedContract) {
-        const updatedFactures = selectedContract.factures.filter(f => f.id !== factureId);
-        setSelectedContract({
-          ...selectedContract,
-          factures: updatedFactures
-        });
-        
-        // Also update the contract price (add back the deleted facture amount)
-        const deletedFacture = selectedContract.factures.find(f => f.id === factureId);
-        if (deletedFacture) {
-          const contractToUpdate = contracts.find(c => c.id === selectedContract.id);
-          if (contractToUpdate) {
-            const newPrice = parseFloat(contractToUpdate.price) + parseFloat(deletedFacture.total_ht);
-            
-            // Update contract price in backend
-            await axios.put(
-              `${process.env.REACT_APP_API_URL}/contracts/${selectedContract.id}`,
-              { 
-                ...contractToUpdate,
-                price: newPrice.toFixed(2)
-              },
-              {
-                headers: {
-                  'Authorization': `Bearer ${localStorage.getItem('token')}`,
-                  'Content-Type': 'application/json'
-                }
+      // Update the contract factures in state
+      const deletedFacture = formState.contractFactures.find(f => f.id === factureId);
+      if (deletedFacture) {
+        // Update contract price (add back the deleted facture amount)
+        const contractToUpdate = contracts.find(c => c.id === parseInt(formState.selectedContractId));
+        if (contractToUpdate) {
+          const newPrice = parseFloat(contractToUpdate.price) + parseFloat(deletedFacture.total_ht);
+          
+          // Update contract price in backend
+          await axios.put(
+            `${process.env.REACT_APP_API_URL}/contracts/${formState.selectedContractId}`,
+            { 
+              ...contractToUpdate,
+              price: newPrice.toFixed(2)
+            },
+            {
+              headers: {
+                'Authorization': `Bearer ${localStorage.getItem('token')}`,
+                'Content-Type': 'application/json'
               }
-            );
-            
-            // Update local contracts state
-            setContracts(contracts.map(c => 
-              c.id === selectedContract.id 
-                ? { ...c, price: newPrice.toFixed(2) }
-                : c
-            ));
+            }
+          );
+          
+          // Update local contracts state
+          setContracts(contracts.map(c => 
+            c.id === parseInt(formState.selectedContractId)
+              ? { ...c, price: newPrice.toFixed(2) }
+              : c
+          ));
+          
+          // Update contract factures in state
+          const updatedFactures = formState.contractFactures.filter(f => f.id !== factureId);
+          updateFormState({ contractFactures: updatedFactures });
+          
+          // Update selected contract's factures if it's the current contract
+          if (selectedContract && selectedContract.id === parseInt(formState.selectedContractId)) {
+            setSelectedContract(prev => ({
+              ...prev,
+              factures: (prev.factures || []).filter(f => f.id !== factureId)
+            }));
           }
         }
       }
@@ -768,16 +939,7 @@ function Factures() {
           <Button
             variant="contained"
             startIcon={<AddIcon />}
-            onClick={() => {
-              setShowFactureForm(true);
-              setFactureForm({
-                description: '',
-                qty: '',
-                unit_price: '',
-                tva: '',
-                total_ht: ''
-              });
-            }}
+            onClick={openFactureForm}
             sx={{
               background: 'linear-gradient(135deg, #9c27b0 0%, #673ab7 100%)',
               borderRadius: '12px',
@@ -1003,10 +1165,17 @@ function Factures() {
               </PdfPreviewHeader>
               <PdfPreviewContent>
                 {loadingPdf ? (
-                  <LoadingPdf>
+                  <div style={{
+                    display: 'flex',
+                    flexDirection: 'column',
+                    justifyContent: 'center',
+                    alignItems: 'center',
+                    height: '100%',
+                    gap: '1rem'
+                  }}>
                     <CircularProgress />
                     <p>{t('loading_pdf') || 'Chargement du PDF...'}</p>
-                  </LoadingPdf>
+                  </div>
                 ) : (
                   <iframe 
                     src={pdfUrl} 
@@ -1185,8 +1354,8 @@ function Factures() {
       </Box>
       
       {/* Facture Form Modal (Devis-style) */}
-      {showFactureForm && (
-        <div className="modal-overlay" onClick={() => setShowFactureForm(false)} style={{
+      {formState.showFactureForm && (
+        <div className="modal-overlay" onClick={() => updateFormState({ showFactureForm: false })} style={{
           position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
           backgroundColor: 'rgba(0, 0, 0, 0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000
         }}>
@@ -1196,12 +1365,12 @@ function Factures() {
           }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
               <h3 style={{ margin: 0 }}>{t('add_facture') || 'Add Facture'}</h3>
-              <IconButton onClick={() => setShowFactureForm(false)} size="small"><CloseIcon /></IconButton>
+              <IconButton onClick={() => updateFormState({ showFactureForm: false })} size="small"><CloseIcon /></IconButton>
             </div>
             <form onSubmit={handleFactureSubmit} className="contracts-form" style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
                 <div className="form-group" style={{ gridColumn: 'span 2' }}>
-                  <select id="contract_id" value={selectedContractId} onChange={handleContractChange} required>
+                  <select id="contract_id" value={formState.selectedContractId} onChange={handleContractChange} required>
                     <option value="">{t('select_contract') || 'Select Contract'}</option>
                     {contracts.map(contract => (
                       <option key={contract.id} value={contract.id}>
@@ -1216,7 +1385,7 @@ function Factures() {
                   <textarea 
                     id="facture_description" 
                     name="description" 
-                    value={factureForm.description} 
+                    value={formState.factureForm.description} 
                     onChange={handleFactureChange} 
                     placeholder=" " 
                     required 
@@ -1240,15 +1409,15 @@ function Factures() {
                   <label htmlFor="facture_description">{t('description')}</label>
                 </div>
                 <div className="form-group">
-                  <input id="facture_qty" name="qty" type="number" min="0" value={factureForm.qty} onChange={handleFactureChange} placeholder=" " required />
+                  <input id="facture_qty" name="qty" type="number" min="0" value={formState.factureForm.qty} onChange={handleFactureChange} placeholder=" " required />
                   <label htmlFor="facture_qty">{t('qty')}</label>
                 </div>
                 <div className="form-group">
-                  <input id="facture_unit_price" name="unit_price" type="number" min="0" step="0.01" value={factureForm.unit_price} onChange={handleFactureChange} placeholder=" " required />
+                  <input id="facture_unit_price" name="unit_price" type="number" min="0" step="0.01" value={formState.factureForm.unit_price} onChange={handleFactureChange} placeholder=" " required />
                   <label htmlFor="facture_unit_price">{t('unit_price')}</label>
                 </div>
                 <div className="form-group">
-                  <input id="facture_tva" name="tva" type="number" min="0" step="0.01" value={factureForm.tva} onChange={handleFactureChange} placeholder=" " required />
+                  <input id="facture_tva" name="tva" type="number" min="0" step="0.01" value={formState.factureForm.tva} onChange={handleFactureChange} placeholder=" " required />
                   <label htmlFor="facture_tva">{t('tva_percent')}</label>
                 </div>
                 <div className="form-group">
@@ -1258,7 +1427,7 @@ function Factures() {
                     type="number" 
                     min="0" 
                     step="0.01" 
-                    value={factureForm.total_ht} 
+                    value={formState.factureForm.total_ht} 
                     onChange={handleFactureChange} 
                     placeholder=" " 
                     required 
@@ -1267,7 +1436,7 @@ function Factures() {
                 </div>
               </div>
               <div className="form-actions" style={{ display: 'flex', gap: '0.75rem', justifyContent: 'flex-end' }}>
-                <button type="button" className="btn-secondary" onClick={() => setShowFactureForm(false)} style={{ padding: '0.6rem 1rem' }}>{t('cancel') || 'Cancel'}</button>
+                <button type="button" className="btn-secondary" onClick={() => updateFormState({ showFactureForm: false })} style={{ padding: '0.6rem 1rem' }}>{t('cancel') || 'Cancel'}</button>
                 <button 
                   type="submit" 
                   className="btn-primary" 
@@ -1288,7 +1457,7 @@ function Factures() {
       )}
 
       {/* Edit Facture Modal */}
-      {editFactureOpen && editingFacture && (
+      {formState.editFactureOpen && formState.editingFacture && (
         <ModalOverlay>
           <PdfPreviewContainer style={{ width: '600px', height: 'auto', maxHeight: '80vh' }}>
             <PdfPreviewHeader>
@@ -1309,10 +1478,10 @@ function Factures() {
                   mb: 2
                 }}>
                   <Typography variant="body2" sx={{ color: '#1976d2', fontWeight: 'bold' }}>
-                    Editing: {editingFacture.description}
+                    Editing: {formState.editingFacture.description}
                   </Typography>
                   <Typography variant="body2" sx={{ color: '#1976d2' }}>
-                    Original Amount: €{Number(editingFacture.total_ht).toFixed(2)}
+                    Original Amount: €{Number(formState.editingFacture.total_ht).toFixed(2)}
                   </Typography>
                 </Box>
 
@@ -1321,7 +1490,7 @@ function Factures() {
                     <textarea 
                       id="edit_description" 
                       name="description" 
-                      value={editForm.description} 
+                      value={formState.editForm.description} 
                       onChange={handleEditFormChange} 
                       placeholder=" " 
                       required 
@@ -1351,7 +1520,7 @@ function Factures() {
                       name="qty" 
                       type="number" 
                       min="0" 
-                      value={editForm.qty} 
+                      value={formState.editForm.qty} 
                       onChange={handleEditFormChange} 
                       placeholder=" " 
                       required 
@@ -1366,7 +1535,7 @@ function Factures() {
                       type="number" 
                       min="0" 
                       step="0.01" 
-                      value={editForm.unit_price} 
+                      value={formState.editForm.unit_price} 
                       onChange={handleEditFormChange} 
                       placeholder=" " 
                       required 
@@ -1381,7 +1550,7 @@ function Factures() {
                       type="number" 
                       min="0" 
                       step="0.01" 
-                      value={editForm.tva} 
+                      value={formState.editForm.tva} 
                       onChange={handleEditFormChange} 
                       placeholder=" " 
                       required 
@@ -1396,7 +1565,7 @@ function Factures() {
                       type="number" 
                       min="0" 
                       step="0.01" 
-                      value={editForm.total_ht} 
+                      value={formState.editForm.total_ht} 
                       onChange={handleEditFormChange} 
                       placeholder=" " 
                       required 

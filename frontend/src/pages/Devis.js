@@ -18,6 +18,7 @@ import Zoom from '@mui/material/Zoom';
 import TextField from '@mui/material/TextField';
 import InputAdornment from '@mui/material/InputAdornment';
 import { styled, alpha } from '@mui/material/styles';
+import { TextField as MuiTextField } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
 import CloseIcon from '@mui/icons-material/Close';
 import VisibilityIcon from '@mui/icons-material/Visibility';
@@ -36,6 +37,8 @@ import { CssBaseline } from '@mui/material';
 
 import '../modern-contracts.css';
 import '../toast.css';
+
+// Using standard TextField for description
 
 // Styled Components
 const StatsCard = styled(Card)({
@@ -308,37 +311,85 @@ const Devis = () => {
   // Fetch details when contract changes
   useEffect(() => {
     if (!selectedContractId) {
+      console.log('No contract ID selected');
       setDetails([]);
       return;
     }
+    
     const fetchDetails = async () => {
+      console.log(`Fetching details for contract ID: ${selectedContractId}`);
       setLoading(true);
       setError('');
+      
       try {
-        const res = await axios.get(
-          `${process.env.REACT_APP_API_URL}/contract-details/contract/${selectedContractId}`,
-          { headers: authHeaders }
-        );
-        setDetails(res.data || []);
+        // Try the main endpoint first
+        const url = `${process.env.REACT_APP_API_URL}/contract-details/contracts/${selectedContractId}`;
+        console.log(`Fetching from: ${url}`);
+        
+        const res = await axios.get(url, { 
+          headers: { 
+            ...authHeaders,
+            'Content-Type': 'application/json'
+          },
+          validateStatus: (status) => status < 500 // Don't throw for 404
+        });
+        
+        console.log('Contract details response:', res.data);
+        setDetails(Array.isArray(res.data) ? res.data : [res.data]);
+        
       } catch (e) {
-        console.error('Error fetching devis items', e);
+        console.error('Error in fetchDetails:', {
+          message: e.message,
+          response: e.response?.data,
+          status: e.response?.status,
+          url: e.config?.url
+        });
+        
+        // Try alternative endpoint if 404
+        if (e.response?.status === 404) {
+          try {
+            console.log('Trying alternative endpoint...');
+            const altUrl = `${process.env.REACT_APP_API_URL}/api/contracts/${selectedContractId}/details`;
+            const altRes = await axios.get(altUrl, { 
+              headers: { 
+                ...authHeaders,
+                'Content-Type': 'application/json'
+              }
+            });
+            console.log('Alternative endpoint response:', altRes.data);
+            setDetails(Array.isArray(altRes.data) ? altRes.data : [altRes.data]);
+            return;
+          } catch (altErr) {
+            console.error('Alternative endpoint failed:', altErr);
+          }
+        }
+        
         setError(t('error_loading_data'));
+        setDetails([]);
       } finally {
         setLoading(false);
       }
     };
+    
     fetchDetails();
   }, [authHeaders, selectedContractId, t]);
 
-  // Auto-calc total_ht
+  // Auto-calc total_ht with TVA
   const handleDetailsChange = (e) => {
     const { name, value } = e.target;
     const updated = { ...detailsForm, [name]: value };
-    if (name === 'qty' || name === 'unit_price') {
-      const qty = name === 'qty' ? parseFloat(value) || 0 : parseFloat(detailsForm.qty) || 0;
-      const unitPrice = name === 'unit_price' ? parseFloat(value) || 0 : parseFloat(detailsForm.unit_price) || 0;
-      updated.total_ht = (qty * unitPrice).toFixed(2);
+    
+    // Always recalculate when any of these fields change
+    if (['qty', 'unit_price', 'tva'].includes(name)) {
+      const qty = parseFloat(updated.qty) || 0;
+      const unitPrice = parseFloat(updated.unit_price) || 0;
+      const tvaRate = (parseFloat(updated.tva) || 0) / 100; // Convert percentage to decimal
+      
+      const subtotal = qty * unitPrice;
+      const tvaAmount = subtotal * tvaRate;
+      updated.total_ht = (subtotal + tvaAmount).toFixed(2);
     }
+    
     setDetailsForm(updated);
   };
 
@@ -391,16 +442,20 @@ const Devis = () => {
     });
   };
 
-  // Handle edit form changes
+  // Handle edit form changes with TVA calculation
   const handleEditItemChange = (e) => {
     const { name, value } = e.target;
-    let updatedForm = { ...editItemForm, [name]: value };
+    const updatedForm = { ...editItemForm, [name]: value };
     
-    // Auto-calculate total_ht when qty or unit_price changes
-    if (name === 'qty' || name === 'unit_price') {
-      const qty = name === 'qty' ? parseFloat(value) || 0 : parseFloat(editItemForm.qty) || 0;
-      const unitPrice = name === 'unit_price' ? parseFloat(value) || 0 : parseFloat(editItemForm.unit_price) || 0;
-      updatedForm.total_ht = (qty * unitPrice).toFixed(2);
+    // Recalculate when any of these fields change
+    if (['qty', 'unit_price', 'tva'].includes(name)) {
+      const qty = parseFloat(updatedForm.qty) || 0;
+      const unitPrice = parseFloat(updatedForm.unit_price) || 0;
+      const tvaRate = (parseFloat(updatedForm.tva) || 0) / 100; // Convert percentage to decimal
+      
+      const subtotal = qty * unitPrice;
+      const tvaAmount = subtotal * tvaRate;
+      updatedForm.total_ht = (subtotal + tvaAmount).toFixed(2);
     }
     
     setEditItemForm(updatedForm);
@@ -825,7 +880,7 @@ const Devis = () => {
                             mb: 2 
                           }}>
                             <Typography variant="body2" sx={{ color: '#9c27b0', fontWeight: 'bold' }}>
-{t('total_value') || 'Valeur Totale'}: €{totalValue.toFixed(2)}
+{t('total_value') || 'Valeur Totale'}: {totalValue.toFixed(2)} €
                             </Typography>
                           </Box>
                         )}
@@ -884,16 +939,26 @@ const Devis = () => {
                                             fullWidth
                                             multiline
                                             rows={3}
+                                            variant="outlined"
+                                            sx={{ 
+                                              gridColumn: 'span 2',
+                                              '& .MuiOutlinedInput-root.Mui-focused .MuiOutlinedInput-notchedOutline': {
+                                                borderColor: '#9c27b0',
+                                              },
+                                              '& .MuiInputLabel-root.Mui-focused': {
+                                                color: '#9c27b0',
+                                              },
+                                            }}
+                                            InputLabelProps={{
+                                              shrink: true,
+                                            }}
                                             onKeyDown={(e) => {
                                               if (e.key === 'Enter' && e.shiftKey) {
-                                                // Allow Shift+Enter for new line
                                                 e.stopPropagation();
                                               } else if (e.key === 'Enter' && !e.shiftKey) {
-                                                // Prevent regular Enter from submitting form
                                                 e.preventDefault();
                                               }
                                             }}
-                                            sx={{ gridColumn: 'span 2' }}
                                           />
                                           <TextField
                                             label={t('quantity') || 'Quantité'}
@@ -963,12 +1028,12 @@ const Devis = () => {
                                             {item.description}
                                           </Typography>
                                           <Typography variant="caption" sx={{ color: '#666' }}>
-{t('qty') || 'Qté'}: {item.qty} × €{Number(item.unit_price).toFixed(2)} | TVA: {Number(item.tva).toFixed(2)}%
+{t('qty') || 'Qté'}: {item.qty} × {Number(item.unit_price).toFixed(2)} € | TVA: {Number(item.tva).toFixed(2)}%
                                           </Typography>
                                         </Box>
                                         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                                           <Typography variant="body2" sx={{ fontWeight: 'bold', color: '#9c27b0' }}>
-                                            €{Number(item.total_ht).toFixed(2)}
+                                            €{Number(item.total_ht).toFixed(2)} €
                                           </Typography>
                                           <IconButton
                                             size="small"

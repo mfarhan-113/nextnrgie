@@ -5,7 +5,7 @@ from .base import Base
 class Salary(Base):
     __tablename__ = "salaries"
     id = Column(Integer, primary_key=True, index=True)
-    employee_name = Column(String, nullable=False)
+    employee_name = Column(String(100), nullable=False)
     working_days = Column(Integer, nullable=False)
     leaves = Column(Integer, nullable=False)
     salary_per_day = Column(Float, nullable=False)

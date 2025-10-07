@@ -6,7 +6,7 @@ class ContractDetail(Base):
     __tablename__ = "contract_details"
     id = Column(Integer, primary_key=True, index=True)
     contract_id = Column(Integer, ForeignKey("contracts.id"), nullable=False)
-    description = Column(String, nullable=False)
+    description = Column(String(500), nullable=False)
     qty = Column(Integer, nullable=False)
     unit_price = Column(Float, nullable=False)
     tva = Column(Float, nullable=False)

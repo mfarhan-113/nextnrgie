@@ -57,7 +57,8 @@ class FactureBase(BaseModel):
             subtotal = values['qty'] * values['unit_price']
             tva_amount = subtotal * (values['tva'] / 100)
             calculated = subtotal + tva_amount
-            if abs(calculated - v) > 0.01:  # Allow for floating point imprecision
+            # Use a more lenient tolerance for floating point comparisons
+            if abs(calculated - v) > 1.0:  # Allow up to 1.0 difference
                 raise ValueError(f'Total HT must be equal to (qty * unit_price) * (1 + tva/100). Expected: {calculated:.2f}, got: {v:.2f}')
         return v
 

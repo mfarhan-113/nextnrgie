@@ -1,6 +1,6 @@
 from sqlalchemy.orm import Session
 from sqlalchemy import func
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import List, Optional
 from .. import models, schemas
 
@@ -27,32 +27,91 @@ def update_contract_total(db: Session, contract_id: int):
     return db_contract
 
 def create_facture(db: Session, facture: schemas.FactureCreate):
-    # Calculate subtotal (qty * unit_price)
-    subtotal = facture.qty * facture.unit_price
+    # Use the provided total_ht value (trust the frontend calculation)
+    total_ht = facture.total_ht
     
-    # Calculate TVA amount
-    tva_amount = subtotal * (facture.tva / 100)
+    # Get the contract with its current total
+    contract = db.query(models.Contract).filter(models.Contract.id == facture.contract_id).first()
+    if not contract:
+        raise ValueError(f"Contract with id {facture.contract_id} not found")
+        
+    # Calculate total of all existing factures for this contract
+    existing_factures_total = db.query(
+        func.coalesce(func.sum(models.Facture.total_ht), 0.0)
+    ).filter(
+        models.Facture.contract_id == facture.contract_id
+    ).scalar() or 0.0
     
-    # Calculate total including TVA
-    total_ht = subtotal + tva_amount
+    # Check if adding this facture would exceed contract amount
+    contract_amount = float(contract.price or 0)
+    if existing_factures_total + total_ht > contract_amount:
+        remaining = contract_amount - existing_factures_total
+        raise ValueError(
+            f"Cannot add facture: Total would exceed contract amount. "
+            f"Remaining amount: €{remaining:.2f}, "
+            f"Tried to add: €{total_ht:.2f}"
+        )
     
-    # Create the facture with calculated total_ht
+    # Find or create a single invoice for this contract
+    invoice = db.query(models.Invoice).filter(
+        models.Invoice.contract_id == facture.contract_id
+    ).order_by(models.Invoice.id.asc()).first()
+    
+    # If no invoice exists, create a new one
+    if not invoice:
+        invoice_count = db.query(models.Invoice).count()
+        invoice_number = f"INV-{invoice_count + 1:05d}"
+        due_date = datetime.utcnow() + timedelta(days=30)
+        
+        invoice = models.Invoice(
+            invoice_number=invoice_number,
+            contract_id=facture.contract_id,
+            amount=0,  # Will be updated below
+            due_date=due_date,
+            status="unpaid"
+        )
+        db.add(invoice)
+        db.commit()
+        db.refresh(invoice)
+    
+    # Create the facture with the provided total_ht
     db_facture = models.Facture(
         contract_id=facture.contract_id,
+        invoice_id=invoice.id,
         description=facture.description,
         qty=facture.qty,
         unit_price=facture.unit_price,
         tva=facture.tva,
-        total_ht=total_ht,  # This now includes TVA
+        total_ht=total_ht,
         created_at=datetime.utcnow()
     )
     
     db.add(db_facture)
+    db.flush()  # Flush to get the facture ID
+    
+    # Update the invoice amount to reflect the sum of all its factures
+    invoice.amount = db.query(
+        func.coalesce(func.sum(models.Facture.total_ht), 0.0)
+    ).filter(
+        models.Facture.invoice_id == invoice.id
+    ).scalar() or 0.0
+
+    # Preserve existing paid_amount and update status based on new amount
+    current_paid = float(getattr(invoice, 'paid_amount', 0.0) or 0.0)
+    if current_paid >= invoice.amount:
+        invoice.status = 'paid'
+    elif current_paid > 0:
+        invoice.status = 'partial'
+    else:
+        invoice.status = 'unpaid'
+
+    db.add(invoice)
     db.commit()
     db.refresh(db_facture)
+    db.refresh(invoice)
     
-    # Update the contract total
-    update_contract_total(db, contract_id=facture.contract_id)
+    # Update contract total
+    update_contract_total(db, facture.contract_id)
     
     return db_facture
 

@@ -1,39 +1,98 @@
 from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import Session, joinedload
+from typing import List
+
 from app.core.database import get_db
 from app.schemas.invoice import InvoiceCreate, InvoiceOut
 from app.models.invoice import Invoice
-from sqlalchemy.future import select
-from typing import List
+from app.models.contract import Contract
+from app.models.client import Client
 
 router = APIRouter(prefix="/invoices", tags=["invoices"])
 
 @router.post("/", response_model=InvoiceOut)
-async def add_invoice(invoice: InvoiceCreate, db: AsyncSession = Depends(get_db)):
-    result = await db.execute(select(Invoice).where(Invoice.invoice_number == invoice.invoice_number))
-    if result.scalars().first():
+def add_invoice(invoice: InvoiceCreate, db: Session = Depends(get_db)):
+    # Check if invoice number already exists
+    if db.query(Invoice).filter(Invoice.invoice_number == invoice.invoice_number).first():
         raise HTTPException(status_code=400, detail="Invoice number already exists")
+    
+    # Create new invoice
     db_invoice = Invoice(**invoice.dict())
     db.add(db_invoice)
-    await db.commit()
-    await db.refresh(db_invoice)
+    db.commit()
+    db.refresh(db_invoice)
     return db_invoice
 
 @router.get("/", response_model=List[InvoiceOut])
-async def get_invoices(db: AsyncSession = Depends(get_db)):
-    result = await db.execute(select(Invoice))
-    return result.scalars().all()
+def get_invoices(db: Session = Depends(get_db)):
+    try:
+        # Query invoices with related contract, client, and factures data
+        invoices_data = db.query(Invoice)\
+            .options(
+                joinedload(Invoice.contract)
+                .joinedload(Contract.client),
+                joinedload(Invoice.factures)
+            )\
+            .all()
+        
+        invoices = []
+        for invoice in invoices_data:
+            # Use persisted paid_amount from DB (defaults to 0.0 if None)
+            paid_amount = float(getattr(invoice, 'paid_amount', 0.0) or 0.0)
+
+            # Derive amount from sum of related factures to avoid stale data
+            factures_total = 0.0
+            if hasattr(invoice, 'factures') and invoice.factures:
+                factures_total = float(sum((f.total_ht or 0.0) for f in invoice.factures))
+
+            # Keep backend status as-is (default to unpaid if missing)
+            status = invoice.status or 'unpaid'
+
+            invoice_dict = {
+                'id': invoice.id,
+                'invoice_number': invoice.invoice_number,
+                'contract_id': invoice.contract_id,
+                'amount': factures_total,
+                'due_date': invoice.due_date.isoformat() if invoice.due_date else None,
+                'status': status,
+                'paid_amount': paid_amount,
+                'created_at': invoice.created_at.isoformat() if invoice.created_at else None,
+                'client_name': None,
+                'client_id': None,
+                'contract_number': None
+            }
+            
+            # Add client and contract data if available
+            if hasattr(invoice, 'contract') and invoice.contract:
+                contract = invoice.contract
+                invoice_dict['contract_number'] = contract.command_number
+                invoice_dict['contract_id'] = contract.id
+                
+                if hasattr(contract, 'client') and contract.client:
+                    client = contract.client
+                    invoice_dict['client_name'] = client.client_name
+                    invoice_dict['client_id'] = client.id
+            
+            invoices.append(invoice_dict)
+
+        return invoices
+        
+    except Exception as e:
+        import traceback
+        print(f"Error in get_invoices: {str(e)}")
+        print(traceback.format_exc())
+        raise HTTPException(status_code=500, detail=str(e))
 
 @router.put("/{invoice_id}", response_model=InvoiceOut)
-async def update_invoice(
+def update_invoice(
     invoice_id: int, 
     invoice_data: dict, 
-    db: AsyncSession = Depends(get_db)
+    db: Session = Depends(get_db)
 ):
     print(f"Updating invoice {invoice_id} with data:", invoice_data)  # Debug log
     
-    result = await db.execute(select(Invoice).where(Invoice.id == invoice_id))
-    db_invoice = result.scalars().first()
+    # Get the invoice
+    db_invoice = db.query(Invoice).filter(Invoice.id == invoice_id).first()
     
     if not db_invoice:
         raise HTTPException(status_code=404, detail="Invoice not found")
@@ -71,8 +130,30 @@ async def update_invoice(
     
     print(f"Updated invoice - Status: {db_invoice.status}, Paid: {db_invoice.paid_amount}")  # Debug log
     
-    await db.commit()
-    await db.refresh(db_invoice)
-    
-    # Return the complete invoice data
-    return db_invoice
+    # Save changes to the database
+    try:
+        db.add(db_invoice)
+        db.commit()
+        db.refresh(db_invoice)
+        
+        # If status changed to paid, update related contract
+        if current_status != 'paid' and db_invoice.status == 'paid':
+            # Find the contract and mark it as paid
+            contract = db.query(Contract).filter(Contract.id == db_invoice.contract_id).first()
+            if contract:
+                contract.status = 'paid'
+                db.add(contract)
+                db.commit()
+        
+        # If paid amount changed, update related factures or other logic
+        if current_paid != db_invoice.paid_amount:
+            # Add your logic here for handling paid amount changes
+            pass
+            
+        return db_invoice
+        
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"Error updating invoice: {str(e)}")
+    finally:
+        db.close()

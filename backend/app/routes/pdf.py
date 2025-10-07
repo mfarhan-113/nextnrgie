@@ -195,7 +195,7 @@ def generate_invoice_pdf(invoice_id: int, db: Session = Depends(get_db)):
         {"text": "Qté", "width": 70},       
         {"text": "Prix unitaire", "width": 100},  
         {"text": "TVA (%)", "width": 60},    
-        {"text": "Total HT", "width": 70}     
+        {"text": "Total HT", "width": 60}     
     ]
     
     # Calculate total width of all headers
@@ -468,33 +468,64 @@ def generate_estimate_pdf(contract_id: int, db: Session = Depends(get_db)):
     p.drawString(left, left_col_y - 60, "93060154700019")
     p.drawString(left, left_col_y - 75, "Numéro de TVA: FR26930601547")
     
+    # Helper function to draw multi-line text
+    def draw_multiline_text(text, x, y, line_height=15, max_width=200):
+        if not text:
+            return y
+            
+        lines = []
+        # Split by newlines first
+        paragraphs = text.split('\n')
+        
+        for para in paragraphs:
+            words = para.split(' ') if para else ['']
+            current_line = []
+            
+            for word in words:
+                test_line = ' '.join(current_line + [word])
+                if p.stringWidth(test_line, "Helvetica", 10) <= max_width or not current_line:
+                    current_line.append(word)
+                else:
+                    lines.append(' '.join(current_line))
+                    current_line = [word]
+            
+            if current_line:  # Add the last line of the paragraph
+                lines.append(' '.join(current_line))
+        
+        # Draw all lines
+        for line in lines:
+            p.drawString(x, y, line)
+            y -= line_height
+            
+        return y  # Return the final y position after drawing
+    
     # RIGHT: Client
     p.setFont("Helvetica-Bold", 11)
     if client:
-        p.drawString(right, right_col_y, (client.client_name or ""))
+        y_pos = right_col_y
+        p.drawString(right, y_pos, (client.client_name or ""))
         p.setFont("Helvetica", 10)
-        # TSA directly under client name if available
-        line_offset = 15
-        if getattr(client, 'tsa_number', None):
-            p.drawString(right, right_col_y - line_offset, f"TSA: {client.tsa_number}")
-            line_offset += 15
-        # Address under TSA if available
+        y_pos -= 15  # Move down for next line
+        
+        # SIRET directly under client name if available
+        if getattr(client, 'siret_number', None):
+            p.drawString(right, y_pos, f"SIRET: {client.siret_number}")
+            y_pos -= 15
+            
+        # Address with multi-line support
         if getattr(client, 'client_address', None):
-            p.drawString(right, right_col_y - line_offset, (client.client_address or ""))
-            line_offset += 15
+            y_pos = draw_multiline_text(client.client_address, right, y_pos) - 5
+            
         # Phone
         if getattr(client, 'phone', None):
-            p.drawString(right, right_col_y - line_offset, (client.phone or ""))
-            line_offset += 15
+            p.drawString(right, y_pos, (client.phone or ""))
+            y_pos -= 15
+            
         # TVA number
         if getattr(client, 'tva_number', None):
-            p.drawString(right, right_col_y - line_offset, f"Numéro de TVA: {client.tva_number}")
+            p.drawString(right, y_pos, f"Numéro de TVA: {client.tva_number}")
     else:
         p.drawString(right, right_col_y, "Client")
-        p.setFont("Helvetica", 10)
-        p.drawString(right, right_col_y - 15, "")
-        p.drawString(right, right_col_y - 30, "")
-        p.drawString(right, right_col_y - 45, "")
     
     # Chantier (site/project)
     chantier_y = left_col_y - 100
@@ -934,7 +965,9 @@ def generate_facture_pdf(facture_data: dict, db: Session = Depends(get_db)):
     p.drawString(400, y, "Prix U. HT")
     p.drawString(500, y, "Total HT")
     y -= 15
-    p.line(left, y, 550, y)
+    # Draw horizontal line under header with right border
+    p.line(left, y, 550, y)  # Top line
+    p.line(550, y, 550, y + 15)  # Right border line
     y -= 15
 
     # Line items
@@ -980,20 +1013,27 @@ def generate_facture_pdf(facture_data: dict, db: Session = Depends(get_db)):
     p.drawString(370, first_line_y, str(facture_data.get('qty', 0)))
     p.drawString(420, first_line_y, f"{float(facture_data.get('unit_price', 0)):.2f} €")
     p.drawString(500, first_line_y, f"{total_ht:.2f} €")
+    # Draw right border for the row
+    p.line(550, first_line_y + 5, 550, first_line_y - 15)  # Right border line
     
-    # Draw remaining description lines indented
+    # Draw remaining description lines indented with right border
     for i in range(1, len(lines)):
         first_line_y -= 15
         p.drawString(left + 10, first_line_y, lines[i])
+        # Draw right border for each line of description
+        p.line(550, first_line_y + 5, 550, first_line_y - 10)
     
     y = first_line_y - 25  # Extra space after description
 
-    # Totals
-    p.line(400, y, 550, y)
+    # Totals with right border
+    p.line(400, y, 550, y)  # Top line
+    p.line(550, y, 550, y + 20)  # Right border line
     y -= 20
     p.setFont("Helvetica-Bold", 10)
     p.drawString(400, y, "Total HT:")
     p.drawString(500, y, f"{total_ht:.2f} €")
+    # Draw right border for the total line
+    p.line(550, y + 5, 550, y - 15)
     y -= 20
     
     # Calculate TVA from facture data
@@ -1176,7 +1216,7 @@ def generate_devis_pdf(payload: dict):
     p.setFont("Helvetica-Bold", 11)
     p.drawString(right, right_col_y, client.get("name") or "Client")
     p.setFont("Helvetica", 10)
-    if client.get("tsa_number"): p.drawString(right, right_col_y - 15, f"TSA: {client.get('tsa_number')}")
+    if client.get("siret_number"): p.drawString(right, right_col_y - 15, f"SIRET: {client.get('siret_number')}")
     if client.get("client_address"): p.drawString(right, right_col_y - 30, client.get("client_address"))
     if client.get("phone"): p.drawString(right, right_col_y - 45, client.get("phone"))
     if client.get("tva"): p.drawString(right, right_col_y - 60, f"Numéro de TVA: {client.get('tva')}")

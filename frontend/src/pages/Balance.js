@@ -52,11 +52,13 @@ const statusColors = {
   unpaid: '#e53935', // red
 };
 
-// Derive status safely; prefer explicit backend status when present
+// Derive status: always prefer backend status so it persists on refresh
 function getStatus(amount, paid, backendStatus) {
-  if (backendStatus) return backendStatus; // trusted
-  if (paid >= amount) return 'paid';
-  if (paid > 0) return 'partial';
+  if (backendStatus) return backendStatus;
+  const amt = Number(amount) || 0;
+  const paidAmt = Number(paid) || 0;
+  if (paidAmt >= amt) return 'paid';
+  if (paidAmt > 0) return 'partial';
   return 'unpaid';
 }
 
@@ -197,13 +199,24 @@ const Balance = () => {
     }
   };
 
-  // Filtering logic
+  // Filtering logic with null checks
   const filtered = invoices.filter(inv => {
-    const client = clients.find(c => c.id === inv.client_id);
-    const clientName = client ? client.full_name.toLowerCase() : '';
-    const matchesSearch = inv.invoice_number.toLowerCase().includes(search.toLowerCase()) || clientName.includes(search.toLowerCase());
-    const status = getStatus(inv.amount, inv.paid_amount || 0, inv.status);
+    if (!inv) return false;
+    
+    // Safely get client name
+    const client = clients.find(c => c && c.id === inv.client_id);
+    const clientName = (client?.client_name || '').toLowerCase();
+    
+    // Safely get invoice number
+    const invoiceNumber = (inv.invoice_number || '').toLowerCase();
+    const searchTerm = (search || '').toLowerCase();
+    
+    const matchesSearch = invoiceNumber.includes(searchTerm) || 
+                         clientName.includes(searchTerm);
+    
+    const status = getStatus(inv.amount || 0, inv.paid_amount || 0, inv.status);
     const matchesStatus = statusFilter === 'all' || status === statusFilter;
+    
     return matchesSearch && matchesStatus;
   });
   const totalPages = Math.ceil(filtered.length / perPage);
@@ -239,33 +252,7 @@ const Balance = () => {
   };
 
   const handleStatusChange = async (invoice, newStatus) => {
-    const currentStatus = getStatus(invoice.amount, invoice.paid_amount || 0, invoice.status);
-    const isOverdueInvoice = isOverdue(invoice.due_date, currentStatus);
-    
-    // Check if invoice is overdue
-    if (isOverdueInvoice) {
-      setToast('Cannot change status of overdue invoices');
-      return;
-    }
-    
-    // Check if already paid
-    if (currentStatus === 'paid') {
-      setToast('Paid invoices cannot be changed');
-      return;
-    }
-    
-    // Show confirmation dialog
-    const statusMessages = {
-      'paid': t('mark_as_paid_confirm'),
-      'unpaid': t('mark_as_unpaid_confirm'),
-      'partial': t('mark_as_partial_confirm')
-    };
-    
-    const confirmText = `${t('are_you_sure')} ${statusMessages[newStatus]}?`;
-    if (!window.confirm(confirmText)) {
-      return; // User cancelled the operation
-    }
-
+    // No confirmation and no overdue restriction; user requested direct edit
     setLoading(true);
     try {
       // Calculate the new paid amount based on status
@@ -292,7 +279,7 @@ const Balance = () => {
         }
       );
       
-      // Update the local state with the new data (status is the source of truth on refresh)
+      // Update local state; backend status will persist across refresh
       setInvoices(prevInvoices =>
         prevInvoices.map(inv =>
           inv.id === invoice.id
@@ -300,8 +287,7 @@ const Balance = () => {
             : inv
         )
       );
-      
-      setToast(t(`successfully_updated_invoice_status_to_${newStatus}`));
+      setToast(t(`successfully_updated_invoice_status_to_${newStatus}`) || `Status updated to ${newStatus}`);
     } catch (error) {
       console.error('Error updating invoice status:', error);
       const errorMessage = error.response?.data?.detail || t('failed_to_update_invoice_status');
@@ -404,7 +390,7 @@ const Balance = () => {
                 <CardContent sx={{ textAlign: 'center', py: 3 }}>
                   <TrendingUpIcon sx={{ fontSize: 40, mb: 1 }} />
                   <Typography variant="h4" fontWeight={700} sx={{ mb: 1 }}>
-                    ${totalAmount.toLocaleString()}
+                    €{totalAmount.toLocaleString()}
                   </Typography>
                   <Typography variant="body1" sx={{ opacity: 0.9 }}>
                     {t('total_amount') || 'Montant Total'}
@@ -420,7 +406,7 @@ const Balance = () => {
                 <CardContent sx={{ textAlign: 'center', py: 3 }}>
                   <AccountBalanceWalletIcon sx={{ fontSize: 40, mb: 1 }} />
                   <Typography variant="h4" fontWeight={700} sx={{ mb: 1 }}>
-                    ${totalPaid.toLocaleString()}
+                    €{totalPaid.toLocaleString()}
                   </Typography>
                   <Typography variant="body1" sx={{ opacity: 0.9 }}>
                     {t('total_paid') || 'Total Payé'}
@@ -436,7 +422,7 @@ const Balance = () => {
                 <CardContent sx={{ textAlign: 'center', py: 3 }}>
                   <TrendingDownIcon sx={{ fontSize: 40, mb: 1 }} />
                   <Typography variant="h4" fontWeight={700} sx={{ mb: 1 }}>
-                    ${totalOutstanding.toLocaleString()}
+                    €{totalOutstanding.toLocaleString()}
                   </Typography>
                   <Typography variant="body1" sx={{ opacity: 0.9 }}>
                     {t('outstanding') || 'En Attente'}
@@ -565,12 +551,12 @@ const Balance = () => {
                       </TableCell>
                       <TableCell align="right">
                         <Typography variant="body2" fontWeight={600} color="primary">
-                          ${inv.amount?.toLocaleString()}
+                          €{inv.amount?.toLocaleString()}
                         </Typography>
                       </TableCell>
                       <TableCell align="right">
                         <Typography variant="body2" color="success.main">
-                          ${(derivedPaid || 0).toLocaleString()}
+                          €{(derivedPaid || 0).toLocaleString()}
                         </Typography>
                       </TableCell>
                       <TableCell align="right">
@@ -579,7 +565,7 @@ const Balance = () => {
                           fontWeight={600}
                           color={balance > 0 ? 'error.main' : 'success.main'}
                         >
-                          ${balance.toLocaleString()}
+                          €{balance.toLocaleString()}
                         </Typography>
                       </TableCell>
                       <TableCell>
@@ -588,24 +574,17 @@ const Balance = () => {
                         </Typography>
                       </TableCell>
                       <TableCell>
-                        <StatusChip
-                          status={status}
-                          label={status.charAt(0).toUpperCase() + status.slice(1)}
-                          icon={status === 'paid' ? <CheckIcon /> : undefined}
-                          onClick={() => {
-                            if (status !== 'paid' && !overdue) {
-                              const newStatus = status === 'unpaid' ? 'partial' : 'paid';
-                              handleStatusChange(inv, newStatus);
-                            }
-                          }}
-                          sx={{ 
-                            cursor: (status !== 'paid' && !overdue) ? 'pointer' : 'default',
-                            '&:hover': (status !== 'paid' && !overdue) ? { 
-                              transform: 'scale(1.05)',
-                              boxShadow: '0 2px 8px rgba(0,0,0,0.2)'
-                            } : {}
-                          }}
-                        />
+                        <FormControl size="small">
+                          <Select
+                            value={status}
+                            onChange={(e) => handleStatusChange(inv, e.target.value)}
+                            sx={{ minWidth: 140, borderRadius: '12px' }}
+                          >
+                            <MenuItem value="unpaid">Unpaid</MenuItem>
+                            <MenuItem value="partial">Partial</MenuItem>
+                            <MenuItem value="paid">Paid</MenuItem>
+                          </Select>
+                        </FormControl>
                       </TableCell>
                     </StyledTableRow>
                   </Fade>

@@ -26,7 +26,6 @@ import {
   Refresh as RefreshIcon,
   CheckCircle as CheckCircleIcon,
   CalendarToday as CalendarIcon,
-  AttachMoney as AttachMoneyIcon,
   Business as BusinessIcon,
   Description as DescriptionIcon,
   TrendingUp as TrendingUpIcon,
@@ -305,12 +304,11 @@ const Contracts = () => {
 
   // Format currency
   const formatCurrency = (amount) => {
-    return new Intl.NumberFormat('en-US', {
-      style: 'currency',
-      currency: 'USD',
+    return new Intl.NumberFormat('fr-FR', {
+      style: 'decimal',
       minimumFractionDigits: 2,
       maximumFractionDigits: 2
-    }).format(amount || 0);
+    }).format(amount || 0) + ' €';
   };
 
   // Handle edit contract
@@ -516,7 +514,7 @@ const Contracts = () => {
 
   // Table columns
   const columns = [
-    { id: 'command_number', label: t('contract_number') || 'Contract #', sortable: true },
+    { id: 'contract_number', label: t('contract_number') || 'Contract #', sortable: true },
     { id: 'client', label: t('client') || 'Client', sortable: false },
     { id: 'date', label: t('date') || 'Date', sortable: true },
     { id: 'deadline', label: t('deadline') || 'Deadline', sortable: true },
@@ -643,12 +641,9 @@ const Contracts = () => {
             </Box>
           </TableCell>
           <TableCell align="right">
-            <Box display="flex" alignItems="center" justifyContent="flex-end">
-              <AttachMoneyIcon fontSize="small" sx={{ mr: 0.5, color: 'success.main' }} />
-              <Typography variant="body2" fontWeight={600} color="success.main">
-                {formatCurrency(contract.price)}
-              </Typography>
-            </Box>
+            <Typography variant="body2" fontWeight={600} color="success.main">
+              {formatCurrency(contract.price)}
+            </Typography>
           </TableCell>
           <TableCell align="center">
             <StatusChip 

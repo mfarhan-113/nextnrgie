@@ -126,15 +126,15 @@ const Invoices = () => {
           </div>
           <div>
             <div className="summary-title">Total Amount</div>
-            <div className="summary-value">${totalAmount.toLocaleString()}</div>
+            <div className="summary-value">€{totalAmount.toLocaleString()}</div>
           </div>
           <div>
             <div className="summary-title">Total Paid</div>
-            <div className="summary-value">${totalPaid.toLocaleString()}</div>
+            <div className="summary-value">€{totalPaid.toLocaleString()}</div>
           </div>
           <div>
             <div className="summary-title">Outstanding</div>
-            <div className="summary-value outstanding">${totalOutstanding.toLocaleString()}</div>
+            <div className="summary-value outstanding">€{totalOutstanding.toLocaleString()}</div>
           </div>
         </div>
         <div className="invoices-table-card">
@@ -176,9 +176,9 @@ const Invoices = () => {
                     <tr key={inv.id} className={overdue ? 'overdue-row' : ''}>
                       <td>{inv.invoice_number}</td>
                       <td>{client ? client.full_name : ''}</td>
-                      <td>${inv.amount?.toLocaleString()}</td>
-                      <td>${(inv.paid_amount || 0).toLocaleString()}</td>
-                      <td>${((inv.amount || 0) - (inv.paid_amount || 0)).toLocaleString()}</td>
+                      <td>€{inv.amount?.toLocaleString()}</td>
+                      <td>€{(inv.paid_amount || 0).toLocaleString()}</td>
+                      <td>€{((inv.amount || 0) - (inv.paid_amount || 0)).toLocaleString()}</td>
                       <td>{inv.due_date}</td>
                       <td>
                         <span className="status-badge" style={{ background: statusColors[status], color: '#fff' }}>

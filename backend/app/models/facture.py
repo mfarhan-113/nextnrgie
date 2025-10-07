@@ -8,12 +8,15 @@ class Facture(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     contract_id = Column(Integer, ForeignKey("contracts.id"), nullable=False)
-    description = Column(String(255), nullable=False)
+    invoice_id = Column(Integer, ForeignKey("invoices.id"), nullable=True)
+    description = Column(String(500), nullable=False)
     qty = Column(Float, nullable=False)
     unit_price = Column(Float, nullable=False)
     tva = Column(Float, nullable=False)
     total_ht = Column(Float, nullable=False)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
 
     # Relationships
-    contract = relationship("Contract")
+    contract = relationship("Contract", back_populates="factures")
+    invoice = relationship("Invoice", back_populates="factures")

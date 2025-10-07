@@ -14,5 +14,12 @@ class InvoiceCreate(InvoiceBase):
 
 class InvoiceOut(InvoiceBase):
     id: int
+    client_id: Optional[int] = None
+    client_name: Optional[str] = None
+    contract_id: int
+    contract_number: Optional[str] = None
+    paid_amount: Optional[float] = 0.0
+    
     class Config:
         orm_mode = True
+        from_attributes = True  # For Pydantic v2 compatibility

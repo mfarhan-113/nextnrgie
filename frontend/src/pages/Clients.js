@@ -123,7 +123,7 @@ const Clients = () => {
       phone: '', 
       tva_number: '', 
       client_name: '', 
-      tsa_number: '', 
+      siret_number: '', 
       contact_person: '', 
       contact_person_phone: '', 
       contact_person_designation: '', 
@@ -209,7 +209,7 @@ const Clients = () => {
         phone: '', 
         tva_number: '', 
         client_name: '', 
-        tsa_number: '', 
+        siret_number: '', 
         contact_person: '', 
         contact_person_phone: '', 
         contact_person_designation: '', 
@@ -237,7 +237,7 @@ const Clients = () => {
       email: client.email || '',
       phone: client.phone || '',
       tva_number: client.tva_number || '',
-      tsa_number: client.tsa_number || '',
+      siret_number: client.siret_number || '',
       contact_person: client.contact_person || '',
       contact_person_phone: client.contact_person_phone || '',
       contact_person_designation: client.contact_person_designation || '',
@@ -555,8 +555,19 @@ const Clients = () => {
                       )}
                     </Box>
 
-                    {(client.tva_number || client.tsa_number) && (
+                    {(client.tva_number || client.siret_number) && (
                       <Box sx={{ mt: 2, display: 'flex', gap: 1, flexWrap: 'wrap' }}>
+                        {client.siret_number && (
+                          <Chip 
+                            label={`SIRET: ${client.siret_number}`}
+                            size="small"
+                            sx={{ 
+                              backgroundColor: alpha('#2196f3', 0.1),
+                              color: '#2196f3',
+                              fontWeight: 'bold'
+                            }}
+                          />
+                        )}
                         {client.tva_number && (
                           <Chip 
                             label={`TVA: ${client.tva_number}`}
@@ -564,17 +575,6 @@ const Clients = () => {
                             sx={{ 
                               backgroundColor: alpha('#4caf50', 0.1),
                               color: '#4caf50',
-                              fontWeight: 'bold'
-                            }}
-                          />
-                        )}
-                        {client.tsa_number && (
-                          <Chip 
-                            label={`TSA: ${client.tsa_number}`}
-                            size="small"
-                            sx={{ 
-                              backgroundColor: alpha('#2196f3', 0.1),
-                              color: '#2196f3',
                               fontWeight: 'bold'
                             }}
                           />
@@ -792,9 +792,9 @@ const Clients = () => {
                   <Grid item xs={12} sm={6}>
                     <TextField
                       fullWidth
-                      label={t('tsa_number') || 'Numéro TSA'}
-                      name="tsa_number"
-                      value={form.tsa_number}
+                      label={t('siret_number') || 'Numéro SIRET'}
+                      name="siret_number"
+                      value={form.siret_number}
                       onChange={handleChange}
                       variant="outlined"
                       sx={{
@@ -1037,13 +1037,13 @@ const Clients = () => {
               </div>
               <div className="form-group">
                 <input 
-                  id="edit_tsa_number" 
-                  name="tsa_number" 
-                  value={editForm.tsa_number} 
+                  id="edit_siret_number" 
+                  name="siret_number" 
+                  value={editForm.siret_number} 
                   onChange={handleEditChange} 
                   placeholder=" " 
                 />
-                <label htmlFor="edit_tsa_number">{t('tsa_number') || 'Numéro TSA'}</label>
+                <label htmlFor="edit_siret_number">{t('siret_number') || 'Numéro SIRET'}</label>
               </div>
               <div className="form-group">
                 <input 
