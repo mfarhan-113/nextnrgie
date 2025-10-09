@@ -19,7 +19,6 @@ import {
   Add as AddIcon,
   Refresh as RefreshIcon,
   Person as PersonIcon,
-  CalendarToday as CalendarIcon,
   TrendingUp as TrendingUpIcon,
   ErrorOutline as ErrorOutlineIcon,
   Work as WorkIcon,
@@ -81,7 +80,6 @@ const Salary = () => {
   // Main data state
   const [salaries, setSalaries] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
   
   // Table state
   const [page, setPage] = useState(0);
@@ -123,13 +121,11 @@ const Salary = () => {
       setLoading(true);
       const res = await axios.get(`${process.env.REACT_APP_API_URL}/salaries/`);
       setSalaries(Array.isArray(res.data) ? res.data : []);
-      setError(null);
     } catch (err) {
       console.error('Error fetching salaries:', err);
-      setError(t('failed_to_load_salaries') || 'Échec du chargement des salaires. Veuillez réessayer.');
       setToast({
         open: true,
-        message: t('failed_to_load_salaries') || 'Échec du chargement des salaires',
+        message: t('failed_to_load_salaries') || 'Échec du chargement des salaries',
         severity: 'error'
       });
     } finally {
@@ -137,7 +133,10 @@ const Salary = () => {
     }
   };
 
-  useEffect(() => { fetchSalaries(); }, []);
+  useEffect(() => { 
+    fetchSalaries(); 
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Handle search input change
   const handleSearchChange = (event) => {

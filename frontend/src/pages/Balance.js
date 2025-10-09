@@ -177,19 +177,67 @@ const Balance = () => {
   useEffect(() => {
     fetchInvoices();
     fetchClients();
+    fetchContracts();
   }, []);
+
+  const [contracts, setContracts] = useState([]);
+
+  const fetchContracts = async () => {
+    try {
+      const res = await axios.get(`${process.env.REACT_APP_API_URL}/contracts/`);
+      setContracts(res.data || []);
+    } catch {
+      setContracts([]);
+    }
+  };
 
   const fetchInvoices = async () => {
     setLoading(true);
     try {
-      const res = await axios.get(`${process.env.REACT_APP_API_URL}/invoices/`);
-      setInvoices(res.data);
+      // First try to get from localStorage (created in Factures page)
+      const savedInvoices = localStorage.getItem('createdInvoices');
+      const savedItems = localStorage.getItem('itemsByInvoice');
+      const savedStatuses = localStorage.getItem('invoiceStatuses'); // NEW: Get saved statuses
+      
+      if (savedInvoices && savedItems) {
+        const invoicesList = JSON.parse(savedInvoices);
+        const itemsByInvoice = JSON.parse(savedItems);
+        const invoiceStatuses = savedStatuses ? JSON.parse(savedStatuses) : {}; // NEW: Parse statuses
+        
+        // Transform to match the expected format
+        const transformedInvoices = invoicesList.map(inv => {
+          const items = itemsByInvoice[inv.id] || [];
+          const totalAmount = items.reduce((sum, item) => sum + (parseFloat(item.total_ht) || 0), 0);
+          
+          // Get saved status or default to unpaid
+          const savedStatus = invoiceStatuses[inv.id] || { status: 'unpaid', paid_amount: 0 };
+          
+          return {
+            id: inv.id,
+            invoice_number: inv.name,
+            contract_id: inv.contractId,
+            amount: totalAmount,
+            paid_amount: savedStatus.paid_amount || 0,
+            status: savedStatus.status || 'unpaid',
+            due_date: inv.dueDate || inv.date,
+            date: inv.date,
+            items: items
+          };
+        });
+        
+        setInvoices(transformedInvoices);
+      } else {
+        // Fallback to API
+        const res = await axios.get(`${process.env.REACT_APP_API_URL}/invoices/`);
+        setInvoices(res.data || []);
+      }
     } catch {
       setInvoices([]);
     } finally {
       setLoading(false);
     }
   };
+  
   const fetchClients = async () => {
     try {
       const res = await axios.get(`${process.env.REACT_APP_API_URL}/clients/`);
@@ -203,16 +251,21 @@ const Balance = () => {
   const filtered = invoices.filter(inv => {
     if (!inv) return false;
     
-    // Safely get client name
+    // Safely get client name (from client_id)
     const client = clients.find(c => c && c.id === inv.client_id);
     const clientName = (client?.client_name || '').toLowerCase();
+    
+    // Also try to get contract name (from contract_id)
+    const contract = contracts.find(c => c && String(c.id) === String(inv.contract_id));
+    const contractName = (contract?.command_number || '').toLowerCase();
     
     // Safely get invoice number
     const invoiceNumber = (inv.invoice_number || '').toLowerCase();
     const searchTerm = (search || '').toLowerCase();
     
     const matchesSearch = invoiceNumber.includes(searchTerm) || 
-                         clientName.includes(searchTerm);
+                         clientName.includes(searchTerm) ||
+                         contractName.includes(searchTerm);
     
     const status = getStatus(inv.amount || 0, inv.paid_amount || 0, inv.status);
     const matchesStatus = statusFilter === 'all' || status === statusFilter;
@@ -229,20 +282,142 @@ const Balance = () => {
 
   // Action handlers
   const handleViewPDF = (invoice) => {
+    // Check if this is a localStorage invoice
+    const isLocalStorageInvoice = invoice.id && String(invoice.id).startsWith('INV-');
+    
+    if (isLocalStorageInvoice) {
+      // Generate PDF for localStorage invoice
+      generateLocalInvoicePDF(invoice);
+      return;
+    }
+    
     window.open(`${process.env.REACT_APP_API_URL}/pdf/invoice/${invoice.id}`, '_blank');
   };
+  
   const handleDownloadPDF = (invoice) => {
+    // Check if this is a localStorage invoice
+    const isLocalStorageInvoice = invoice.id && String(invoice.id).startsWith('INV-');
+    
+    if (isLocalStorageInvoice) {
+      // Generate PDF for localStorage invoice
+      generateLocalInvoicePDF(invoice);
+      return;
+    }
+    
     window.open(`${process.env.REACT_APP_API_URL}/pdf/invoice/${invoice.id}`, '_blank');
     setToast('PDF downloaded');
     setTimeout(() => setToast(''), 2000);
   };
+
+  // Generate PDF for localStorage invoices using backend API
+  const generateLocalInvoicePDF = async (invoice) => {
+    const contract = contracts.find(c => String(c.id) === String(invoice.contract_id));
+    const items = invoice.items || [];
+    
+    if (!contract) {
+      setToast('Contract not found');
+      setTimeout(() => setToast(''), 2500);
+      return;
+    }
+
+    if (items.length === 0) {
+      setToast('No items to generate PDF');
+      setTimeout(() => setToast(''), 2500);
+      return;
+    }
+
+    try {
+      // For PDF generation, save items to factures table (backend PDF reads from factures)
+      const currentTotal = items.reduce((sum, item) => sum + (parseFloat(item.total_ht) || 0), 0);
+      
+      // STEP 1: First, ensure contract has enough capacity by setting price to a large value
+      const TEMP_LARGE_PRICE = 999999;
+      const originalPrice = contract.price;
+      await axios.put(`${process.env.REACT_APP_API_URL}/contracts/${invoice.contract_id}`, {
+        ...contract,
+        price: TEMP_LARGE_PRICE
+      });
+      
+      // STEP 2: Delete ALL existing factures for this contract
+      try {
+        const existingFactures = await axios.get(`${process.env.REACT_APP_API_URL}/api/factures/contract/${invoice.contract_id}`);
+        for (const facture of existingFactures.data) {
+          await axios.delete(`${process.env.REACT_APP_API_URL}/api/factures/${facture.id}`);
+        }
+      } catch (e) {
+        console.log('No existing factures to delete');
+      }
+
+      // STEP 3: Add ONLY current invoice items to factures table
+      for (const item of items) {
+        await axios.post(`${process.env.REACT_APP_API_URL}/api/factures`, {
+          contract_id: parseInt(invoice.contract_id),
+          description: item.description,
+          qty: Number(item.qty) || 0,
+          unit_price: Number(item.unit_price) || 0,
+          tva: Number(item.tva) || 0,
+          total_ht: Number(item.total_ht) || ((Number(item.qty) || 0) * (Number(item.unit_price) || 0))
+        });
+      }
+
+      // STEP 4: Call GET endpoint to generate PDF
+      const res = await axios.get(
+        `${process.env.REACT_APP_API_URL}/pdf/estimate/${invoice.contract_id}`,
+        { responseType: 'blob' }
+      );
+
+      // STEP 5: Restore ORIGINAL contract price
+      await axios.put(`${process.env.REACT_APP_API_URL}/contracts/${invoice.contract_id}`, {
+        ...contract,
+        price: originalPrice
+      });
+
+      // Open PDF in new tab
+      const blob = new Blob([res.data], { type: 'application/pdf' });
+      const url = window.URL.createObjectURL(blob);
+      window.open(url, '_blank');
+      setTimeout(() => window.URL.revokeObjectURL(url), 60_000);
+
+    } catch (err) {
+      console.error('Failed to generate PDF', err);
+      setToast('Failed to generate PDF');
+      setTimeout(() => setToast(''), 2500);
+    }
+  };
   const handleDelete = async (invoice) => {
     if (!window.confirm(t('delete_confirm_invoice'))) return;
+    
+    // Check if this is a localStorage invoice
+    const isLocalStorageInvoice = invoice.id && String(invoice.id).startsWith('INV-');
+    
     setLoading(true);
     try {
-      await axios.delete(`${process.env.REACT_APP_API_URL}/invoices/${invoice.id}`);
-      setToast('Invoice deleted');
-      fetchInvoices();
+      if (isLocalStorageInvoice) {
+        // Delete from localStorage
+        const savedInvoices = localStorage.getItem('createdInvoices');
+        const savedItems = localStorage.getItem('itemsByInvoice');
+        
+        if (savedInvoices) {
+          const invoicesList = JSON.parse(savedInvoices);
+          const updatedInvoices = invoicesList.filter(inv => inv.id !== invoice.id);
+          localStorage.setItem('createdInvoices', JSON.stringify(updatedInvoices));
+        }
+        
+        if (savedItems) {
+          const itemsByInvoice = JSON.parse(savedItems);
+          delete itemsByInvoice[invoice.id];
+          localStorage.setItem('itemsByInvoice', JSON.stringify(itemsByInvoice));
+        }
+        
+        // Update local state
+        setInvoices(prev => prev.filter(inv => inv.id !== invoice.id));
+        setToast('Invoice deleted');
+      } else {
+        // Delete from backend
+        await axios.delete(`${process.env.REACT_APP_API_URL}/invoices/${invoice.id}`);
+        setToast('Invoice deleted');
+        fetchInvoices();
+      }
     } catch {
       setToast('Error deleting invoice');
     } finally {
@@ -252,7 +427,9 @@ const Balance = () => {
   };
 
   const handleStatusChange = async (invoice, newStatus) => {
-    // No confirmation and no overdue restriction; user requested direct edit
+    // Check if this is a localStorage invoice (starts with INV-)
+    const isLocalStorageInvoice = invoice.id && String(invoice.id).startsWith('INV-');
+    
     setLoading(true);
     try {
       // Calculate the new paid amount based on status
@@ -265,29 +442,51 @@ const Balance = () => {
         paidAmount = invoice.amount / 2; // Default to half for partial
       }
 
-      // Make API call to update invoice
-      const response = await axios.put(
-        `${process.env.REACT_APP_API_URL}/invoices/${invoice.id}`, 
-        {
+      if (isLocalStorageInvoice) {
+        // For localStorage invoices, just update local state
+        setInvoices(prevInvoices =>
+          prevInvoices.map(inv =>
+            inv.id === invoice.id
+              ? { ...inv, status: newStatus, paid_amount: paidAmount }
+              : inv
+          )
+        );
+        
+        // Save status to separate localStorage key for persistence
+        const savedStatuses = localStorage.getItem('invoiceStatuses');
+        const invoiceStatuses = savedStatuses ? JSON.parse(savedStatuses) : {};
+        invoiceStatuses[invoice.id] = {
           status: newStatus,
           paid_amount: paidAmount
-        },
-        {
-          headers: {
-            'Content-Type': 'application/json'
+        };
+        localStorage.setItem('invoiceStatuses', JSON.stringify(invoiceStatuses));
+        
+        setToast(t(`successfully_updated_invoice_status_to_${newStatus}`) || `Status updated to ${newStatus}`);
+      } else {
+        // For backend invoices, make API call
+        const response = await axios.put(
+          `${process.env.REACT_APP_API_URL}/invoices/${invoice.id}`, 
+          {
+            status: newStatus,
+            paid_amount: paidAmount
+          },
+          {
+            headers: {
+              'Content-Type': 'application/json'
+            }
           }
-        }
-      );
-      
-      // Update local state; backend status will persist across refresh
-      setInvoices(prevInvoices =>
-        prevInvoices.map(inv =>
-          inv.id === invoice.id
-            ? { ...inv, status: newStatus, paid_amount: paidAmount }
-            : inv
-        )
-      );
-      setToast(t(`successfully_updated_invoice_status_to_${newStatus}`) || `Status updated to ${newStatus}`);
+        );
+        
+        // Update local state; backend status will persist across refresh
+        setInvoices(prevInvoices =>
+          prevInvoices.map(inv =>
+            inv.id === invoice.id
+              ? { ...inv, status: newStatus, paid_amount: paidAmount }
+              : inv
+          )
+        );
+        setToast(t(`successfully_updated_invoice_status_to_${newStatus}`) || `Status updated to ${newStatus}`);
+      }
     } catch (error) {
       console.error('Error updating invoice status:', error);
       const errorMessage = error.response?.data?.detail || t('failed_to_update_invoice_status');

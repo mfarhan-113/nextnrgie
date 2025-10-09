@@ -5,16 +5,15 @@ import {
   useTheme, alpha, styled, CssBaseline, CircularProgress, Chip
 } from '@mui/material';
 import {
-  People, Description, AccountBalance, AttachMoney, MoreHoriz,
-  TrendingUp, TrendingDown, Assessment, Timeline, Analytics,
-  Group, Assignment, Business, Receipt
+  People, Description, Assignment, Analytics,
+  Assessment, Timeline, Group
 } from '@mui/icons-material';
-import { useLocation, useNavigate } from 'react-router-dom';
+// Router hooks removed - not used in this component
 import axios from 'axios';
 import { useAuth } from '../firebase/AuthContext';
 import Navbar from '../components/Navbar';
 import Sidebar from '../components/Sidebar';
-import { BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid, ResponsiveContainer, Label, PieChart, Pie, Cell, Legend } from 'recharts';
+import { BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid, ResponsiveContainer, PieChart, Pie, Cell, Legend } from 'recharts';
 
 // Styled Components
 const StatsCard = styled(Card)(({ theme, color }) => ({
@@ -152,7 +151,7 @@ const Dashboard = () => {
     
     fetchStats();
     fetchRecentActivity();
-  }, [t]);
+  }, []);
 
   // Pie chart color mapping for activity types
   const activityPieColors = {

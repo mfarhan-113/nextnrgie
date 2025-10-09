@@ -1,87 +1,55 @@
-import React, { useState, useEffect } from 'react';
-import { useTranslation } from 'react-i18next';
+import React, { useEffect, useMemo, useState } from 'react';
 import axios from 'axios';
+import { useTranslation } from 'react-i18next';
 
-// Material UI Components
+// Material UI
 import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
 import IconButton from '@mui/material/IconButton';
 import Tooltip from '@mui/material/Tooltip';
 import CircularProgress from '@mui/material/CircularProgress';
-import Chip from '@mui/material/Chip';
 import Card from '@mui/material/Card';
 import CardContent from '@mui/material/CardContent';
 import CardActions from '@mui/material/CardActions';
 import Button from '@mui/material/Button';
+import Chip from '@mui/material/Chip';
 import Fade from '@mui/material/Fade';
-import { 
-  CssBaseline, 
-  styled,
-  alpha
-} from '@mui/material';
+import Zoom from '@mui/material/Zoom';
+import TextField from '@mui/material/TextField';
+import InputAdornment from '@mui/material/InputAdornment';
+import Grid from '@mui/material/Grid';
 
-// Material UI Icons
-import VisibilityIcon from '@mui/icons-material/Visibility';
-import InfoIcon from '@mui/icons-material/Info';
-import EditIcon from '@mui/icons-material/Edit';
-import DeleteIcon from '@mui/icons-material/Delete';
-import CloseIcon from '@mui/icons-material/Close';
+import { styled, alpha } from '@mui/material/styles';
 import AddIcon from '@mui/icons-material/Add';
+import CloseIcon from '@mui/icons-material/Close';
+import VisibilityIcon from '@mui/icons-material/Visibility';
+import SearchIcon from '@mui/icons-material/Search';
+import CalendarTodayIcon from '@mui/icons-material/CalendarToday';
+import DescriptionIcon from '@mui/icons-material/Description';
+import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
+import ExpandLessIcon from '@mui/icons-material/ExpandLess';
+import EditIcon from '@mui/icons-material/Edit';
 
-// Components
+import DeleteIcon from '@mui/icons-material/Delete';
+import ReceiptIcon from '@mui/icons-material/Receipt';
+
+// Layout
 import Sidebar from '../components/Sidebar';
 import Navbar from '../components/Navbar';
+import { CssBaseline } from '@mui/material';
 
-// Styles to match Devis
 import '../modern-contracts.css';
 import '../toast.css';
 
 // Styled Components
-const ModalOverlay = styled('div')({
-  position: 'fixed',
-  top: 0,
-  left: 0,
-  right: 0,
-  bottom: 0,
-  backgroundColor: 'rgba(0, 0, 0, 0.7)',
-  display: 'flex',
-  justifyContent: 'center',
-  alignItems: 'center',
-  zIndex: 1000,
-});
-
-const PdfPreviewContainer = styled('div')({
-  width: '90%',
-  height: '90%',
-  background: 'white',
-  borderRadius: '8px',
-  display: 'flex',
-  flexDirection: 'column',
-  overflow: 'hidden',
-});
-
-const PdfPreviewHeader = styled('div')({
-  padding: '16px',
-  display: 'flex',
-  justifyContent: 'space-between',
-  alignItems: 'center',
-  backgroundColor: '#f5f5f5',
-  borderBottom: '1px solid #e0e0e0',
-});
-
-const PdfPreviewContent = styled('div')({
-  flex: 1,
-  position: 'relative',
-  overflow: 'hidden',
-  display: 'flex',
-  flexDirection: 'column',
-  justifyContent: 'center',
-  alignItems: 'center',
-  height: '100%',
-  color: '#666',
-  '& td': {
-    padding: '12px 16px',
-    borderBottom: '1px solid #f0f0f0',
+const StatsCard = styled(Card)({
+  background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+  color: 'white',
+  borderRadius: '16px',
+  boxShadow: '0 4px 20px rgba(102, 126, 234, 0.3)',
+  '&:hover': {
+    transform: 'translateY(-2px)',
+    boxShadow: '0 8px 30px rgba(102, 126, 234, 0.4)',
   },
 });
 
@@ -92,10 +60,10 @@ const ModernCard = styled(Card)(({ theme }) => ({
   border: '1px solid rgba(156, 39, 176, 0.1)',
   transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
   '&:hover': {
-    transform: 'translateY(-2px)',
-    boxShadow: '0 8px 30px rgba(0, 0, 0, 0.12)',
+    transform: 'translateY(-4px)',
+    boxShadow: '0 12px 40px rgba(0, 0, 0, 0.15)',
+    borderColor: alpha('#9c27b0', 0.2),
   },
-  overflow: 'visible'
 }));
 
 const ActionButton = styled(Button)(({ variant = 'view' }) => ({
@@ -113,771 +81,511 @@ const ActionButton = styled(Button)(({ variant = 'view' }) => ({
       transform: 'scale(1.05)',
     }
   }),
-  ...(variant === 'info' && {
-    backgroundColor: alpha('#2196f3', 0.1),
-    color: '#2196f3',
+  ...(variant === 'create' && {
+    backgroundColor: alpha('#4caf50', 0.1),
+    color: '#4caf50',
     '&:hover': {
-      backgroundColor: '#2196f3',
+      backgroundColor: '#4caf50',
       color: 'white',
       transform: 'scale(1.05)',
     }
   })
 }));
 
-const StatsCard = styled(Card)({
-  background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+const AddButton = styled(IconButton)({
+  position: 'fixed',
+  bottom: '24px',
+  right: '24px',
+  width: '64px',
+  height: '64px',
+  borderRadius: '50%',
+  backgroundColor: '#9c27b0',
   color: 'white',
-  borderRadius: '16px',
-  boxShadow: '0 4px 20px rgba(102, 126, 234, 0.3)',
-  '&:hover': {
-    transform: 'translateY(-2px)',
-    boxShadow: '0 8px 30px rgba(102, 126, 234, 0.4)',
-  },
+  zIndex: 9999,
   transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+  '&:hover': {
+    backgroundColor: '#7b1fa2',
+    transform: 'scale(1.1)',
+    boxShadow: '0 8px 25px rgba(156, 39, 176, 0.4)',
+  },
+  boxShadow: '0 6px 20px rgba(156, 39, 176, 0.3)',
+  '&:active': {
+    transform: 'scale(0.95)',
+  }
 });
 
-function Factures() {
+const Factures = () => {
   const { t } = useTranslation();
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
-  const [success, setSuccess] = useState('');
-  const [mobileOpen, setMobileOpen] = useState(false);
-  const [contracts, setContracts] = useState([]);
-  const [loadingContracts, setLoadingContracts] = useState(false);
-  const [previewOpen, setPreviewOpen] = useState(false);
-  const [pdfUrl, setPdfUrl] = useState('');
-  const [loadingPdf, setLoadingPdf] = useState(false);
-  const [detailsOpen, setDetailsOpen] = useState(false);
-  const [selectedContract, setSelectedContract] = useState(null);
-  // Remove unused state variables that are now part of formState
-  // const [showFactureForm, setShowFactureForm] = useState(false);
-  // const [editFactureOpen, setEditFactureOpen] = useState(false);
-  // const [editingFacture, setEditingFacture] = useState(null);
-  // const [editForm, setEditForm] = useState({
-  //   description: '',
-  //   qty: 1,
-  //   unit_price: 0,
-  //   tva: 20,
-  //   total_ht: 0
-  // });
 
-  // Form state management
-  const [formState, setFormState] = useState({
-    showFactureForm: false,
-    selectedContractId: '',
-    contractFactures: [],
-    factureForm: {
-      description: '',
-      qty: 1,
-      unit_price: 0,
-      tva: 20, // Default TVA 20%
-      total_ht: 0
-    },
-    editForm: {
-      id: null,
-      description: '',
-      qty: 1,
-      unit_price: 0,
-      tva: 20,
-      total_ht: 0
-    },
-    editFactureOpen: false
+  // Layout state
+  const [mobileOpen, setMobileOpen] = useState(false);
+  const handleDrawerToggle = () => setMobileOpen(!mobileOpen);
+
+  // Contracts (like clients in Devis)
+  const [contracts, setContracts] = useState([]);
+  const [selectedContractId, setSelectedContractId] = useState('');
+
+  // Invoices list (like createdDevis)
+  const [createdInvoices, setCreatedInvoices] = useState([]); // { id, name, contractId, date, dueDate }
+  const [itemsByInvoice, setItemsByInvoice] = useState({}); // { [invoiceId]: [{description, qty, unit_price, tva, total_ht}] }
+  const [selectedInvoiceId, setSelectedInvoiceId] = useState('');
+
+  // Modal form state
+  const [detailsModalOpen, setDetailsModalOpen] = useState(false);
+  const [detailsForm, setDetailsForm] = useState({
+    description: '',
+    qty: '',
+    unit_price: '',
+    tva: '',
+    total_ht: ''
   });
 
-  // Helper to update form state
-  const updateFormState = (updates) => {
-    setFormState(prev => {
-      const newState = { ...prev, ...updates };
-      
-      if (updates.factureForm) {
-        newState.factureForm = {
-          ...(prev.factureForm || {}),
-          ...updates.factureForm
-        };
-      }
-      
-      if (updates.editForm) {
-        newState.editForm = {
-          ...(prev.editForm || {}),
-          ...updates.editForm
-        };
-      }
-      
-      return newState;
+  // UX state
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+  const [toast, setToast] = useState('');
+  const [contractsById, setContractsById] = useState({});
+  const [hydrationDone, setHydrationDone] = useState(false);
+  const [dueDateDrafts, setDueDateDrafts] = useState({});
+  const [searchTerm, setSearchTerm] = useState('');
+  const [expandedItems, setExpandedItems] = useState({}); // Track which invoices have items expanded
+  const [editingItem, setEditingItem] = useState(null); // Track which item is being edited
+  const [editItemForm, setEditItemForm] = useState({
+    description: '',
+    qty: '',
+    unit_price: '',
+    tva: '',
+    total_ht: ''
+  });
+
+  // Filter invoices based on search term
+  const filteredInvoices = useMemo(() => {
+    if (!searchTerm.trim()) return createdInvoices;
+    const term = searchTerm.toLowerCase();
+    return createdInvoices.filter(invoice => {
+      const contract = contracts.find(c => String(c.id) === String(invoice.contractId));
+      const contractName = contract?.command_number?.toLowerCase() || '';
+      return (
+        invoice.name.toLowerCase().includes(term) ||
+        contractName.includes(term) ||
+        invoice.id.toLowerCase().includes(term)
+      );
     });
-  };
+  }, [createdInvoices, searchTerm, contracts]);
 
-  // Generate PDF for a contract - SUPER SIMPLE VERSION
-  const generatePdf = async (contract) => {
-    if (!contract || !contract.id) {
-      alert('❌ No contract selected');
-      return;
-    }
-    
-    setLoadingPdf(true);
-    setError('');
-    
-    console.log('🔥 Opening PDF for contract:', contract.id);
-    
-    // Just open the URL directly - no complex logic
-    const pdfUrl = `${process.env.REACT_APP_API_URL}/pdf/facture/${contract.id}`;
-    console.log('🔗 PDF URL:', pdfUrl);
-    
-    // Open PDF in new tab
-    window.open(pdfUrl, '_blank');
-    
-    setLoadingPdf(false);
-    setSuccess('✅ PDF opened in new tab!');
-  };
-
-  // Fetch factures for selected contract
-  const fetchContractFactures = async (contractId) => {
-    if (!contractId) {
-      console.warn('No contract ID provided');
-      updateFormState({ contractFactures: [], contractDetails: {} });
-      return;
-    }
-
-    console.log(`Fetching data for contract ID: ${contractId}`);
-    
-    try {
-      // First get contract details
-      console.log(`Fetching contract details from: ${process.env.REACT_APP_API_URL}/contract-details/contracts/${contractId}`);
-      const contractResponse = await axios.get(
-        `${process.env.REACT_APP_API_URL}/contract-details/contracts/${contractId}`,
-        {
-          headers: {
-            'Authorization': `Bearer ${localStorage.getItem('token')}`,
-            'Content-Type': 'application/json'
-          }
-        }
-      );
-      console.log('Contract details response:', contractResponse.data);
-      
-      // Then get the factures for this contract
-      console.log(`Fetching factures from: ${process.env.REACT_APP_API_URL}/api/factures/contract/${contractId}`);
-      const facturesResponse = await axios.get(
-        `${process.env.REACT_APP_API_URL}/api/factures/contract/${contractId}`,
-        {
-          headers: {
-            'Authorization': `Bearer ${localStorage.getItem('token')}`,
-            'Content-Type': 'application/json'
-          },
-          // Add error handling for 404 specifically
-          validateStatus: (status) => status < 500
-        }
-      );
-      
-      console.log('Factures response:', facturesResponse.data);
-      
-      updateFormState({ 
-        contractFactures: facturesResponse.data || [],
-        contractDetails: contractResponse.data?.[0] || {}
-      });
-      
-    } catch (error) {
-      console.error('Error in fetchContractFactures:', {
-        message: error.message,
-        response: error.response?.data,
-        status: error.response?.status,
-        config: {
-          url: error.config?.url,
-          method: error.config?.method,
-          headers: error.config?.headers
-        }
-      });
-      
-      // If it's a 404, try the alternative endpoint
-      if (error.response?.status === 404) {
-        console.log('Trying alternative endpoint...');
-        try {
-          const altResponse = await axios.get(
-            `${process.env.REACT_APP_API_URL}/api/contracts/${contractId}/details`,
-            {
-              headers: {
-                'Authorization': `Bearer ${localStorage.getItem('token')}`,
-                'Content-Type': 'application/json'
-              }
-            }
-          );
-          
-          console.log('Alternative endpoint response:', altResponse.data);
-          updateFormState({
-            contractFactures: [],
-            contractDetails: Array.isArray(altResponse.data) ? altResponse.data[0] : altResponse.data
-          });
-          return;
-        } catch (altError) {
-          console.error('Alternative endpoint also failed:', altError);
-        }
-      }
-      
-      updateFormState({ 
-        contractFactures: [],
-        contractDetails: {}
-      });
-    }
-  };
-
-  // Handle contract selection change
-  const handleContractChange = (e) => {
-    const contractId = e.target.value;
-    updateFormState({ selectedContractId: contractId });
-    if (contractId) {
-      fetchContractFactures(contractId);
-    } else {
-      updateFormState({ contractFactures: [] });
-    }
-  };
-
-  // Calculate remaining contract amount
-  // Handle facture form input changes
-  const handleFactureChange = (e) => {
-    const { name, value } = e.target;
-    const updatedForm = {
-      ...formState.factureForm,
-      [name]: name === 'qty' || name === 'unit_price' || name === 'tva' || name === 'total_ht' 
-        ? parseFloat(value) || 0 
-        : value
-    };
-    
-    // Recalculate total when quantity, unit price, or TVA changes
-    if (['qty', 'unit_price', 'tva'].includes(name)) {
-      const qty = name === 'qty' ? parseFloat(value) || 0 : formState.factureForm.qty || 0;
-      const unitPrice = name === 'unit_price' ? parseFloat(value) || 0 : formState.factureForm.unit_price || 0;
-      const tvaRate = name === 'tva' ? (parseFloat(value) || 0) / 100 : (formState.factureForm.tva || 0) / 100;
-      
-      const subtotal = qty * unitPrice;
-      const tvaAmount = subtotal * tvaRate;
-      updatedForm.total_ht = subtotal + tvaAmount;
-    }
-    
-    updateFormState({ factureForm: updatedForm });
-  };
-
-  // Update contract price
-  const updateContractPrice = async (contractId, amount) => {
-    try {
-      // First, get the current contract data
-      const response = await axios.get(
-        `${process.env.REACT_APP_API_URL}/contracts/${contractId}`,
-        {
-          headers: {
-            'Authorization': `Bearer ${localStorage.getItem('token')}`,
-            'Content-Type': 'application/json'
-          }
-        }
-      );
-      
-      const currentContract = response.data;
-      
-      // Update only the price field
-      await axios.put(
-        `${process.env.REACT_APP_API_URL}/contracts/${contractId}`,
-        { 
-          ...currentContract, // Include all current fields
-          price: amount       // Update just the price
-        },
-        {
-          headers: {
-            'Authorization': `Bearer ${localStorage.getItem('token')}`,
-            'Content-Type': 'application/json'
-          }
-        }
-      );
-      return true;
-    } catch (error) {
-      console.error('Error updating contract price:', error);
-      console.error('Error details:', error.response?.data);
-      return false;
-    }
-  };
-
-  // Handle facture form submission
-  const handleFactureSubmit = async (e) => {
-    e.preventDefault();
-    if (!formState.selectedContractId) {
-      setError('Please select a contract');
-      return;
-    }
-  
-    try {
-      // Get values from form
-      const qty = parseFloat(formState.factureForm.qty) || 0;
-      const unitPrice = parseFloat(formState.factureForm.unit_price) || 0;
-      const tvaPercent = parseFloat(formState.factureForm.tva) || 0;
-      
-      // Calculate amounts
-      const subtotal = qty * unitPrice;
-      const tvaAmount = subtotal * (tvaPercent / 100);
-      const totalHt = subtotal + tvaAmount;
-      
-      const selectedContract = contracts.find(c => c.id === parseInt(formState.selectedContractId));
-      
-      if (!selectedContract) {
-        setError('Selected contract not found');
-        return;
-      }
-  
-      // Calculate new contract price
-      const currentPrice = parseFloat(selectedContract.price) || 0;
-      const newPrice = Math.max(0, (currentPrice + totalHt).toFixed(2));
-  
-      // First, update the contract price
-      const updated = await updateContractPrice(formState.selectedContractId, newPrice);
-      
-      if (!updated) {
-        setError('Failed to update contract price');
-        return;
-      }
-
-      // Prepare the request data - ensure all numbers are properly formatted
-      const requestData = {
-        contract_id: parseInt(formState.selectedContractId),
-        description: formState.factureForm.description || '',
-        qty: parseFloat(qty.toFixed(2)),
-        unit_price: parseFloat(unitPrice.toFixed(2)),
-        tva: parseFloat(tvaPercent.toFixed(2)), // Ensure it's a number with 2 decimal places
-        total_ht: parseFloat(totalHt.toFixed(2)) // Ensure it's a number with 2 decimal places
-      };
-      
-      // Log the calculated values for debugging
-      console.log('Subtotal:', subtotal);
-      console.log('TVA Amount:', tvaAmount);
-      console.log('Total HT (with TVA):', totalHt);
-
-      console.log('Sending facture data:', requestData);
-  
-      const response = await axios.post(
-        `${process.env.REACT_APP_API_URL}/api/factures`,
-        requestData,
-        {
-          headers: {
-            'Authorization': `Bearer ${localStorage.getItem('token')}`,
-            'Content-Type': 'application/json'
-          }
-        }
-      ).catch(error => {
-        console.error('Error creating facture:', error.response?.data || error.message);
-        throw error;
-      });
-      
-      const newFacture = response.data;
-      
-      // Update local state to reflect the new price
-      const updatedContracts = contracts.map(contract => 
-        contract.id === parseInt(formState.selectedContractId) 
-          ? { ...contract, price: newPrice }
-          : contract
-      );
-      setContracts(updatedContracts);
-  
-      // Reset form and show success message
-      updateFormState({
-        factureForm: {
-          description: '',
-          qty: 1,
-          unit_price: 0,
-          tva: 20,
-          total_ht: 0
-        },
-        showFactureForm: false
-      });
-      
-      setSuccess('Facture added and contract price updated successfully!');
-      
-      // Close the success message after a delay
-      setTimeout(() => {
-        setSuccess('');
-      }, 3000);
-      
-      // Update the contract price in the contracts list by adding the new facture amount
-      setContracts(contracts.map(c => 
-        c.id === parseInt(formState.selectedContractId)
-          ? { ...c, price: (parseFloat(c.price || 0) + parseFloat(formState.factureForm.total_ht || 0)).toFixed(2) }
-          : c
-      ));
-      
-      // Update the selected contract if it's currently selected
-      if (selectedContract && selectedContract.id === parseInt(formState.selectedContractId)) {
-        setSelectedContract(prev => {
-          if (!prev) return null;
-          return {
-            ...prev,
-            factures: [...(prev.factures || []), newFacture]
-          };
-        });
-      }
-      
-      // Refresh the factures list
-      fetchContractFactures(formState.selectedContractId);
-      
-    } catch (error) {
-      console.error('Error adding facture:', error);
-      setError('Failed to add facture: ' + (error.response?.data?.detail || error.message));
-    }
-  };
-  // Open facture form
-  const openFactureForm = () => {
-    if (contracts.length === 0) {
-      setError('No contracts available');
-      return;
-    }
-    updateFormState({ 
-      showFactureForm: true,
-      factureForm: {
-        description: '',
-        qty: 1,
-        unit_price: 0,
-        tva: 20,
-        total_ht: 0
-      }
-    });
-  };
-
-  // Close PDF preview
-  const closePreview = () => {
-    setPreviewOpen(false);
-    if (pdfUrl) {
-      window.URL.revokeObjectURL(pdfUrl);
-      setPdfUrl('');
-    }
-  };
-
-  // Show contract details (fetch contract details and factures)
-  const showContractDetails = async (contract) => {
-    try {
-      setLoading(true);
-      setError('');
-      
-      // Fetch contract details (items that appear in PDF table)
-      let details = [];
-      let factures = [];
-      
+  // Persistence helpers (localStorage with cookie fallback)
+  const persist = useMemo(() => ({
+    get: (key) => {
       try {
-        const detailsResponse = await axios.get(
-          `${process.env.REACT_APP_API_URL}/contracts/${contract.id}/details`,
-          {
-            headers: {
-              'Authorization': `Bearer ${localStorage.getItem('token')}`
-            }
-          }
-        );
-        details = detailsResponse.data || [];
-      } catch (detailsError) {
-        console.warn('Could not fetch contract details:', detailsError);
-        // Continue without details - they might not exist
-      }
-      
+        const v = localStorage.getItem(key);
+        if (v) return v;
+      } catch {}
       try {
-        const facturesResponse = await axios.get(
-          `${process.env.REACT_APP_API_URL}/api/factures/contract/${contract.id}`,
-          {
-            headers: {
-              'Authorization': `Bearer ${localStorage.getItem('token')}`
-            }
-          }
-        );
-        factures = facturesResponse.data || [];
-      } catch (facturesError) {
-        console.warn('Could not fetch factures:', facturesError);
-        // Continue without factures - they might not exist
-      }
-      
-      setSelectedContract({
-        ...contract,
-        details: details,
-        factures: factures
-      });
-      setDetailsOpen(true);
-    } catch (error) {
-      console.error('Error fetching contract details:', error);
-      setError(`Failed to load contract details: ${error.response?.data?.detail || error.message}`);
-    } finally {
-      setLoading(false);
+        const escapedKey = key.replace(/[.$?*|{}()[\]\\/+^]/g, '\\$&');
+        const match = document.cookie.match(new RegExp('(?:^|; )' + escapedKey + '=([^;]*)'));
+        return match ? decodeURIComponent(match[1]) : null;
+      } catch {}
+      return null;
+    },
+    set: (key, value) => {
+      try { localStorage.setItem(key, value); } catch {}
+      try {
+        const expires = new Date(Date.now() + 365*24*60*60*1000).toUTCString();
+        document.cookie = `${key}=${encodeURIComponent(value)}; expires=${expires}; path=/`;
+      } catch {}
+    },
+    remove: (key) => {
+      try { localStorage.removeItem(key); } catch {}
+      try {
+        document.cookie = `${key}=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;`;
+      } catch {}
     }
-  };
+  }), []);
 
-  // Close contract details
-  const closeDetails = () => {
-    setDetailsOpen(false);
-    setSelectedContract(null);
-  };
-
-  // Edit facture item
-  const editFactureItem = (facture) => {
-    updateFormState({
-      editingFacture: facture,
-      editForm: {
-        description: facture.description || '',
-        qty: facture.qty || 1,
-        unit_price: facture.unit_price || 0,
-        tva: facture.tva || 20,
-        total_ht: facture.total_ht || 0
-      },
-      editFactureOpen: true
-    });
-  };
-
-  // Handle edit form changes
-  const handleEditFormChange = (e) => {
-    const { name, value } = e.target;
-    let updatedForm = {
-      ...formState.editForm,
-      [name]: name === 'qty' || name === 'unit_price' || name === 'tva' || name === 'total_ht' 
-        ? parseFloat(value) || 0 
-        : value
-    };
-    
-    // Recalculate total when quantity, unit price, or TVA changes
-    if (['qty', 'unit_price', 'tva'].includes(name)) {
-      const qty = name === 'qty' ? parseFloat(value) || 0 : formState.editForm.qty || 0;
-      const unitPrice = name === 'unit_price' ? parseFloat(value) || 0 : formState.editForm.unit_price || 0;
-      const tvaRate = name === 'tva' ? (parseFloat(value) || 0) / 100 : (formState.editForm.tva || 0) / 100;
-      
-      const subtotal = qty * unitPrice;
-      const tvaAmount = subtotal * tvaRate;
-      updatedForm.total_ht = subtotal + tvaAmount;
-    }
-    
-    updateFormState({ editForm: updatedForm });
-  };
-
-  // Save edited facture
-  const saveEditedFacture = async (e) => {
-    e.preventDefault();
-    if (!formState.editingFacture) return;
-
+  // Hydrate from localStorage on mount
+  useEffect(() => {
     try {
-      setLoading(true);
-      setError('');
-      
-      // Calculate new values with TVA
-      const qty = parseFloat(formState.editForm.qty) || 0;
-      const unitPrice = parseFloat(formState.editForm.unit_price) || 0;
-      const tvaRate = (parseFloat(formState.editForm.tva) || 0) / 100;
-      
-      const subtotal = qty * unitPrice;
-      const tvaAmount = subtotal * tvaRate;
-      const newAmount = subtotal + tvaAmount;
-      
-      const oldAmount = parseFloat(formState.editingFacture.total_ht) || 0;
-      const amountDifference = newAmount - oldAmount;
-      
-      // Update facture with calculated values
-      await axios.put(
-        `${process.env.REACT_APP_API_URL}/api/factures/${formState.editingFacture.id}`,
-        {
-          description: formState.editForm.description,
-          qty: qty,
-          unit_price: unitPrice,
-          tva: tvaRate * 100, // Convert back to percentage for storage
-          total_ht: newAmount.toFixed(2)
-        },
-        {
-          headers: {
-            'Authorization': `Bearer ${localStorage.getItem('token')}`,
-            'Content-Type': 'application/json'
-          }
-        }
-      );
-      
-      // Update contract price (subtract the difference since more/less is now invoiced)
-      const contractToUpdate = contracts.find(c => c.id === formState.selectedContractId);
-      if (contractToUpdate) {
-        const newPrice = parseFloat(contractToUpdate.price) - amountDifference;
-        
-        await axios.put(
-          `${process.env.REACT_APP_API_URL}/contracts/${formState.selectedContractId}`,
-          { 
-            ...contractToUpdate,
-            price: newPrice.toFixed(2)
-          },
-          {
-            headers: {
-              'Authorization': `Bearer ${localStorage.getItem('token')}`,
-              'Content-Type': 'application/json'
-            }
-          }
-        );
-        
-        // Update local states
-        setContracts(contracts.map(c => 
-          c.id === formState.selectedContractId 
-            ? { ...c, price: newPrice.toFixed(2) }
-            : c
-        ));
-        
-        // Update contract factures in state
-        const updatedFactures = formState.contractFactures.map(f => 
-          f.id === formState.editingFacture.id 
-            ? { 
-                ...f, 
-                ...formState.editForm, 
-                qty: parseFloat(formState.editForm.qty), 
-                unit_price: parseFloat(formState.editForm.unit_price), 
-                tva: parseFloat(formState.editForm.tva), 
-                total_ht: parseFloat(formState.editForm.total_ht) 
-              }
-            : f
-        );
-        
-        updateFormState({ contractFactures: updatedFactures });
-        
-        // Update selected contract's factures if it's the current contract
-        if (selectedContract && selectedContract.id === parseInt(formState.selectedContractId)) {
-          setSelectedContract(prev => ({
-            ...prev,
-            factures: (prev.factures || []).map(f => 
-              f.id === formState.editingFacture.id 
-                ? { 
-                    ...f, 
-                    ...formState.editForm, 
-                    qty: parseFloat(formState.editForm.qty), 
-                    unit_price: parseFloat(formState.editForm.unit_price), 
-                    tva: parseFloat(formState.editForm.tva), 
-                    total_ht: parseFloat(formState.editForm.total_ht) 
-                  } 
-                : f
-            )
-          }));
-        }
+      const savedInvoices = persist.get('createdInvoices');
+      const savedItems = persist.get('itemsByInvoice');
+      if (savedInvoices) {
+        setCreatedInvoices(JSON.parse(savedInvoices));
       }
-      
-      setSuccess('Facture updated successfully!');
-      updateFormState({ 
-        editFactureOpen: false,
-        editingFacture: null,
-        editForm: {
-          id: null,
-          description: '',
-          qty: 1,
-          unit_price: 0,
-          tva: 20,
-          total_ht: 0
-        }
-      });
-      setTimeout(() => setSuccess(''), 3000);
-      
-    } catch (error) {
-      console.error('Error updating facture:', error);
-      setError(`Failed to update facture: ${error.response?.data?.detail || error.message}`);
+      if (savedItems) {
+        setItemsByInvoice(JSON.parse(savedItems));
+      }
+    } catch (e) {
+      console.error('Hydration error:', e);
     } finally {
-      setLoading(false);
+      setHydrationDone(true);
     }
-  };
+  }, [persist]);
 
-  // Cancel edit
-  const cancelEdit = () => {
-    updateFormState({ 
-      editFactureOpen: false,
-      editingFacture: null,
-      editForm: {
-        id: null,
-        description: '',
-        qty: 1,
-        unit_price: 0,
-        tva: 20,
-        total_ht: 0
-      }
-    });
-  };
-
-  // Delete facture item
-  const deleteFactureItem = async (factureId) => {
-    if (!window.confirm('Are you sure you want to delete this facture item?')) {
-      return;
-    }
-
+  // Persist invoices whenever they change
+  useEffect(() => {
+    if (!hydrationDone) return;
     try {
-      setLoading(true);
-      setError('');
+      persist.set('createdInvoices', JSON.stringify(createdInvoices));
+    } catch {}
+  }, [createdInvoices, hydrationDone, persist]);
+
+  // Persist items whenever they change
+  useEffect(() => {
+    if (!hydrationDone) return;
+    try {
+      persist.set('itemsByInvoice', JSON.stringify(itemsByInvoice));
+    } catch {}
+  }, [itemsByInvoice, hydrationDone, persist]);
+
+  // Fetch contracts on mount
+  const fetchContracts = async () => {
+    try {
+      const res = await axios.get(`${process.env.REACT_APP_API_URL}/contracts/`);
+      const contractsList = res.data || [];
+      setContracts(contractsList);
       
-      await axios.delete(
-        `${process.env.REACT_APP_API_URL}/api/factures/${factureId}`,
-        {
-          headers: {
-            'Authorization': `Bearer ${localStorage.getItem('token')}`
-          }
-        }
-      );
-      
-      // Update the contract factures in state
-      const deletedFacture = formState.contractFactures.find(f => f.id === factureId);
-      if (deletedFacture) {
-        // Update contract price (add back the deleted facture amount)
-        const contractToUpdate = contracts.find(c => c.id === parseInt(formState.selectedContractId));
-        if (contractToUpdate) {
-          const newPrice = parseFloat(contractToUpdate.price) + parseFloat(deletedFacture.total_ht);
-          
-          // Update contract price in backend
-          await axios.put(
-            `${process.env.REACT_APP_API_URL}/contracts/${formState.selectedContractId}`,
-            { 
-              ...contractToUpdate,
-              price: newPrice.toFixed(2)
-            },
-            {
-              headers: {
-                'Authorization': `Bearer ${localStorage.getItem('token')}`,
-                'Content-Type': 'application/json'
-              }
-            }
-          );
-          
-          // Update local contracts state
-          setContracts(contracts.map(c => 
-            c.id === parseInt(formState.selectedContractId)
-              ? { ...c, price: newPrice.toFixed(2) }
-              : c
-          ));
-          
-          // Update contract factures in state
-          const updatedFactures = formState.contractFactures.filter(f => f.id !== factureId);
-          updateFormState({ contractFactures: updatedFactures });
-          
-          // Update selected contract's factures if it's the current contract
-          if (selectedContract && selectedContract.id === parseInt(formState.selectedContractId)) {
-            setSelectedContract(prev => ({
-              ...prev,
-              factures: (prev.factures || []).filter(f => f.id !== factureId)
-            }));
-          }
-        }
-      }
-      
-      setSuccess('Facture item deleted successfully!');
-      setTimeout(() => setSuccess(''), 3000);
-      
-    } catch (error) {
-      console.error('Error deleting facture:', error);
-      setError(`Failed to delete facture: ${error.response?.data?.detail || error.message}`);
-    } finally {
-      setLoading(false);
+      // Build contractsById map
+      const byId = {};
+      contractsList.forEach(c => {
+        byId[c.id] = c;
+      });
+      setContractsById(byId);
+    } catch (err) {
+      console.error('Error fetching contracts:', err);
+      setError(t('failed_to_load_contracts') || 'Failed to load contracts');
     }
   };
 
-  // Fetch contracts on component mount
   useEffect(() => {
     fetchContracts();
   }, []);
 
-  // Fetch all contracts
-  const fetchContracts = async () => {
-    try {
-      setLoadingContracts(true);
-      const response = await axios.get(`${process.env.REACT_APP_API_URL}/contracts/`, {
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}`
-        }
+  // Create new invoice for a contract
+  const createInvoiceForContract = (contractId) => {
+    const newInvoice = {
+      id: `INV-${Date.now()}`,
+      name: `Invoice ${createdInvoices.length + 1}`,
+      contractId: String(contractId),
+      date: new Date().toISOString().split('T')[0],
+      dueDate: ''
+    };
+    setCreatedInvoices(prev => [...prev, newInvoice]);
+    setSelectedInvoiceId(newInvoice.id);
+    setToast(t('invoice_created') || 'Invoice created successfully!');
+    setTimeout(() => setToast(''), 2500);
+  };
+
+  // Delete an invoice
+  const deleteInvoice = (invoiceId) => {
+    if (window.confirm(t('confirm_delete_invoice') || 'Are you sure you want to delete this invoice?')) {
+      setCreatedInvoices(prev => prev.filter(inv => inv.id !== invoiceId));
+      // Also delete its items
+      setItemsByInvoice(prev => {
+        const newItems = { ...prev };
+        delete newItems[invoiceId];
+        try { persist.set('itemsByInvoice', JSON.stringify(newItems)); } catch {}
+        return newItems;
       });
-      setContracts(response.data);
-      setError('');
-    } catch (error) {
-      console.error('Error fetching contracts:', error);
-      setError('Failed to load contracts');
+      if (selectedInvoiceId === invoiceId) {
+        setSelectedInvoiceId('');
+      }
+      setToast(t('invoice_deleted') || 'Invoice deleted successfully!');
+      setTimeout(() => setToast(''), 2500);
+    }
+  };
+
+  // Update invoice due date
+  const updateInvoiceDueDate = (invoiceId, dueDate) => {
+    setCreatedInvoices(prev => prev.map(inv => 
+      inv.id === invoiceId ? { ...inv, dueDate } : inv
+    ));
+  };
+
+  // Open modal to add item
+  const openAddItemModal = (invoiceId) => {
+    if (!invoiceId) {
+      setError(t('select_invoice_first') || 'Please select an invoice first.');
+      return;
+    }
+    setSelectedInvoiceId(invoiceId);
+    setDetailsForm({ description: '', qty: '', unit_price: '', tva: '', total_ht: '' });
+    setDetailsModalOpen(true);
+  };
+
+  const closeModal = () => setDetailsModalOpen(false);
+
+  // Toggle items visibility for a specific invoice
+  const toggleItemsVisibility = (invoiceId) => {
+    setExpandedItems(prev => ({
+      ...prev,
+      [invoiceId]: !prev[invoiceId]
+    }));
+  };
+
+  // Delete an item from an invoice
+  const deleteItem = (invoiceId, itemIndex) => {
+    if (window.confirm(t('confirm_delete_item') || 'Are you sure you want to delete this item?')) {
+      setItemsByInvoice(prev => {
+        const newItems = { ...prev };
+        newItems[invoiceId] = newItems[invoiceId].filter((_, idx) => idx !== itemIndex);
+        try { persist.set('itemsByInvoice', JSON.stringify(newItems)); } catch {}
+        return newItems;
+      });
+      setToast(t('item_deleted_successfully') || 'Item deleted successfully!');
+      setTimeout(() => setToast(''), 2500);
+    }
+  };
+
+  // Start editing an item
+  const startEditItem = (invoiceId, itemIndex, item) => {
+    setEditingItem({ invoiceId, itemIndex });
+    setEditItemForm({
+      description: item.description || '',
+      qty: item.qty || '',
+      unit_price: item.unit_price || '',
+      tva: item.tva || '',
+      total_ht: item.total_ht || ''
+    });
+  };
+
+  // Handle edit form changes with TVA calculation
+  const handleEditItemChange = (e) => {
+    const { name, value } = e.target;
+    const updatedForm = { ...editItemForm, [name]: value };
+    
+    // Recalculate when any of these fields change
+    if (['qty', 'unit_price', 'tva'].includes(name)) {
+      const qty = parseFloat(updatedForm.qty) || 0;
+      const unitPrice = parseFloat(updatedForm.unit_price) || 0;
+      const tvaRate = (parseFloat(updatedForm.tva) || 0) / 100;
+      
+      const subtotal = qty * unitPrice;
+      const tvaAmount = subtotal * tvaRate;
+      updatedForm.total_ht = (subtotal + tvaAmount).toFixed(2);
+    }
+    
+    setEditItemForm(updatedForm);
+  };
+
+  // Save edited item
+  const saveEditedItem = () => {
+    if (!editingItem) return;
+    
+    setItemsByInvoice(prev => {
+      const newItems = { ...prev };
+      newItems[editingItem.invoiceId][editingItem.itemIndex] = {
+        description: editItemForm.description,
+        qty: parseFloat(editItemForm.qty) || 0,
+        unit_price: parseFloat(editItemForm.unit_price) || 0,
+        tva: parseFloat(editItemForm.tva) || 0,
+        total_ht: parseFloat(editItemForm.total_ht) || 0
+      };
+      try { persist.set('itemsByInvoice', JSON.stringify(newItems)); } catch {}
+      return newItems;
+    });
+    
+    setEditingItem(null);
+    setEditItemForm({ description: '', qty: '', unit_price: '', tva: '', total_ht: '' });
+    setToast(t('item_updated_successfully') || 'Item updated successfully!');
+    setTimeout(() => setToast(''), 2500);
+  };
+
+  // Cancel editing
+  const cancelEditItem = () => {
+    setEditingItem(null);
+    setEditItemForm({ description: '', qty: '', unit_price: '', tva: '', total_ht: '' });
+  };
+
+  // Handle form input changes with TVA calculation
+  const handleDetailsChange = (e) => {
+    const { name, value } = e.target;
+    const updatedForm = { ...detailsForm, [name]: value };
+    
+    // Recalculate when any of these fields change
+    if (['qty', 'unit_price', 'tva'].includes(name)) {
+      const qty = parseFloat(updatedForm.qty) || 0;
+      const unitPrice = parseFloat(updatedForm.unit_price) || 0;
+      const tvaRate = (parseFloat(updatedForm.tva) || 0) / 100;
+      
+      const subtotal = qty * unitPrice;
+      const tvaAmount = subtotal * tvaRate;
+      updatedForm.total_ht = (subtotal + tvaAmount).toFixed(2);
+    }
+    
+    setDetailsForm(updatedForm);
+  };
+
+  const handleDetailsSubmit = async (e) => {
+    e.preventDefault();
+    if (!selectedInvoiceId) {
+      setError(t('select_invoice_first') || 'Please select an invoice first.');
+      return;
+    }
+    setLoading(true);
+    setError('');
+
+    try {
+      const item = {
+        description: detailsForm.description,
+        qty: parseInt(detailsForm.qty) || 0,
+        unit_price: parseFloat(detailsForm.unit_price) || 0,
+        tva: parseFloat(detailsForm.tva) || 0,
+        total_ht: parseFloat(detailsForm.total_ht) || 0
+      };
+
+      // VALIDATION: Check if adding this item will exceed contract amount
+      const invoice = createdInvoices.find(inv => inv.id === selectedInvoiceId);
+      if (invoice) {
+        const contract = contractsById[invoice.contractId];
+        const contractPrice = parseFloat(contract?.price) || 0;
+        
+        // Calculate current total of all invoices for this contract
+        const invoicesForContract = createdInvoices.filter(inv => String(inv.contractId) === String(invoice.contractId));
+        const totalInvoiced = invoicesForContract.reduce((sum, inv) => {
+          const invTotal = parseFloat(calculateInvoiceTotal(inv.id)) || 0;
+          return sum + invTotal;
+        }, 0);
+        
+        // Add the new item amount
+        const newTotal = totalInvoiced + item.total_ht;
+        
+        if (newTotal > contractPrice) {
+          const remaining = (contractPrice - totalInvoiced).toFixed(2);
+          setToast(`Cannot add item! Contract limit exceeded. Remaining: €${remaining}, Tried to add: €${item.total_ht.toFixed(2)}`);
+          setTimeout(() => setToast(''), 4000);
+          setLoading(false);
+          return;
+        }
+      }
+
+      setItemsByInvoice(prev => {
+        const list = prev[selectedInvoiceId] ? [...prev[selectedInvoiceId]] : [];
+        list.push(item);
+        const next = { ...prev, [selectedInvoiceId]: list };
+        try { persist.set('itemsByInvoice', JSON.stringify(next)); } catch {}
+        return next;
+      });
+
+      setToast(t('item_added') || 'Item added successfully!');
+      setTimeout(() => setToast(''), 2500);
+
+      // Reset and close
+      setDetailsForm({ description: '', qty: '', unit_price: '', tva: '', total_ht: '' });
+      setDetailsModalOpen(false);
+    } catch (err) {
+      console.error('Error saving invoice item', err);
+      setError(t('error_saving_data') || 'Error saving data');
     } finally {
-      setLoadingContracts(false);
+      setLoading(false);
+    }
+  };
+
+  // Calculate total for an invoice
+  const calculateInvoiceTotal = (invoiceId) => {
+    const items = itemsByInvoice[invoiceId] || [];
+    return items.reduce((sum, item) => sum + (parseFloat(item.total_ht) || 0), 0).toFixed(2);
+  };
+
+  // Calculate remaining amount for a contract
+  const calculateRemainingAmount = (contractId) => {
+    const contract = contractsById[contractId];
+    if (!contract) return 0;
+    
+    const contractPrice = parseFloat(contract.price) || 0;
+    
+    // Calculate total of all invoices for this contract
+    const invoicesForContract = createdInvoices.filter(inv => String(inv.contractId) === String(contractId));
+    const totalInvoiced = invoicesForContract.reduce((sum, inv) => {
+      const invTotal = parseFloat(calculateInvoiceTotal(inv.id)) || 0;
+      return sum + invTotal;
+    }, 0);
+    
+    return (contractPrice - totalInvoiced).toFixed(2);
+  };
+
+  // Generate PDF for an invoice using backend API
+  const generateInvoicePDF = async (invoice) => {
+    const contract = contractsById[invoice.contractId];
+    const items = itemsByInvoice[invoice.id] || [];
+    
+    if (!contract) {
+      setToast(t('contract_not_found') || 'Contract not found');
+      setTimeout(() => setToast(''), 2500);
+      return;
+    }
+
+    if (items.length === 0) {
+      setToast(t('no_items_to_generate_pdf') || 'Please add items before generating PDF');
+      setTimeout(() => setToast(''), 2500);
+      return;
+    }
+
+    try {
+      // For PDF generation, we need to temporarily save items to factures table
+      // Backend PDF reads from factures table, not contract_details
+      
+      const currentItems = itemsByInvoice[invoice.id] || [];
+      const currentTotal = currentItems.reduce((sum, item) => sum + (parseFloat(item.total_ht) || 0), 0);
+      
+      // STEP 1: First, ensure contract has enough capacity by setting price to a large value
+      // This prevents validation errors when adding items
+      const TEMP_LARGE_PRICE = 999999; // Temporary large value
+      await axios.put(`${process.env.REACT_APP_API_URL}/contracts/${invoice.contractId}`, {
+        ...contract,
+        price: TEMP_LARGE_PRICE
+      });
+      
+      // STEP 2: Delete ALL existing factures for this contract
+      try {
+        const existingFactures = await axios.get(`${process.env.REACT_APP_API_URL}/api/factures/contract/${invoice.contractId}`);
+        for (const facture of existingFactures.data) {
+          await axios.delete(`${process.env.REACT_APP_API_URL}/api/factures/${facture.id}`);
+        }
+      } catch (e) {
+        console.log('No existing factures to delete');
+      }
+
+      // STEP 3: Add ONLY current invoice items to factures table
+      for (const item of currentItems) {
+        await axios.post(`${process.env.REACT_APP_API_URL}/api/factures`, {
+          contract_id: parseInt(invoice.contractId),
+          description: item.description,
+          qty: Number(item.qty) || 0,
+          unit_price: Number(item.unit_price) || 0,
+          tva: Number(item.tva) || 0,
+          total_ht: Number(item.total_ht) || ((Number(item.qty) || 0) * (Number(item.unit_price) || 0))
+        });
+      }
+
+      // STEP 4: Call GET endpoint to generate PDF (backend uses factures table)
+      const res = await axios.get(
+        `${process.env.REACT_APP_API_URL}/pdf/estimate/${invoice.contractId}`,
+        { responseType: 'blob' }
+      );
+
+      // STEP 5: Restore ORIGINAL contract price (from contractsById, not from contract variable)
+      const originalContract = contractsById[invoice.contractId];
+      await axios.put(`${process.env.REACT_APP_API_URL}/contracts/${invoice.contractId}`, {
+        ...contract,
+        price: originalContract.price // Use original price from state
+      });
+
+      // Refresh contracts to get updated data
+      fetchContracts();
+
+      // Open PDF in new tab
+      const blob = new Blob([res.data], { type: 'application/pdf' });
+      const url = window.URL.createObjectURL(blob);
+      window.open(url, '_blank');
+      setTimeout(() => window.URL.revokeObjectURL(url), 60_000);
+
+      // Show success message
+      setToast(t('pdf_generated_successfully') || 'PDF generated successfully!');
+      setTimeout(() => setToast(''), 2500);
+
+    } catch (err) {
+      console.error('Failed to generate PDF', err);
+      setToast(t('error_generating_pdf') || 'Failed to generate PDF');
+      setTimeout(() => setToast(''), 2500);
     }
   };
 
@@ -899,9 +607,9 @@ function Factures() {
       }
     }}>
       <CssBaseline />
-      <Navbar onMenuClick={() => setMobileOpen(!mobileOpen)} />
-      <Sidebar mobileOpen={mobileOpen} onDrawerToggle={() => setMobileOpen(false)} />
-      
+      <Navbar handleDrawerToggle={handleDrawerToggle} />
+      <Sidebar mobileOpen={mobileOpen} onDrawerToggle={handleDrawerToggle} />
+
       <Box component="main" sx={{ 
         flexGrow: 1, 
         px: { xs: 2, md: 4 }, 
@@ -916,702 +624,557 @@ function Factures() {
         position: 'relative',
         zIndex: 1
       }}>
-        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 4 }}>
-          <Box sx={{ display: 'flex', alignItems: 'center' }}>
-            <Typography variant="h3" fontWeight={800} sx={{ 
-              background: 'linear-gradient(135deg, #9c27b0 0%, #673ab7 100%)',
-              backgroundClip: 'text',
-              WebkitBackgroundClip: 'text',
-              WebkitTextFillColor: 'transparent',
-              mr: 2
-            }}>
-              {t('factures')}
-            </Typography>
-            <Box sx={{ 
-              width: 4, 
-              height: 40, 
-              background: 'linear-gradient(135deg, #9c27b0 0%, #673ab7 100%)',
-              borderRadius: 2 
-            }} />
-          </Box>
-          
-          {/* Add Invoice Button */}
-          <Button
-            variant="contained"
-            startIcon={<AddIcon />}
-            onClick={openFactureForm}
-            sx={{
-              background: 'linear-gradient(135deg, #9c27b0 0%, #673ab7 100%)',
-              borderRadius: '12px',
-              px: 3,
-              py: 1.5,
-              fontWeight: 600,
-              textTransform: 'none',
-              boxShadow: '0 4px 15px rgba(156, 39, 176, 0.4)',
-              '&:hover': {
-                background: 'linear-gradient(135deg, #8e24aa 0%, #5e35b1 100%)',
-                transform: 'translateY(-2px)',
-                boxShadow: '0 6px 20px rgba(156, 39, 176, 0.6)',
-              },
-              transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)'
-            }}
-          >
-            {t('add_facture') || 'Add Invoice'}
-          </Button>
-        </Box>
-
-        {/* Success/Error Messages */}
-        {error && (
-          <Fade in={true}>
-            <Box sx={{ 
-              mb: 3, 
-              p: 2.5, 
-              backgroundColor: alpha('#f44336', 0.1),
-              borderRadius: 2,
-              border: '1px solid',
-              borderColor: alpha('#f44336', 0.2),
-              display: 'flex',
-              alignItems: 'center'
-            }}>
-              <Box sx={{ 
-                width: 4, 
-                height: 40, 
-                backgroundColor: '#f44336',
-                borderRadius: 1,
-                mr: 2
-              }} />
-              <Typography color="error" fontWeight={500}>{error}</Typography>
-            </Box>
-          </Fade>
-        )}
-        {success && (
-          <Fade in={true}>
-            <Box sx={{ 
-              mb: 3, 
-              p: 2.5, 
-              backgroundColor: alpha('#4caf50', 0.1),
-              borderRadius: 2,
-              border: '1px solid',
-              borderColor: alpha('#4caf50', 0.2),
-              display: 'flex',
-              alignItems: 'center'
-            }}>
-              <Box sx={{ 
-                width: 4, 
-                height: 40, 
-                backgroundColor: '#4caf50',
-                borderRadius: 1,
-                mr: 2
-              }} />
-              <Typography color="success.main" fontWeight={500}>{success}</Typography>
-            </Box>
-          </Fade>
-        )}
-
-        {/* Stats Overview */}
-        <Box sx={{ mb: 4 }}>
-          <Typography variant="h5" fontWeight={600} sx={{ color: '#333', mb: 3 }}>
-            📊 {t('overview') || 'Aperçu'}
-          </Typography>
-          <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr', md: '1fr 1fr 1fr' }, gap: 3 }}>
-            <StatsCard>
-              <CardContent sx={{ textAlign: 'center', py: 3 }}>
-                <Typography variant="h3" fontWeight="bold" sx={{ mb: 1 }}>
-                  {contracts.length}
-                </Typography>
-                <Typography variant="body1" sx={{ opacity: 0.9 }}>
-                  {t('total_contracts') || 'Total Contrats'}
-                </Typography>
-              </CardContent>
-            </StatsCard>
-            <StatsCard sx={{ background: 'linear-gradient(135deg, #11998e 0%, #38ef7d 100%)' }}>
-              <CardContent sx={{ textAlign: 'center', py: 3 }}>
-                <Typography variant="h3" fontWeight="bold" sx={{ mb: 1 }}>
-                  €{contracts.reduce((sum, c) => sum + (parseFloat(c.price) || 0), 0).toFixed(0)}
-                </Typography>
-                <Typography variant="body1" sx={{ opacity: 0.9 }}>
-                  {t('total_value') || 'Valeur Totale'}
-                </Typography>
-              </CardContent>
-            </StatsCard>
-            <StatsCard sx={{ background: 'linear-gradient(135deg, #fc466b 0%, #3f5efb 100%)' }}>
-              <CardContent sx={{ textAlign: 'center', py: 3 }}>
-                <Typography variant="h3" fontWeight="bold" sx={{ mb: 1 }}>
-                  {contracts.filter(c => parseFloat(c.price) > 0).length}
-                </Typography>
-                <Typography variant="body1" sx={{ opacity: 0.9 }}>
-                  {t('active') || 'Actif'}
-                </Typography>
-              </CardContent>
-            </StatsCard>
-          </Box>
-        </Box>
-
-        {/* Contracts Grid */}
-        <Box sx={{ mb: 4 }}>
-          <Typography variant="h5" fontWeight={600} sx={{ color: '#333', mb: 3 }}>
-            📋 {t('contracts') || 'Contrats'}
-          </Typography>
-          
-          {loadingContracts ? (
-            <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', py: 8 }}>
-              <CircularProgress size={40} sx={{ color: '#9c27b0' }} />
-              <Typography sx={{ ml: 2, color: '#666' }}>{t('loading') || 'Chargement des contrats...'}</Typography>
-            </Box>
-          ) : (contracts || []).length > 0 ? (
-            <Box sx={{ 
-              display: 'grid', 
-              gridTemplateColumns: { 
-                xs: '1fr', 
-                sm: 'repeat(2, 1fr)', 
-                md: 'repeat(3, 1fr)',
-                lg: 'repeat(4, 1fr)' 
-              }, 
-              gap: 3 
-            }}>
-              {contracts.map((contract, index) => (
-                <Fade in={true} timeout={300 + index * 100} key={contract.id}>
-                  <ModernCard>
-                    <CardContent sx={{ pb: 1 }}>
-                      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 2 }}>
-                        <Typography variant="h6" fontWeight="bold" sx={{ color: '#333', fontSize: '1.1rem' }}>
-                          {contract.command_number || `Contract #${contract.id}`}
-                        </Typography>
-                        <Chip 
-                          label={parseFloat(contract.price) > 0 ? 'Active' : 'Pending'} 
-                          size="small"
-                          sx={{ 
-                            backgroundColor: parseFloat(contract.price) > 0 ? alpha('#4caf50', 0.1) : alpha('#ff9800', 0.1),
-                            color: parseFloat(contract.price) > 0 ? '#4caf50' : '#ff9800',
-                            fontWeight: 'bold'
-                          }}
-                        />
-                      </Box>
-                      
-                      <Box sx={{ mb: 2 }}>
-                        <Typography variant="body2" color="text.secondary" sx={{ mb: 0.5 }}>
-                          {t('contract_value') || 'Valeur du Contrat'}
-                        </Typography>
-                        <Typography variant="h5" fontWeight="bold" sx={{ color: '#9c27b0' }}>
-                          €{parseFloat(contract.price || 0).toFixed(2)}
-                        </Typography>
-                      </Box>
-
-                      {contract.deadline && (
-                        <Box sx={{ mb: 2 }}>
-                          <Typography variant="body2" color="text.secondary" sx={{ mb: 0.5 }}>
-                            {t('deadline') || 'Date Limite'}
-                          </Typography>
-                          <Typography variant="body2" sx={{ color: '#666' }}>
-                            {new Date(contract.deadline).toLocaleDateString()}
-                          </Typography>
-                        </Box>
-                      )}
-                    </CardContent>
-                    
-                    <CardActions sx={{ px: 2, pb: 2, justifyContent: 'space-between' }}>
-                      <Box sx={{ display: 'flex', gap: 1 }}>
-                        <Tooltip title={t('view_pdf') || 'View PDF'} arrow>
-                          <ActionButton
-                            variant="view"
-                            onClick={() => generatePdf(contract)}
-                            disabled={loadingPdf}
-                          >
-                            <VisibilityIcon fontSize="small" />
-                          </ActionButton>
-                        </Tooltip>
-                        
-                        <Tooltip title={t('contract_details') || 'Contract Details'} arrow>
-                          <ActionButton
-                            variant="info"
-                            onClick={() => showContractDetails(contract)}
-                          >
-                            <InfoIcon fontSize="small" />
-                          </ActionButton>
-                        </Tooltip>
-                      </Box>
-                      
-                      <Typography variant="caption" color="text.secondary">
-                        ID: {contract.id}
-                      </Typography>
-                    </CardActions>
-                  </ModernCard>
-                </Fade>
-              ))}
-            </Box>
-          ) : (
-            <ModernCard sx={{ textAlign: 'center', py: 6 }}>
-              <CardContent>
-                <Typography variant="h6" color="text.secondary" sx={{ mb: 2 }}>
-                  📄 No contracts found
-                </Typography>
-                <Typography variant="body2" color="text.secondary">
-                  Create your first contract to get started
-                </Typography>
-              </CardContent>
-            </ModernCard>
-          )}
-        </Box>
-
-        {/* PDF Preview Modal */}
-        {previewOpen && (
-          <ModalOverlay>
-            <PdfPreviewContainer>
-              <PdfPreviewHeader>
-                <Typography variant="h6">{t('contract_preview') || 'Aperçu du Contrat'}</Typography>
-                <IconButton onClick={closePreview}>
-                  <CloseIcon />
-                </IconButton>
-              </PdfPreviewHeader>
-              <PdfPreviewContent>
-                {loadingPdf ? (
-                  <div style={{
-                    display: 'flex',
-                    flexDirection: 'column',
-                    justifyContent: 'center',
-                    alignItems: 'center',
-                    height: '100%',
-                    gap: '1rem'
-                  }}>
-                    <CircularProgress />
-                    <p>{t('loading_pdf') || 'Chargement du PDF...'}</p>
-                  </div>
-                ) : (
-                  <iframe 
-                    src={pdfUrl} 
-                    title={t('contract_pdf') || 'PDF du Contrat'} 
-                    width="100%" 
-                    height="100%"
-                    style={{ border: 'none' }}
-                  />
-                )}
-              </PdfPreviewContent>
-            </PdfPreviewContainer>
-          </ModalOverlay>
-        )}
-
-        {/* Contract Details Modal */}
-        {detailsOpen && selectedContract && (
-          <ModalOverlay>
-            <PdfPreviewContainer style={{ width: '90%', height: '85%' }}>
-              <PdfPreviewHeader>
-                <Typography variant="h6">
-                  {t('contract_details') || 'Détails du Contrat'} - {selectedContract.command_number || `${t('contract') || 'Contrat'} #${selectedContract.id}`}
-                </Typography>
-                <IconButton onClick={closeDetails}>
-                  <CloseIcon />
-                </IconButton>
-              </PdfPreviewHeader>
-              <PdfPreviewContent style={{ padding: '1.5rem', overflow: 'auto' }}>
-                {loading ? (
-                  <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '200px' }}>
-                    <CircularProgress />
-                    <Typography sx={{ ml: 2 }}>{t('loading_contract_details') || 'Chargement des détails du contrat...'}</Typography>
-                  </div>
-                ) : (
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
-                    {/* Contract Details Table */}
-                    <div>
-                      <Typography variant="h6" sx={{ fontWeight: 'bold', mb: 2, color: '#9c27b0' }}>
-                        {t('contract_items_pdf') || 'Articles du Contrat (comme affiché dans le PDF)'}
-                      </Typography>
-                      {selectedContract.details && selectedContract.details.length > 0 ? (
-                        <div style={{ overflowX: 'auto' }}>
-                          <table className="modern-table" style={{ width: '100%', borderCollapse: 'collapse' }}>
-                            <thead>
-                              <tr>
-                                <th>{t('description') || 'Description'}</th>
-                                <th>{t('qty') || 'Qté'}</th>
-                                <th>{t('unit_price') || 'Prix Unitaire'}</th>
-                                <th>{t('tva_percent') || 'TVA (%)'}</th>
-                                <th>{t('total_ht') || 'Total HT'}</th>
-                              </tr>
-                            </thead>
-                            <tbody>
-                              {selectedContract.details.map((detail, index) => (
-                                <tr key={index}>
-                                  <td>{detail.description}</td>
-                                  <td>{detail.qty}</td>
-                                  <td>€{Number(detail.unit_price).toFixed(2)}</td>
-                                  <td>{detail.tva || 0}%</td>
-                                  <td>€{Number(detail.total_ht).toFixed(2)}</td>
-                                </tr>
-                              ))}
-                            </tbody>
-                          </table>
-                        </div>
-                      ) : (
-                        <div style={{ 
-                          backgroundColor: '#f5f5f5', 
-                          padding: '2rem', 
-                          borderRadius: '8px', 
-                          textAlign: 'center',
-                          color: '#666'
-                        }}>
-                          <Typography>{t('no_contract_details') || 'Aucun détail de contrat trouvé. Ce contrat utilise l\'entrée de service par défaut.'}</Typography>
-                          <Typography variant="body2" sx={{ mt: 1 }}>
-                            {t('default_service_entry') || 'Par défaut: "Services selon contrat"'} - {t('qty') || 'Qté'}: 1 - {t('price') || 'Prix'}: €{Number(selectedContract.price || 0).toFixed(2)}
-                          </Typography>
-                        </div>
-                      )}
-                    </div>
-
-                    {/* Factures Table */}
-                    <div>
-                      <Typography variant="h6" sx={{ fontWeight: 'bold', mb: 2, color: '#9c27b0' }}>
-                        {t('factures_invoiced_items') || 'Factures (Articles Facturés)'}
-                      </Typography>
-                      {selectedContract.factures && selectedContract.factures.length > 0 ? (
-                        <div style={{ overflowX: 'auto' }}>
-                          <table className="modern-table" style={{ width: '100%', borderCollapse: 'collapse' }}>
-                            <thead>
-                              <tr>
-                                <th>{t('description') || 'Description'}</th>
-                                <th>{t('qty') || 'Qté'}</th>
-                                <th>{t('unit_price') || 'Prix Unitaire'}</th>
-                                <th>{t('tva_percent') || 'TVA (%)'}</th>
-                                <th>{t('total_ht') || 'Total HT'}</th>
-                                <th>{t('date') || 'Date'}</th>
-                                <th>{t('actions') || 'Actions'}</th>
-                              </tr>
-                            </thead>
-                            <tbody>
-                              {selectedContract.factures.map((facture, index) => (
-                                <tr key={facture.id || index}>
-                                  <td>{facture.description}</td>
-                                  <td>{facture.qty}</td>
-                                  <td>€{Number(facture.unit_price).toFixed(2)}</td>
-                                  <td>{facture.tva || 0}%</td>
-                                  <td>€{Number(facture.total_ht).toFixed(2)}</td>
-                                  <td>{facture.created_at ? new Date(facture.created_at).toLocaleDateString() : 'N/A'}</td>
-                                  <td>
-                                    <Box sx={{ display: 'flex', gap: 0.5 }}>
-                                      <Tooltip title={t('edit_facture_item') || 'Modifier l\'Article de Facture'} arrow>
-                                        <IconButton
-                                          onClick={() => editFactureItem(facture)}
-                                          disabled={loading}
-                                          sx={{ 
-                                            color: '#2196f3',
-                                            '&:hover': { 
-                                              backgroundColor: alpha('#2196f3', 0.1),
-                                              transform: 'scale(1.1)' 
-                                            },
-                                            '&:disabled': {
-                                              color: '#ccc'
-                                            },
-                                            transition: 'all 0.2s ease-in-out'
-                                          }}
-                                        >
-                                          <EditIcon fontSize="small" />
-                                        </IconButton>
-                                      </Tooltip>
-                                      <Tooltip title={t('delete_facture_item') || 'Supprimer l\'Article de Facture'} arrow>
-                                        <IconButton
-                                          onClick={() => deleteFactureItem(facture.id)}
-                                          disabled={loading}
-                                          sx={{ 
-                                            color: '#f44336',
-                                            '&:hover': { 
-                                              backgroundColor: alpha('#f44336', 0.1),
-                                              transform: 'scale(1.1)' 
-                                            },
-                                            '&:disabled': {
-                                              color: '#ccc'
-                                            },
-                                            transition: 'all 0.2s ease-in-out'
-                                          }}
-                                        >
-                                          <DeleteIcon fontSize="small" />
-                                        </IconButton>
-                                      </Tooltip>
-                                    </Box>
-                                  </td>
-                                </tr>
-                              ))}
-                            </tbody>
-                          </table>
-                        </div>
-                      ) : (
-                        <div style={{ 
-                          backgroundColor: '#f5f5f5', 
-                          padding: '2rem', 
-                          borderRadius: '8px', 
-                          textAlign: 'center',
-                          color: '#666'
-                        }}>
-                          <Typography>No factures created for this contract yet.</Typography>
-                        </div>
-                      )}
-                    </div>
-
-                    {/* Summary */}
-                  </div>
-                )}
-              </PdfPreviewContent>
-            </PdfPreviewContainer>
-          </ModalOverlay>
-        )}
-      </Box>
-      
-      {/* Facture Form Modal (Devis-style) */}
-      {formState.showFactureForm && (
-        <div className="modal-overlay" onClick={() => updateFormState({ showFactureForm: false })} style={{
-          position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
-          backgroundColor: 'rgba(0, 0, 0, 0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000
-        }}>
-          <div className="modal-content" onClick={e => e.stopPropagation()} style={{
-            background: 'white', borderRadius: '12px', boxShadow: '0 8px 30px rgba(0,0,0,0.12)',
-            width: '90vw', maxWidth: '700px', maxHeight: '90vh', padding: '1.5rem', overflow: 'auto', display: 'flex', flexDirection: 'column'
+        <Box sx={{ display: 'flex', alignItems: 'center', mb: 4 }}>
+          <Typography variant="h3" fontWeight={800} sx={{ 
+            background: 'linear-gradient(135deg, #9c27b0 0%, #673ab7 100%)',
+            backgroundClip: 'text',
+            WebkitBackgroundClip: 'text',
+            WebkitTextFillColor: 'transparent',
+            mr: 2
           }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
-              <h3 style={{ margin: 0 }}>{t('add_facture') || 'Add Facture'}</h3>
-              <IconButton onClick={() => updateFormState({ showFactureForm: false })} size="small"><CloseIcon /></IconButton>
-            </div>
-            <form onSubmit={handleFactureSubmit} className="contracts-form" style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
-                <div className="form-group" style={{ gridColumn: 'span 2' }}>
-                  <select id="contract_id" value={formState.selectedContractId} onChange={handleContractChange} required>
-                    <option value="">{t('select_contract') || 'Select Contract'}</option>
-                    {contracts.map(contract => (
-                      <option key={contract.id} value={contract.id}>
-                        {contract.command_number || `Contract #${contract.id}`} - €{Number(contract.price).toFixed(2)}
-                      </option>
-                    ))}
-                  </select>
-                  <label htmlFor="contract_id">{t('contracts') || 'Contracts'}</label>
-                </div>
-                
-                <div className="form-group" style={{ gridColumn: 'span 2' }}>
-                  <textarea 
-                    id="facture_description" 
-                    name="description" 
-                    value={formState.factureForm.description} 
-                    onChange={handleFactureChange} 
-                    placeholder=" " 
-                    required 
-                    rows="3"
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter' && e.shiftKey) {
-                        // Allow Shift+Enter for new line
-                        e.stopPropagation();
-                      } else if (e.key === 'Enter' && !e.shiftKey) {
-                        // Prevent regular Enter from submitting form
-                        e.preventDefault();
-                      }
-                    }}
-                    style={{
-                      resize: 'vertical',
-                      minHeight: '60px',
-                      fontFamily: 'inherit',
-                      fontSize: 'inherit'
-                    }}
-                  />
-                  <label htmlFor="facture_description">{t('description')}</label>
-                </div>
-                <div className="form-group">
-                  <input id="facture_qty" name="qty" type="number" min="0" value={formState.factureForm.qty} onChange={handleFactureChange} placeholder=" " required />
-                  <label htmlFor="facture_qty">{t('qty')}</label>
-                </div>
-                <div className="form-group">
-                  <input id="facture_unit_price" name="unit_price" type="number" min="0" step="0.01" value={formState.factureForm.unit_price} onChange={handleFactureChange} placeholder=" " required />
-                  <label htmlFor="facture_unit_price">{t('unit_price')}</label>
-                </div>
-                <div className="form-group">
-                  <input id="facture_tva" name="tva" type="number" min="0" step="0.01" value={formState.factureForm.tva} onChange={handleFactureChange} placeholder=" " required />
-                  <label htmlFor="facture_tva">{t('tva_percent')}</label>
-                </div>
-                <div className="form-group">
-                  <input 
-                    id="facture_total_ht" 
-                    name="total_ht" 
-                    type="number" 
-                    min="0" 
-                    step="0.01" 
-                    value={formState.factureForm.total_ht} 
-                    onChange={handleFactureChange} 
-                    placeholder=" " 
-                    required 
-                  />
-                  <label htmlFor="facture_total_ht">{t('total_ht')}</label>
-                </div>
-              </div>
-              <div className="form-actions" style={{ display: 'flex', gap: '0.75rem', justifyContent: 'flex-end' }}>
-                <button type="button" className="btn-secondary" onClick={() => updateFormState({ showFactureForm: false })} style={{ padding: '0.6rem 1rem' }}>{t('cancel') || 'Cancel'}</button>
-                <button 
-                  type="submit" 
-                  className="btn-primary" 
-                  disabled={loading} 
-                  style={{ 
-                    padding: '0.6rem 1rem', 
-                    background: '#4caf50', 
-                    color: 'white',
-                    cursor: 'pointer'
-                  }}
-                >
-                  {loading ? (t('saving') || 'Saving...') : (t('save_facture') || 'Save Facture')}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
+            {t('invoices') || 'Invoices'}
+          </Typography>
+          <Box sx={{ 
+            width: 4, 
+            height: 40, 
+            background: 'linear-gradient(135deg, #9c27b0 0%, #673ab7 100%)',
+            borderRadius: 2 
+          }} />
+          <Chip 
+            label={`${createdInvoices.length} ${t('invoices') || 'Invoices'}`}
+            sx={{ 
+              ml: 2, 
+              fontWeight: 700, 
+              fontSize: '1rem',
+              background: 'linear-gradient(135deg, #9c27b0 0%, #673ab7 100%)',
+              color: 'white'
+            }} 
+          />
+        </Box>
 
-      {/* Edit Facture Modal */}
-      {formState.editFactureOpen && formState.editingFacture && (
-        <ModalOverlay>
-          <PdfPreviewContainer style={{ width: '600px', height: 'auto', maxHeight: '80vh' }}>
-            <PdfPreviewHeader>
-              <Typography variant="h6" sx={{ color: '#2196f3', fontWeight: 'bold' }}>
-                ✏️ Edit Facture Item
+        {/* Search Bar */}
+        <Box sx={{ mb: 4 }}>
+          <TextField
+            fullWidth
+            placeholder={t('search_invoices') || 'Search invoices...'}
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            InputProps={{
+              startAdornment: (
+                <InputAdornment position="start">
+                  <SearchIcon sx={{ color: '#9c27b0' }} />
+                </InputAdornment>
+              ),
+            }}
+            sx={{
+              '& .MuiOutlinedInput-root': {
+                borderRadius: '16px',
+                backgroundColor: 'white',
+                '&:hover fieldset': {
+                  borderColor: '#9c27b0',
+                },
+                '&.Mui-focused fieldset': {
+                  borderColor: '#9c27b0',
+                },
+              },
+            }}
+          />
+        </Box>
+
+        {/* Stats Cards */}
+        <Grid container spacing={3} sx={{ mb: 4 }}>
+          <Grid item xs={12} sm={6} md={3}>
+            <StatsCard>
+              <CardContent>
+                <Box display="flex" alignItems="center" justifyContent="space-between">
+                  <Box>
+                    <Typography variant="h4" fontWeight={700}>
+                      {contracts.length}
+                    </Typography>
+                    <Typography variant="body2" sx={{ opacity: 0.9 }}>
+                      {t('total_contracts') || 'Total Contracts'}
+                    </Typography>
+                  </Box>
+                  <DescriptionIcon sx={{ fontSize: 40, opacity: 0.8 }} />
+                </Box>
+              </CardContent>
+            </StatsCard>
+          </Grid>
+          <Grid item xs={12} sm={6} md={3}>
+            <StatsCard>
+              <CardContent>
+                <Box display="flex" alignItems="center" justifyContent="space-between">
+                  <Box>
+                    <Typography variant="h4" fontWeight={700}>
+                      {createdInvoices.length}
+                    </Typography>
+                    <Typography variant="body2" sx={{ opacity: 0.9 }}>
+                      {t('total_invoices') || 'Total Invoices'}
+                    </Typography>
+                  </Box>
+                  <ReceiptIcon sx={{ fontSize: 40, opacity: 0.8 }} />
+                </Box>
+              </CardContent>
+            </StatsCard>
+          </Grid>
+        </Grid>
+
+        {/* Contracts Section - Create Invoices */}
+        <Typography variant="h5" fontWeight={700} sx={{ mb: 3, color: '#333' }}>
+          {t('contracts') || 'Contracts'}
+        </Typography>
+        <Grid container spacing={3} sx={{ mb: 6 }}>
+          {contracts.length === 0 ? (
+            <Grid item xs={12}>
+              <Box sx={{ textAlign: 'center', py: 8 }}>
+                <DescriptionIcon sx={{ fontSize: 80, color: '#ccc', mb: 2 }} />
+                <Typography variant="h6" color="textSecondary">
+                  {t('no_contracts_found') || 'No contracts found'}
+                </Typography>
+              </Box>
+            </Grid>
+          ) : (
+            contracts.map((contract, idx) => (
+              <Grid item xs={12} sm={6} md={4} key={contract.id}>
+                <Zoom in={true} timeout={300 + idx * 50}>
+                  <ModernCard>
+                    <CardContent>
+                      <Box sx={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', mb: 2 }}>
+                        <Box sx={{ flex: 1 }}>
+                          <Typography variant="h6" fontWeight={700} sx={{ color: '#333', mb: 1 }}>
+                            {contract.command_number || `Contract ${contract.id}`}
+                          </Typography>
+                          <Typography variant="body2" color="textSecondary" sx={{ mb: 1 }}>
+                            {contract.name || 'N/A'}
+                          </Typography>
+                          <Chip 
+                            label={`€${parseFloat(contract.price || 0).toFixed(2)}`}
+                            size="small"
+                            sx={{ 
+                              backgroundColor: alpha('#4caf50', 0.1),
+                              color: '#4caf50',
+                              fontWeight: 600
+                            }}
+                          />
+                        </Box>
+                      </Box>
+                      <Box sx={{ display: 'flex', gap: 1, mt: 2 }}>
+                        <Tooltip title={t('create_invoice') || 'Create Invoice'}>
+                          <ActionButton 
+                            variant="create" 
+                            fullWidth
+                            onClick={() => createInvoiceForContract(contract.id)}
+                          >
+                            <AddIcon />
+                          </ActionButton>
+                        </Tooltip>
+                      </Box>
+                    </CardContent>
+                  </ModernCard>
+                </Zoom>
+              </Grid>
+            ))
+          )}
+        </Grid>
+
+        {/* Invoices Section - Bottom */}
+        <Typography variant="h5" fontWeight={700} sx={{ mb: 3, color: '#333' }}>
+          {t('created_invoices') || 'Created Invoices'}
+        </Typography>
+        <Grid container spacing={3}>
+          {filteredInvoices.length === 0 ? (
+            <Grid item xs={12}>
+              <Box sx={{ textAlign: 'center', py: 8 }}>
+                <ReceiptIcon sx={{ fontSize: 80, color: '#ccc', mb: 2 }} />
+                <Typography variant="h6" color="textSecondary">
+                  {t('no_invoices_created') || 'No invoices created yet'}
+                </Typography>
+                <Typography variant="body2" color="textSecondary" sx={{ mt: 1 }}>
+                  {t('create_invoice_hint') || 'Click "Create Invoice" on a contract to get started'}
+                </Typography>
+              </Box>
+            </Grid>
+          ) : (
+            filteredInvoices.map((invoice, idx) => {
+              const contract = contractsById[invoice.contractId];
+              const items = itemsByInvoice[invoice.id] || [];
+              const total = calculateInvoiceTotal(invoice.id);
+              const isExpanded = expandedItems[invoice.id];
+
+              return (
+                <Grid item xs={12} key={invoice.id}>
+                  <Fade in={true} timeout={300 + idx * 50}>
+                    <ModernCard>
+                      <CardContent>
+                        <Box sx={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', mb: 2 }}>
+                          <Box sx={{ flex: 1 }}>
+                            <Typography variant="h6" fontWeight={700} sx={{ color: '#333', mb: 1 }}>
+                              {invoice.name}
+                            </Typography>
+                            <Typography variant="body2" color="textSecondary" sx={{ mb: 1 }}>
+                              {t('contract') || 'Contract'}: {contract?.command_number || 'N/A'}
+                            </Typography>
+                            <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', mt: 1 }}>
+                              <Chip 
+                                icon={<CalendarTodayIcon />}
+                                label={invoice.date}
+                                size="small"
+                                sx={{ backgroundColor: alpha('#2196f3', 0.1), color: '#2196f3' }}
+                              />
+                              <Chip 
+                                label={`${items.length} ${t('items') || 'items'}`}
+                                size="small"
+                                sx={{ backgroundColor: alpha('#ff9800', 0.1), color: '#ff9800' }}
+                              />
+                              <Chip 
+                                label={`Total: €${total}`}
+                                size="small"
+                                sx={{ backgroundColor: alpha('#4caf50', 0.1), color: '#4caf50', fontWeight: 600 }}
+                              />
+                            </Box>
+                          </Box>
+                          <Box sx={{ display: 'flex', gap: 1 }}>
+                            <Tooltip title={t('view_pdf') || 'View PDF'}>
+                              <ActionButton variant="view" onClick={() => generateInvoicePDF(invoice)}>
+                                <VisibilityIcon />
+                              </ActionButton>
+                            </Tooltip>
+                            <Tooltip title={t('add_item') || 'Add Item'}>
+                              <ActionButton variant="create" onClick={() => openAddItemModal(invoice.id)}>
+                                <AddIcon />
+                              </ActionButton>
+                            </Tooltip>
+                            <Tooltip title={t('delete_invoice') || 'Delete Invoice'}>
+                              <ActionButton onClick={() => deleteInvoice(invoice.id)}>
+                                <DeleteIcon />
+                              </ActionButton>
+                            </Tooltip>
+                            <Tooltip title={isExpanded ? t('hide_items') : t('show_items')}>
+                              <ActionButton onClick={() => toggleItemsVisibility(invoice.id)}>
+                                {isExpanded ? <ExpandLessIcon /> : <ExpandMoreIcon />}
+                              </ActionButton>
+                            </Tooltip>
+                          </Box>
+                        </Box>
+
+                        {/* Items List */}
+                        {isExpanded && (
+                          <Box sx={{ mt: 3, pt: 3, borderTop: '1px solid #e0e0e0' }}>
+                            {items.length === 0 ? (
+                              <Typography variant="body2" color="textSecondary" sx={{ textAlign: 'center', py: 2 }}>
+                                {t('no_items_added') || 'No items added yet'}
+                              </Typography>
+                            ) : (
+                              <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                                {items.map((item, itemIdx) => {
+                                  const isEditing = editingItem?.invoiceId === invoice.id && editingItem?.itemIndex === itemIdx;
+                                  
+                                  return (
+                                    <Box 
+                                      key={itemIdx} 
+                                      sx={{ 
+                                        p: 2, 
+                                        backgroundColor: alpha('#9c27b0', 0.05),
+                                        borderRadius: '12px',
+                                        border: '1px solid',
+                                        borderColor: alpha('#9c27b0', 0.1)
+                                      }}
+                                    >
+                                      {isEditing ? (
+                                        <Grid container spacing={2}>
+                                          <Grid item xs={12} sm={6}>
+                                            <TextField
+                                              fullWidth
+                                              size="small"
+                                              label={t('description') || 'Description'}
+                                              name="description"
+                                              value={editItemForm.description}
+                                              onChange={handleEditItemChange}
+                                            />
+                                          </Grid>
+                                          <Grid item xs={6} sm={3}>
+                                            <TextField
+                                              fullWidth
+                                              size="small"
+                                              type="number"
+                                              label={t('quantity') || 'Qty'}
+                                              name="qty"
+                                              value={editItemForm.qty}
+                                              onChange={handleEditItemChange}
+                                            />
+                                          </Grid>
+                                          <Grid item xs={6} sm={3}>
+                                            <TextField
+                                              fullWidth
+                                              size="small"
+                                              type="number"
+                                              label={t('unit_price') || 'Unit Price'}
+                                              name="unit_price"
+                                              value={editItemForm.unit_price}
+                                              onChange={handleEditItemChange}
+                                            />
+                                          </Grid>
+                                          <Grid item xs={6} sm={3}>
+                                            <TextField
+                                              fullWidth
+                                              size="small"
+                                              type="number"
+                                              label={t('tva') || 'TVA %'}
+                                              name="tva"
+                                              value={editItemForm.tva}
+                                              onChange={handleEditItemChange}
+                                            />
+                                          </Grid>
+                                          <Grid item xs={6} sm={3}>
+                                            <TextField
+                                              fullWidth
+                                              size="small"
+                                              type="number"
+                                              label={t('total') || 'Total'}
+                                              name="total_ht"
+                                              value={editItemForm.total_ht}
+                                              InputProps={{ readOnly: true }}
+                                            />
+                                          </Grid>
+                                          <Grid item xs={12} sm={6}>
+                                            <Box sx={{ display: 'flex', gap: 1 }}>
+                                              <Button variant="contained" size="small" onClick={saveEditedItem}>
+                                                {t('save') || 'Save'}
+                                              </Button>
+                                              <Button variant="outlined" size="small" onClick={cancelEditItem}>
+                                                {t('cancel') || 'Cancel'}
+                                              </Button>
+                                            </Box>
+                                          </Grid>
+                                        </Grid>
+                                      ) : (
+                                        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                          <Box>
+                                            <Typography variant="body1" fontWeight={600}>
+                                              {item.description}
+                                            </Typography>
+                                            <Typography variant="body2" color="textSecondary">
+                                              {t('qty')}: {item.qty} × €{item.unit_price} | TVA: {item.tva}% | {t('total')}: €{item.total_ht}
+                                            </Typography>
+                                          </Box>
+                                          <Box sx={{ display: 'flex', gap: 1 }}>
+                                            <Tooltip title={t('edit') || 'Edit'}>
+                                              <IconButton size="small" onClick={() => startEditItem(invoice.id, itemIdx, item)}>
+                                                <EditIcon fontSize="small" />
+                                              </IconButton>
+                                            </Tooltip>
+                                            <Tooltip title={t('delete') || 'Delete'}>
+                                              <IconButton size="small" onClick={() => deleteItem(invoice.id, itemIdx)}>
+                                                <DeleteIcon fontSize="small" />
+                                              </IconButton>
+                                            </Tooltip>
+                                          </Box>
+                                        </Box>
+                                      )}
+                                    </Box>
+                                  );
+                                })}
+                              </Box>
+                            )}
+                          </Box>
+                        )}
+                      </CardContent>
+                    </ModernCard>
+                  </Fade>
+                </Grid>
+              );
+            })
+          )}
+        </Grid>
+      </Box>
+
+      {/* Add Item Modal */}
+      {detailsModalOpen && (
+        <Box
+          sx={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backgroundColor: 'rgba(0, 0, 0, 0.7)',
+            display: 'flex',
+            justifyContent: 'center',
+            alignItems: 'center',
+            zIndex: 10000,
+          }}
+          onClick={closeModal}
+        >
+          <Box
+            sx={{
+              backgroundColor: 'white',
+              borderRadius: '16px',
+              padding: 4,
+              maxWidth: 600,
+              width: '90%',
+              maxHeight: '90vh',
+              overflow: 'auto',
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
+              <Typography variant="h5" fontWeight={700}>
+                {t('add_item') || 'Add Item'}
               </Typography>
-              <IconButton onClick={cancelEdit}>
+              <IconButton onClick={closeModal}>
                 <CloseIcon />
               </IconButton>
-            </PdfPreviewHeader>
-            <PdfPreviewContent style={{ padding: '2rem', overflow: 'auto' }}>
-              <form onSubmit={saveEditedFacture} style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
-                <Box sx={{ 
-                  backgroundColor: '#e3f2fd', 
-                  padding: '1rem', 
-                  borderRadius: '8px',
-                  border: '1px solid #bbdefb',
-                  mb: 2
-                }}>
-                  <Typography variant="body2" sx={{ color: '#1976d2', fontWeight: 'bold' }}>
-                    Editing: {formState.editingFacture.description}
-                  </Typography>
-                  <Typography variant="body2" sx={{ color: '#1976d2' }}>
-                    Original Amount: €{Number(formState.editingFacture.total_ht).toFixed(2)}
-                  </Typography>
-                </Box>
+            </Box>
 
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
-                  <div className="form-group" style={{ gridColumn: 'span 2' }}>
-                    <textarea 
-                      id="edit_description" 
-                      name="description" 
-                      value={formState.editForm.description} 
-                      onChange={handleEditFormChange} 
-                      placeholder=" " 
-                      required 
-                      rows="3"
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter' && e.shiftKey) {
-                          // Allow Shift+Enter for new line
-                          e.stopPropagation();
-                        } else if (e.key === 'Enter' && !e.shiftKey) {
-                          // Prevent regular Enter from submitting form
-                          e.preventDefault();
-                        }
-                      }}
-                      style={{
-                        resize: 'vertical',
-                        minHeight: '60px',
-                        fontFamily: 'inherit',
-                        fontSize: 'inherit'
-                      }}
-                    />
-                    <label htmlFor="edit_description">Description</label>
-                  </div>
-                  
-                  <div className="form-group">
-                    <input 
-                      id="edit_qty" 
-                      name="qty" 
-                      type="number" 
-                      min="0" 
-                      value={formState.editForm.qty} 
-                      onChange={handleEditFormChange} 
-                      placeholder=" " 
-                      required 
-                    />
-                    <label htmlFor="edit_qty">Quantity</label>
-                  </div>
-                  
-                  <div className="form-group">
-                    <input 
-                      id="edit_unit_price" 
-                      name="unit_price" 
-                      type="number" 
-                      min="0" 
-                      step="0.01" 
-                      value={formState.editForm.unit_price} 
-                      onChange={handleEditFormChange} 
-                      placeholder=" " 
-                      required 
-                    />
-                    <label htmlFor="edit_unit_price">Unit Price (€)</label>
-                  </div>
-                  
-                  <div className="form-group">
-                    <input 
-                      id="edit_tva" 
-                      name="tva" 
-                      type="number" 
-                      min="0" 
-                      step="0.01" 
-                      value={formState.editForm.tva} 
-                      onChange={handleEditFormChange} 
-                      placeholder=" " 
-                      required 
-                    />
-                    <label htmlFor="edit_tva">TVA (%)</label>
-                  </div>
-                  
-                  <div className="form-group">
-                    <input 
-                      id="edit_total_ht" 
-                      name="total_ht" 
-                      type="number" 
-                      min="0" 
-                      step="0.01" 
-                      value={formState.editForm.total_ht} 
-                      onChange={handleEditFormChange} 
-                      placeholder=" " 
-                      required 
-                    />
-                    <label htmlFor="edit_total_ht">Total HT (€)</label>
-                  </div>
-                </div>
+            {/* Remaining Amount Display */}
+            {selectedInvoiceId && (() => {
+              const invoice = createdInvoices.find(inv => inv.id === selectedInvoiceId);
+              if (invoice) {
+                const remaining = calculateRemainingAmount(invoice.contractId);
+                const contract = contractsById[invoice.contractId];
+                return (
+                  <Box sx={{ 
+                    mb: 3, 
+                    p: 2, 
+                    backgroundColor: parseFloat(remaining) > 0 ? alpha('#4caf50', 0.1) : alpha('#f44336', 0.1),
+                    borderRadius: '12px',
+                    border: `2px solid ${parseFloat(remaining) > 0 ? '#4caf50' : '#f44336'}`
+                  }}>
+                    <Typography variant="body1" fontWeight={600} sx={{ color: parseFloat(remaining) > 0 ? '#4caf50' : '#f44336' }}>
+                      Contract Total: €{parseFloat(contract?.price || 0).toFixed(2)}
+                    </Typography>
+                    <Typography variant="h6" fontWeight={700} sx={{ color: parseFloat(remaining) > 0 ? '#4caf50' : '#f44336', mt: 1 }}>
+                      Remaining Amount: €{remaining}
+                    </Typography>
+                    <Typography variant="caption" sx={{ color: '#666', mt: 0.5, display: 'block' }}>
+                      {parseFloat(remaining) > 0 
+                        ? 'You can add items up to this amount' 
+                        : 'Contract limit reached! Cannot add more items.'}
+                    </Typography>
+                  </Box>
+                );
+              }
+              return null;
+            })()}
 
-                <Box sx={{ display: 'flex', gap: 2, justifyContent: 'flex-end', mt: 2 }}>
-                  <Button
-                    variant="outlined"
-                    onClick={cancelEdit}
-                    sx={{ 
-                      minWidth: '120px',
-                      borderColor: '#666',
-                      color: '#666',
-                      '&:hover': {
-                        borderColor: '#333',
-                        backgroundColor: alpha('#666', 0.1)
-                      }
-                    }}
-                  >
-                    Cancel
-                  </Button>
-                  <Button
-                    type="submit"
-                    variant="contained"
-                    disabled={loading}
-                    sx={{ 
-                      minWidth: '120px',
-                      backgroundColor: '#2196f3',
-                      '&:hover': {
-                        backgroundColor: '#1976d2'
-                      }
-                    }}
-                  >
-                    {loading ? <CircularProgress size={20} color="inherit" /> : (t('save_changes') || 'Enregistrer les Modifications')}
-                  </Button>
-                </Box>
-              </form>
-            </PdfPreviewContent>
-          </PdfPreviewContainer>
-        </ModalOverlay>
+            <form onSubmit={handleDetailsSubmit}>
+              <Grid container spacing={2}>
+                <Grid item xs={12}>
+                  <TextField
+                    fullWidth
+                    label={t('description') || 'Description'}
+                    name="description"
+                    value={detailsForm.description}
+                    onChange={handleDetailsChange}
+                    required
+                  />
+                </Grid>
+                <Grid item xs={6}>
+                  <TextField
+                    fullWidth
+                    type="number"
+                    label={t('quantity') || 'Quantity'}
+                    name="qty"
+                    value={detailsForm.qty}
+                    onChange={handleDetailsChange}
+                    required
+                  />
+                </Grid>
+                <Grid item xs={6}>
+                  <TextField
+                    fullWidth
+                    type="number"
+                    label={t('unit_price') || 'Unit Price'}
+                    name="unit_price"
+                    value={detailsForm.unit_price}
+                    onChange={handleDetailsChange}
+                    required
+                  />
+                </Grid>
+                <Grid item xs={6}>
+                  <TextField
+                    fullWidth
+                    type="number"
+                    label={t('tva') || 'TVA %'}
+                    name="tva"
+                    value={detailsForm.tva}
+                    onChange={handleDetailsChange}
+                    required
+                  />
+                </Grid>
+                <Grid item xs={6}>
+                  <TextField
+                    fullWidth
+                    type="number"
+                    label={t('total') || 'Total'}
+                    name="total_ht"
+                    value={detailsForm.total_ht}
+                    InputProps={{ readOnly: true }}
+                  />
+                </Grid>
+                <Grid item xs={12}>
+                  <Box sx={{ display: 'flex', gap: 2, justifyContent: 'flex-end' }}>
+                    <Button variant="outlined" onClick={closeModal}>
+                      {t('cancel') || 'Cancel'}
+                    </Button>
+                    <Button variant="contained" type="submit" disabled={loading}>
+                      {loading ? <CircularProgress size={24} /> : (t('add') || 'Add')}
+                    </Button>
+                  </Box>
+                </Grid>
+              </Grid>
+            </form>
+          </Box>
+        </Box>
+      )}
+
+      {/* Toast Notification */}
+      {toast && (
+        <Box
+          sx={{
+            position: 'fixed',
+            bottom: 24,
+            left: '50%',
+            transform: 'translateX(-50%)',
+            backgroundColor: '#4caf50',
+            color: 'white',
+            padding: '12px 24px',
+            borderRadius: '8px',
+            boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+            zIndex: 10001,
+            animation: 'slideUp 0.3s ease-out',
+          }}
+        >
+          <Typography variant="body1">{toast}</Typography>
+        </Box>
+      )}
+
+      {/* Error Notification */}
+      {error && (
+        <Box
+          sx={{
+            position: 'fixed',
+            top: 24,
+            right: 24,
+            backgroundColor: '#f44336',
+            color: 'white',
+            padding: '12px 24px',
+            borderRadius: '8px',
+            boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+            zIndex: 10001,
+            maxWidth: 400,
+          }}
+        >
+          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <Typography variant="body1">{error}</Typography>
+            <IconButton size="small" onClick={() => setError('')} sx={{ color: 'white', ml: 2 }}>
+              <CloseIcon fontSize="small" />
+            </IconButton>
+          </Box>
+        </Box>
       )}
     </Box>
   );
-}
+};
 
 export default Factures;

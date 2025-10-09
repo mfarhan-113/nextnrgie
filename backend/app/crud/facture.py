@@ -43,20 +43,23 @@ def create_facture(db: Session, facture: schemas.FactureCreate):
     ).scalar() or 0.0
     
     # Check if adding this facture would exceed contract amount
+    # Skip validation if contract price is very large (temporary PDF generation)
     contract_amount = float(contract.price or 0)
-    if existing_factures_total + total_ht > contract_amount:
-        remaining = contract_amount - existing_factures_total
-        raise ValueError(
-            f"Cannot add facture: Total would exceed contract amount. "
-            f"Remaining amount: €{remaining:.2f}, "
-            f"Tried to add: €{total_ht:.2f}"
-        )
+    TEMP_LARGE_PRICE = 999999
+    
+    if contract_amount < TEMP_LARGE_PRICE:  # Only validate if not temporary
+        if existing_factures_total + total_ht > contract_amount:
+            remaining = contract_amount - existing_factures_total
+            raise ValueError(
+                f"Cannot add facture: Total would exceed contract amount. "
+                f"Remaining amount: €{remaining:.2f}, "
+                f"Tried to add: €{total_ht:.2f}"
+            )
     
     # Find or create a single invoice for this contract
     invoice = db.query(models.Invoice).filter(
         models.Invoice.contract_id == facture.contract_id
     ).order_by(models.Invoice.id.asc()).first()
-    
     # If no invoice exists, create a new one
     if not invoice:
         invoice_count = db.query(models.Invoice).count()
