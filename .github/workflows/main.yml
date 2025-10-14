@@ -45,7 +45,7 @@ jobs:
       run: |
         pip install pytest pytest-cov python-dotenv
         cd backend
-        python -m pytest test_db.py -v
+        python -m pytest
     
     - name: Upload coverage to Codecov
       uses: codecov/codecov-action@v3
