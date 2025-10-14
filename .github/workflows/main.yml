@@ -90,6 +90,7 @@ jobs:
       uses: docker/build-push-action@v6
       with:
         context: ./backend
+        file: ./backend/Dockerfile.prod
         push: true
         tags: ${{ secrets.DOCKERHUB_USERNAME }}/nextnrgie-backend:latest
     
@@ -97,6 +98,7 @@ jobs:
       uses: docker/build-push-action@v6
       with:
         context: ./frontend
+        file: ./frontend/Dockerfile.prod
         push: true
         tags: ${{ secrets.DOCKERHUB_USERNAME }}/nextnrgie-frontend:latest
 
