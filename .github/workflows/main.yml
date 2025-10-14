@@ -99,17 +99,38 @@ jobs:
         context: ./frontend
         push: true
         tags: ${{ secrets.DOCKERHUB_USERNAME }}/nextnrgie-frontend:latest
-    
-    - name: Copy compose and init files to server
+
+    - name: Verify deploy files exist
+      run: |
+        ls -la
+        ls -la mysql-init || true
+
+    - name: Ensure target directory exists on server
+      uses: appleboy/ssh-action@v1.0.3
+      with:
+        host: ${{ secrets.PROD_HOST }}
+        username: ${{ secrets.PROD_USER }}
+        key: ${{ secrets.PROD_SSH_KEY }}
+        script: |
+          mkdir -p /opt/nextnrgie
+
+    - name: Copy compose file to server
       uses: appleboy/scp-action@v0.1.7
       with:
         host: ${{ secrets.PROD_HOST }}
         username: ${{ secrets.PROD_USER }}
         key: ${{ secrets.PROD_SSH_KEY }}
-        source: |
-          docker-compose.prod.yml
-          mysql-init/**
-        target: /opt/nextnrgie
+        source: "docker-compose.prod.yml"
+        target: "/opt/nextnrgie/"
+
+    - name: Copy mysql-init to server
+      uses: appleboy/scp-action@v0.1.7
+      with:
+        host: ${{ secrets.PROD_HOST }}
+        username: ${{ secrets.PROD_USER }}
+        key: ${{ secrets.PROD_SSH_KEY }}
+        source: "mysql-init/*"
+        target: "/opt/nextnrgie/mysql-init/"
 
     - name: Create/update env file on server
       uses: appleboy/ssh-action@v1.0.3
