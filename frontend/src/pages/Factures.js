@@ -18,6 +18,11 @@ import Zoom from '@mui/material/Zoom';
 import TextField from '@mui/material/TextField';
 import InputAdornment from '@mui/material/InputAdornment';
 import Grid from '@mui/material/Grid';
+import MenuItem from '@mui/material/MenuItem';
+import Select from '@mui/material/Select';
+import FormControl from '@mui/material/FormControl';
+import InputLabel from '@mui/material/InputLabel';
+import Pagination from '@mui/material/Pagination';
 
 import { styled, alpha } from '@mui/material/styles';
 import AddIcon from '@mui/icons-material/Add';
@@ -135,6 +140,7 @@ const Factures = () => {
   const [detailsForm, setDetailsForm] = useState({
     description: '',
     qty: '',
+    qty_unit: 'unite', // Add qty_unit with default value 'unite'
     unit_price: '',
     tva: '',
     total_ht: ''
@@ -143,7 +149,6 @@ const Factures = () => {
   // UX state
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  const [toast, setToast] = useState('');
   const [contractsById, setContractsById] = useState({});
   const [hydrationDone, setHydrationDone] = useState(false);
   const [dueDateDrafts, setDueDateDrafts] = useState({});
@@ -153,10 +158,19 @@ const Factures = () => {
   const [editItemForm, setEditItemForm] = useState({
     description: '',
     qty: '',
+    qty_unit: 'unite',
     unit_price: '',
     tva: '',
     total_ht: ''
   });
+  
+  // Toast notification state
+  const [toast, setToast] = useState('');
+  
+  // Initialize edit form state with the correct unit dropdown value
+  // Pagination state
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 5;
 
   // Filter invoices based on search term
   const filteredInvoices = useMemo(() => {
@@ -172,6 +186,27 @@ const Factures = () => {
       );
     });
   }, [createdInvoices, searchTerm, contracts]);
+  
+  // Paginated invoices
+  const paginatedInvoices = useMemo(() => {
+    const startIndex = (currentPage - 1) * itemsPerPage;
+    const endIndex = startIndex + itemsPerPage;
+    return filteredInvoices.slice(startIndex, endIndex);
+  }, [filteredInvoices, currentPage, itemsPerPage]);
+  
+  // Total pages
+  const totalPages = Math.ceil(filteredInvoices.length / itemsPerPage);
+  
+  // Handle page change
+  const handlePageChange = (event, value) => {
+    setCurrentPage(value);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+  
+  // Reset to first page when search changes
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm]);
 
   // Persistence helpers (localStorage with cookie fallback)
   const persist = useMemo(() => ({
@@ -307,7 +342,14 @@ const Factures = () => {
       return;
     }
     setSelectedInvoiceId(invoiceId);
-    setDetailsForm({ description: '', qty: '', unit_price: '', tva: '', total_ht: '' });
+    setDetailsForm({ 
+      description: '', 
+      qty: '', 
+      qty_unit: 'unite',
+      unit_price: '', 
+      tva: '', 
+      total_ht: '' 
+    });
     setDetailsModalOpen(true);
   };
 
@@ -337,10 +379,12 @@ const Factures = () => {
 
   // Start editing an item
   const startEditItem = (invoiceId, itemIndex, item) => {
+    console.log('Editing item:', item);
     setEditingItem({ invoiceId, itemIndex });
     setEditItemForm({
       description: item.description || '',
       qty: item.qty || '',
+      qty_unit: item.qty_unit || 'unite',
       unit_price: item.unit_price || '',
       tva: item.tva || '',
       total_ht: item.total_ht || ''
@@ -375,6 +419,7 @@ const Factures = () => {
       newItems[editingItem.invoiceId][editingItem.itemIndex] = {
         description: editItemForm.description,
         qty: parseFloat(editItemForm.qty) || 0,
+        qty_unit: editItemForm.qty_unit || 'unite',
         unit_price: parseFloat(editItemForm.unit_price) || 0,
         tva: parseFloat(editItemForm.tva) || 0,
         total_ht: parseFloat(editItemForm.total_ht) || 0
@@ -392,26 +437,31 @@ const Factures = () => {
   // Cancel editing
   const cancelEditItem = () => {
     setEditingItem(null);
-    setEditItemForm({ description: '', qty: '', unit_price: '', tva: '', total_ht: '' });
+    setEditItemForm({ description: '', qty: '', qty_unit: 'unite', unit_price: '', tva: '', total_ht: '' });
   };
 
   // Handle form input changes with TVA calculation
   const handleDetailsChange = (e) => {
     const { name, value } = e.target;
-    const updatedForm = { ...detailsForm, [name]: value };
     
-    // Recalculate when any of these fields change
-    if (['qty', 'unit_price', 'tva'].includes(name)) {
-      const qty = parseFloat(updatedForm.qty) || 0;
-      const unitPrice = parseFloat(updatedForm.unit_price) || 0;
-      const tvaRate = (parseFloat(updatedForm.tva) || 0) / 100;
+    // Update the form state
+    setDetailsForm(prev => {
+      // Create updated form with new value
+      const updatedForm = { ...prev, [name]: value };
       
-      const subtotal = qty * unitPrice;
-      const tvaAmount = subtotal * tvaRate;
-      updatedForm.total_ht = (subtotal + tvaAmount).toFixed(2);
-    }
-    
-    setDetailsForm(updatedForm);
+      // Recalculate when any of these fields change
+      if (['qty', 'unit_price', 'tva'].includes(name)) {
+        const qty = parseFloat(updatedForm.qty) || 0;
+        const unitPrice = parseFloat(updatedForm.unit_price) || 0;
+        const tvaRate = (parseFloat(updatedForm.tva) || 0) / 100;
+        
+        const subtotal = qty * unitPrice;
+        const tvaAmount = subtotal * tvaRate;
+        updatedForm.total_ht = (subtotal + tvaAmount).toFixed(2);
+      }
+      
+      return updatedForm;
+    });
   };
 
   const handleDetailsSubmit = async (e) => {
@@ -420,16 +470,15 @@ const Factures = () => {
       setError(t('select_invoice_first') || 'Please select an invoice first.');
       return;
     }
-    setLoading(true);
-    setError('');
 
     try {
-      const item = {
+      const newItem = {
         description: detailsForm.description,
-        qty: parseInt(detailsForm.qty) || 0,
-        unit_price: parseFloat(detailsForm.unit_price) || 0,
-        tva: parseFloat(detailsForm.tva) || 0,
-        total_ht: parseFloat(detailsForm.total_ht) || 0
+        qty: detailsForm.qty,
+        qty_unit: detailsForm.qty_unit || 'unite',
+        unit_price: detailsForm.unit_price,
+        tva: detailsForm.tva,
+        total_ht: detailsForm.total_ht
       };
 
       // VALIDATION: Check if adding this item will exceed contract amount
@@ -446,20 +495,20 @@ const Factures = () => {
         }, 0);
         
         // Add the new item amount
-        const newTotal = totalInvoiced + item.total_ht;
+        const newItemTotal = parseFloat(newItem.total_ht) || 0;
+        const newTotal = totalInvoiced + newItemTotal;
         
         if (newTotal > contractPrice) {
           const remaining = (contractPrice - totalInvoiced).toFixed(2);
-          setToast(`Cannot add item! Contract limit exceeded. Remaining: €${remaining}, Tried to add: €${item.total_ht.toFixed(2)}`);
+          setToast(`Cannot add item! Contract limit exceeded. Remaining: €${remaining}, Tried to add: €${newItemTotal.toFixed(2)}`);
           setTimeout(() => setToast(''), 4000);
-          setLoading(false);
           return;
         }
       }
 
       setItemsByInvoice(prev => {
         const list = prev[selectedInvoiceId] ? [...prev[selectedInvoiceId]] : [];
-        list.push(item);
+        list.push(newItem);
         const next = { ...prev, [selectedInvoiceId]: list };
         try { persist.set('itemsByInvoice', JSON.stringify(next)); } catch {}
         return next;
@@ -550,6 +599,7 @@ const Factures = () => {
           contract_id: parseInt(invoice.contractId),
           description: item.description,
           qty: Number(item.qty) || 0,
+          qty_unit: item.qty_unit || 'unite',  // Default to 'unite' if not specified
           unit_price: Number(item.unit_price) || 0,
           tva: Number(item.tva) || 0,
           total_ht: Number(item.total_ht) || ((Number(item.qty) || 0) * (Number(item.unit_price) || 0))
@@ -719,68 +769,116 @@ const Factures = () => {
           </Grid>
         </Grid>
 
-        {/* Contracts Section - Create Invoices */}
-        <Typography variant="h5" fontWeight={700} sx={{ mb: 3, color: '#333' }}>
-          {t('contracts') || 'Contracts'}
-        </Typography>
-        <Grid container spacing={3} sx={{ mb: 6 }}>
-          {contracts.length === 0 ? (
-            <Grid item xs={12}>
-              <Box sx={{ textAlign: 'center', py: 8 }}>
-                <DescriptionIcon sx={{ fontSize: 80, color: '#ccc', mb: 2 }} />
-                <Typography variant="h6" color="textSecondary">
-                  {t('no_contracts_found') || 'No contracts found'}
-                </Typography>
-              </Box>
-            </Grid>
-          ) : (
-            contracts.map((contract, idx) => (
-              <Grid item xs={12} sm={6} md={4} key={contract.id}>
-                <Zoom in={true} timeout={300 + idx * 50}>
-                  <ModernCard>
-                    <CardContent>
-                      <Box sx={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', mb: 2 }}>
-                        <Box sx={{ flex: 1 }}>
-                          <Typography variant="h6" fontWeight={700} sx={{ color: '#333', mb: 1 }}>
-                            {contract.command_number || `Contract ${contract.id}`}
-                          </Typography>
-                          <Typography variant="body2" color="textSecondary" sx={{ mb: 1 }}>
-                            {contract.name || 'N/A'}
-                          </Typography>
-                          <Chip 
-                            label={`€${parseFloat(contract.price || 0).toFixed(2)}`}
-                            size="small"
-                            sx={{ 
-                              backgroundColor: alpha('#4caf50', 0.1),
-                              color: '#4caf50',
-                              fontWeight: 600
-                            }}
-                          />
-                        </Box>
-                      </Box>
-                      <Box sx={{ display: 'flex', gap: 1, mt: 2 }}>
-                        <Tooltip title={t('create_invoice') || 'Create Invoice'}>
-                          <ActionButton 
-                            variant="create" 
-                            fullWidth
-                            onClick={() => createInvoiceForContract(contract.id)}
-                          >
-                            <AddIcon />
-                          </ActionButton>
-                        </Tooltip>
-                      </Box>
-                    </CardContent>
-                  </ModernCard>
-                </Zoom>
-              </Grid>
-            ))
-          )}
-        </Grid>
+        {/* Contract Selector - Create Invoice */}
+        <ModernCard sx={{ mb: 6, p: 3 }}>
+          <Typography variant="h5" fontWeight={700} sx={{ mb: 3, color: '#333' }}>
+            {t('create_new_invoice') || 'Create New Invoice'}
+          </Typography>
+          <Box sx={{ display: 'flex', gap: 2, alignItems: 'center', flexWrap: 'wrap' }}>
+            <FormControl sx={{ flex: 1, minWidth: 250 }}>
+              <InputLabel id="contract-select-label">
+                {t('select_contract') || 'Select Contract'}
+              </InputLabel>
+              <Select
+                labelId="contract-select-label"
+                id="contract-select"
+                value={selectedContractId}
+                label={t('select_contract') || 'Select Contract'}
+                onChange={(e) => setSelectedContractId(e.target.value)}
+                sx={{
+                  borderRadius: '12px',
+                  '& .MuiOutlinedInput-notchedOutline': {
+                    borderColor: alpha('#9c27b0', 0.3),
+                  },
+                  '&:hover .MuiOutlinedInput-notchedOutline': {
+                    borderColor: '#9c27b0',
+                  },
+                  '&.Mui-focused .MuiOutlinedInput-notchedOutline': {
+                    borderColor: '#9c27b0',
+                  },
+                }}
+              >
+                <MenuItem value="" disabled>
+                  <em>{t('choose_contract') || 'Choose a contract...'}</em>
+                </MenuItem>
+                {contracts.map((contract) => (
+                  <MenuItem key={contract.id} value={contract.id}>
+                    <Box sx={{ display: 'flex', justifyContent: 'space-between', width: '100%', alignItems: 'center' }}>
+                      <Typography variant="body1" fontWeight={600}>
+                        {contract.command_number || `Contract ${contract.id}`}
+                      </Typography>
+                      <Chip 
+                        label={`€${parseFloat(contract.price || 0).toFixed(2)}`}
+                        size="small"
+                        sx={{ 
+                          ml: 2,
+                          backgroundColor: alpha('#4caf50', 0.15),
+                          color: '#4caf50',
+                          fontWeight: 600
+                        }}
+                      />
+                    </Box>
+                  </MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+            <Button
+              variant="contained"
+              size="large"
+              startIcon={<AddIcon />}
+              onClick={() => {
+                if (selectedContractId) {
+                  createInvoiceForContract(selectedContractId);
+                  setSelectedContractId('');
+                } else {
+                  setToast(t('please_select_contract') || 'Please select a contract first');
+                  setTimeout(() => setToast(''), 2500);
+                }
+              }}
+              disabled={!selectedContractId}
+              sx={{
+                borderRadius: '12px',
+                px: 4,
+                py: 1.5,
+                background: 'linear-gradient(135deg, #9c27b0 0%, #673ab7 100%)',
+                textTransform: 'none',
+                fontSize: '1rem',
+                fontWeight: 600,
+                boxShadow: '0 4px 15px rgba(156, 39, 176, 0.3)',
+                '&:hover': {
+                  background: 'linear-gradient(135deg, #7b1fa2 0%, #512da8 100%)',
+                  boxShadow: '0 6px 20px rgba(156, 39, 176, 0.4)',
+                  transform: 'translateY(-2px)',
+                },
+                '&:disabled': {
+                  background: '#ccc',
+                  color: '#888',
+                  boxShadow: 'none',
+                },
+                transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+              }}
+            >
+              {t('create_invoice') || 'Create Invoice'}
+            </Button>
+          </Box>
+        </ModernCard>
 
         {/* Invoices Section - Bottom */}
-        <Typography variant="h5" fontWeight={700} sx={{ mb: 3, color: '#333' }}>
-          {t('created_invoices') || 'Created Invoices'}
-        </Typography>
+        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
+          <Typography variant="h5" fontWeight={700} sx={{ color: '#333' }}>
+            {t('created_invoices') || 'Created Invoices'}
+          </Typography>
+          {filteredInvoices.length > 0 && (
+            <Chip 
+              label={`${filteredInvoices.length} ${t('total') || 'Total'}`}
+              sx={{ 
+                fontWeight: 600,
+                backgroundColor: alpha('#9c27b0', 0.1),
+                color: '#9c27b0'
+              }}
+            />
+          )}
+        </Box>
         <Grid container spacing={3}>
           {filteredInvoices.length === 0 ? (
             <Grid item xs={12}>
@@ -790,12 +888,12 @@ const Factures = () => {
                   {t('no_invoices_created') || 'No invoices created yet'}
                 </Typography>
                 <Typography variant="body2" color="textSecondary" sx={{ mt: 1 }}>
-                  {t('create_invoice_hint') || 'Click "Create Invoice" on a contract to get started'}
+                  {t('create_invoice_hint') || 'Select a contract and click "Create Invoice" to get started'}
                 </Typography>
               </Box>
             </Grid>
           ) : (
-            filteredInvoices.map((invoice, idx) => {
+            paginatedInvoices.map((invoice, idx) => {
               const contract = contractsById[invoice.contractId];
               const items = itemsByInvoice[invoice.id] || [];
               const total = calculateInvoiceTotal(invoice.id);
@@ -877,11 +975,17 @@ const Factures = () => {
                                         backgroundColor: alpha('#9c27b0', 0.05),
                                         borderRadius: '12px',
                                         border: '1px solid',
-                                        borderColor: alpha('#9c27b0', 0.1)
+                                        borderColor: alpha('#9c27b0', 0.1),
+                                        '& .MuiSelect-select': {
+                                          paddingTop: '8px',
+                                          paddingBottom: '8px',
+                                          display: 'flex',
+                                          alignItems: 'center'
+                                        }
                                       }}
                                     >
                                       {isEditing ? (
-                                        <Grid container spacing={2}>
+                                        <Grid container spacing={2} sx={{ alignItems: 'center' }}>
                                           <Grid item xs={12} sm={6}>
                                             <TextField
                                               fullWidth
@@ -892,7 +996,7 @@ const Factures = () => {
                                               onChange={handleEditItemChange}
                                             />
                                           </Grid>
-                                          <Grid item xs={6} sm={3}>
+                                          <Grid item xs={4} sm={2}>
                                             <TextField
                                               fullWidth
                                               size="small"
@@ -901,9 +1005,27 @@ const Factures = () => {
                                               name="qty"
                                               value={editItemForm.qty}
                                               onChange={handleEditItemChange}
+                                              inputProps={{ min: 0, step: 0.01 }}
                                             />
                                           </Grid>
-                                          <Grid item xs={6} sm={3}>
+                                          <Grid item xs={4} sm={2}>
+                                            <FormControl fullWidth size="small" sx={{ mt: 1 }}>
+                                              <InputLabel id="edit-qty-unit-label">Unit</InputLabel>
+                                              <Select
+                                                labelId="edit-qty-unit-label"
+                                                name="qty_unit"
+                                                value={editItemForm.qty_unit || 'unite'}
+                                                onChange={handleEditItemChange}
+                                                label="Unit"
+                                                sx={{ height: '40px' }}
+                                              >
+                                                <MenuItem value="unite">Unité</MenuItem>
+                                                <MenuItem value="ensemble">Ensemble</MenuItem>
+                                                <MenuItem value="meter">m</MenuItem>
+                                              </Select>
+                                            </FormControl>
+                                          </Grid>
+                                          <Grid item xs={4} sm={2}>
                                             <TextField
                                               fullWidth
                                               size="small"
@@ -986,6 +1108,40 @@ const Factures = () => {
             })
           )}
         </Grid>
+        
+        {/* Pagination */}
+        {filteredInvoices.length > itemsPerPage && (
+          <Box sx={{ display: 'flex', justifyContent: 'center', mt: 6, mb: 4 }}>
+            <Pagination 
+              count={totalPages}
+              page={currentPage}
+              onChange={handlePageChange}
+              color="primary"
+              size="large"
+              showFirstButton
+              showLastButton
+              sx={{
+                '& .MuiPaginationItem-root': {
+                  borderRadius: '12px',
+                  fontWeight: 600,
+                  fontSize: '1rem',
+                  minWidth: '44px',
+                  height: '44px',
+                  '&.Mui-selected': {
+                    background: 'linear-gradient(135deg, #9c27b0 0%, #673ab7 100%)',
+                    color: 'white',
+                    '&:hover': {
+                      background: 'linear-gradient(135deg, #7b1fa2 0%, #512da8 100%)',
+                    },
+                  },
+                  '&:hover': {
+                    backgroundColor: alpha('#9c27b0', 0.1),
+                  },
+                },
+              }}
+            />
+          </Box>
+        )}
       </Box>
 
       {/* Add Item Modal */}
@@ -1070,15 +1226,56 @@ const Factures = () => {
                   />
                 </Grid>
                 <Grid item xs={6}>
-                  <TextField
-                    fullWidth
-                    type="number"
-                    label={t('quantity') || 'Quantity'}
-                    name="qty"
-                    value={detailsForm.qty}
-                    onChange={handleDetailsChange}
-                    required
-                  />
+                  <Grid container spacing={1}>
+                    <Grid item xs={7}>
+                      <TextField
+                        fullWidth
+                        type="number"
+                        label={t('quantity') || 'Quantity'}
+                        name="qty"
+                        value={detailsForm.qty}
+                        onChange={handleDetailsChange}
+                        required
+                      />
+                    </Grid>
+                    <Grid item xs={5}>
+                      <FormControl fullWidth>
+                        <InputLabel>Unit</InputLabel>
+                        <Select
+                          name="qty_unit"
+                          value={detailsForm.qty_unit || 'unite'}
+                          onChange={handleDetailsChange}
+                          label="Unit"
+                          MenuProps={{
+                            disablePortal: true,
+                            PaperProps: {
+                              onClick: (e) => e.stopPropagation(),
+                            },
+                          }}
+                          sx={{
+                            '& .MuiOutlinedInput-notchedOutline': {
+                              borderColor: alpha('#9c27b0', 0.3),
+                            },
+                            '&:hover .MuiOutlinedInput-notchedOutline': {
+                              borderColor: '#9c27b0',
+                            },
+                            '&.Mui-focused .MuiOutlinedInput-notchedOutline': {
+                              borderColor: '#9c27b0',
+                            },
+                            height: '40px',
+                            '& .MuiSelect-select': {
+                              paddingTop: '8px',
+                              paddingBottom: '8px',
+                            }
+                          }}
+                        >
+                          <MenuItem value="unite">Unité</MenuItem>
+                          <MenuItem value="ensemble">Ensemble</MenuItem>
+                          <MenuItem value="meter">m</MenuItem>
+                        </Select>
+                      </FormControl>
+                    </Grid>
+                  </Grid>
                 </Grid>
                 <Grid item xs={6}>
                   <TextField

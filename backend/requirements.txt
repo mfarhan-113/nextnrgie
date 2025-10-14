@@ -1,11 +1,23 @@
-fastapi
-uvicorn[standard]
-sqlalchemy
-pymysql>=1.0.0
-alembic
-python-jose[cryptography]
-passlib[bcrypt]
-pydantic[email]
-python-multipart
-reportlab
-cryptography
+# Core
+fastapi==0.109.2
+uvicorn[standard]==0.27.1
+python-multipart==0.0.9
+
+# Database
+sqlalchemy==2.0.27
+alembic==1.13.1
+pymysql==1.1.1
+
+# Authentication & Security
+python-jose[cryptography]==3.3.0
+passlib[bcrypt]==1.7.4
+cryptography==42.0.5
+
+# Data Validation
+pydantic[email]==2.6.4
+
+# PDF Generation
+reportlab==4.1.0
+
+# Environment
+python-dotenv==1.0.1

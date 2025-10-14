@@ -8,6 +8,7 @@ class ContractDetail(Base):
     contract_id = Column(Integer, ForeignKey("contracts.id"), nullable=False)
     description = Column(String(500), nullable=False)
     qty = Column(Integer, nullable=False)
+    qty_unit = Column(String(20), nullable=False, default="unite")
     unit_price = Column(Float, nullable=False)
     tva = Column(Float, nullable=False)
     total_ht = Column(Float, nullable=False)

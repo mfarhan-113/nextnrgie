@@ -4,6 +4,8 @@ from typing import Optional
 class ContractDetailBase(BaseModel):
     description: str
     qty: int
+    # unite | ensemble | m
+    qty_unit: str = "unite"
     unit_price: float
     tva: float
     total_ht: float

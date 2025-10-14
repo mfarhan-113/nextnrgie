@@ -41,6 +41,8 @@ class FactureBase(BaseModel):
     contract_id: int = Field(..., description="ID of the contract this facture belongs to")
     description: str = Field(..., max_length=255, description="Description of the facture item")
     qty: float = Field(..., gt=0, description="Quantity of items")
+    # unite | ensemble | m
+    qty_unit: str = Field("unite", description="Unit for quantity: unite | ensemble | m")
     unit_price: float = Field(..., ge=0, description="Price per unit")
     tva: float = Field(20.0, ge=0, le=100, description="TVA rate in percentage (0-100)")
     total_ht: float = Field(..., ge=0, description="Total amount excluding TVA")
@@ -50,6 +52,18 @@ class FactureBase(BaseModel):
         if not v.strip():
             raise ValueError('Description cannot be empty')
         return v.strip()
+
+    @validator('qty_unit')
+    def validate_qty_unit(cls, v):
+        mapping = {
+            'unite': 'unite', 'unité': 'unite', 'unity': 'unite', 'unit': 'unite',
+            'ensemble': 'ensemble', 'set': 'ensemble',
+            'm': 'm', 'meter': 'm', 'metre': 'm', 'mètre': 'm'
+        }
+        key = str(v).strip().lower()
+        if key not in mapping:
+            raise ValueError("qty_unit must be one of: unite | ensemble | m")
+        return mapping[key]
 
     @validator('total_ht')
     def validate_total_ht(cls, v, values):
@@ -70,6 +84,7 @@ class FactureUpdate(BaseModel):
     """Schema for updating an existing facture."""
     description: Optional[str] = Field(None, max_length=255, description="Updated description")
     qty: Optional[float] = Field(None, gt=0, description="Updated quantity")
+    qty_unit: Optional[str] = Field(None, description="Updated quantity unit: unite | ensemble | m")
     unit_price: Optional[float] = Field(None, ge=0, description="Updated unit price")
     tva: Optional[float] = Field(None, ge=0, le=100, description="Updated TVA rate in percentage")
     total_ht: Optional[float] = Field(None, ge=0, description="Updated total amount excluding TVA")

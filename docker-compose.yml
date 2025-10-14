@@ -23,7 +23,7 @@ services:
       MYSQL_USER: nextnrgie_user
       MYSQL_PASSWORD: Paki7stan8#paki
     ports:
-      - "3306:3306"
+      - "3307:3306"  # Changed from 3306 to 3307 to avoid port conflict
     volumes:
       - mysql_data:/var/lib/mysql
     networks:

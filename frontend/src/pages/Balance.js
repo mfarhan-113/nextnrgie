@@ -354,6 +354,7 @@ const Balance = () => {
           contract_id: parseInt(invoice.contract_id),
           description: item.description,
           qty: Number(item.qty) || 0,
+          qty_unit: item.qty_unit || 'unite',  // Default to 'unite' if not specified
           unit_price: Number(item.unit_price) || 0,
           tva: Number(item.tva) || 0,
           total_ht: Number(item.total_ht) || ((Number(item.qty) || 0) * (Number(item.unit_price) || 0))

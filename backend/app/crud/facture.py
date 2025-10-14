@@ -18,13 +18,11 @@ def update_contract_total(db: Session, contract_id: int):
         models.Facture.contract_id == contract_id
     ).scalar() or 0.0
     
-    # Update the contract's price
+    # Get the contract (without modifying its price)
     db_contract = db.query(models.Contract).filter(models.Contract.id == contract_id).first()
-    if db_contract:
-        db_contract.price = float(total)
-        db.commit()
-        db.refresh(db_contract)
-    return db_contract
+    
+    # Return both the contract and the calculated total
+    return db_contract, float(total)
 
 def create_facture(db: Session, facture: schemas.FactureCreate):
     # Use the provided total_ht value (trust the frontend calculation)
@@ -83,6 +81,7 @@ def create_facture(db: Session, facture: schemas.FactureCreate):
         invoice_id=invoice.id,
         description=facture.description,
         qty=facture.qty,
+        qty_unit=facture.qty_unit,
         unit_price=facture.unit_price,
         tva=facture.tva,
         total_ht=total_ht,

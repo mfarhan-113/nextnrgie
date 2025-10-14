@@ -16,6 +16,22 @@ from io import BytesIO
 from datetime import datetime
 import os
 
+# Helper to format quantity with a unit label like "432 unités", "1 unité", "100 m", "2 ensembles"
+def format_qty(qty, unit: str) -> str:
+    unit_key = (unit or "unite").lower()
+    if unit_key in ["unite", "unité", "unity", "unit"]:
+        label = "unité" if float(qty) == 1 else "unités"
+    elif unit_key in ["ensemble", "set"]:
+        label = "ensemble" if float(qty) == 1 else "ensembles"
+    else:  # meters or other
+        label = "m"
+    try:
+        # Render 1 without trailing .0, keep integers clean
+        qty_str = ("%g" % float(qty))
+    except Exception:
+        qty_str = str(qty)
+    return f"{qty_str} {label}"
+
 # Configure logging
 logging.basicConfig(
     level=logging.INFO,
@@ -62,6 +78,14 @@ def generate_invoice_pdf(invoice_id: int, db: Session = Depends(get_db)):
         raise HTTPException(status_code=404, detail="Invoice not found")
         
     logger.info(f"Found invoice: ID={invoice.id}, Contract ID={invoice.contract_id}")
+    # Fetch the related contract (needed for dates and contract details)
+    logger.info("\n[2/3] Fetching contract data...")
+    contract_result = db.execute(select(Contract).where(Contract.id == invoice.contract_id))
+    contract = contract_result.scalars().first()
+    if not contract:
+        logger.error(f"Contract with ID {invoice.contract_id} not found for invoice {invoice_id}")
+        raise HTTPException(status_code=404, detail="Contract not found for invoice")
+
     # Log the SQL query for factures
     logger.info("\n[3/3] Fetching factures data...")
     factures_result = db.execute(select(Facture).where(Facture.contract_id == invoice.contract_id))
@@ -269,8 +293,8 @@ def generate_invoice_pdf(invoice_id: int, db: Session = Depends(get_db)):
             p.drawString(current_x + 5, y_position - 15, str(detail.description)[:40])
             current_x += headers[0]["width"]
             
-            # Quantity
-            qty_text = str(detail.qty)
+            # Quantity with unit (e.g., "432 unités", "100 m")
+            qty_text = format_qty(detail.qty, getattr(detail, 'qty_unit', 'unite'))
             qty_width = p.stringWidth(qty_text, "Helvetica", 9)
             p.drawString(current_x + headers[1]["width"] - qty_width - 5, y_position - 15, qty_text)
             current_x += headers[1]["width"]
@@ -281,8 +305,8 @@ def generate_invoice_pdf(invoice_id: int, db: Session = Depends(get_db)):
             p.drawString(current_x + headers[2]["width"] - unit_price_width - 5, y_position - 15, unit_price_text)
             current_x += headers[2]["width"]
             
-            # TVA from facture
-            tva_rate = item.tva if hasattr(item, 'tva') else 0.0
+            # TVA from contract detail
+            tva_rate = detail.tva if hasattr(detail, 'tva') else 0.0
             tva_text = f"{tva_rate:.2f}%"
             tva_width = p.stringWidth(tva_text, "Helvetica", 9)
             p.drawString(current_x + headers[3]["width"] - tva_width - 5, y_position - 15, tva_text)
@@ -637,8 +661,8 @@ def generate_estimate_pdf(contract_id: int, db: Session = Depends(get_db)):
             
             current_x += headers[0]["width"]
             
-            # Quantity
-            qty_text = str(item.qty)
+            # Quantity with unit (e.g., "432 unités", "100 m")
+            qty_text = format_qty(item.qty, getattr(item, 'qty_unit', 'unite'))
             qty_width = p.stringWidth(qty_text, "Helvetica", 9)
             p.drawString(current_x + headers[1]["width"] - qty_width - 5, y_position - 15, qty_text)
             current_x += headers[1]["width"]
@@ -1214,12 +1238,34 @@ def generate_devis_pdf(payload: dict):
 
     # Client
     p.setFont("Helvetica-Bold", 11)
-    p.drawString(right, right_col_y, client.get("name") or "Client")
+    client_name = client.get("name", "").strip()
+    p.drawString(right, right_col_y, client_name or "Client")
     p.setFont("Helvetica", 10)
-    if client.get("siret_number"): p.drawString(right, right_col_y - 15, f"SIRET: {client.get('siret_number')}")
-    if client.get("client_address"): p.drawString(right, right_col_y - 30, client.get("client_address"))
-    if client.get("phone"): p.drawString(right, right_col_y - 45, client.get("phone"))
-    if client.get("tva"): p.drawString(right, right_col_y - 60, f"Numéro de TVA: {client.get('tva')}")
+    
+    y_offset = right_col_y - 15
+    if client.get("siret_number"): 
+        p.drawString(right, y_offset, f"SIRET: {client.get('siret_number')}")
+        y_offset -= 15
+        
+    # Handle multi-line address
+    if client.get("client_address"):
+        address = client.get("client_address")
+        # Normalize line endings and split into lines
+        address_lines = address.replace('\r\n', '\n').replace('\r', '\n').split('\n')
+        for line in address_lines:
+            if line.strip():  # Only draw non-empty lines
+                p.drawString(right, y_offset, line.strip())
+                y_offset -= 15
+    else:
+        y_offset -= 15  # Keep consistent spacing if no address
+        
+    if client.get("phone"): 
+        p.drawString(right, y_offset, client.get("phone"))
+        y_offset -= 15
+        
+    if client.get("tva"): 
+        p.drawString(right, y_offset, f"Numéro de TVA: {client.get('tva')}")
+        y_offset -= 15
 
     # Chantier (site/project) - Add "CHANTIER BEIGE MONCEAU" above the table
     chantier_y = left_col_y - 100
@@ -1232,7 +1278,7 @@ def generate_devis_pdf(payload: dict):
 
     headers = [
         {"text": "Description", "width": 250},
-        {"text": "Qté", "width": 70},
+        {"text": "Quantité", "width": 100},  # Increased width to accommodate unit
         {"text": "Prix unitaire", "width": 100},
         {"text": "TVA (%)", "width": 60},
         {"text": "Total HT", "width": 70},
@@ -1306,8 +1352,10 @@ def generate_devis_pdf(payload: dict):
                     p.drawString(current_x + 5, temp_y, line[:60])
         
         current_x += headers[0]["width"]
-        # Qte
-        qty_text = str(item.get("qty", 0))
+        # Qty with unit
+        qty = float(item.get("qty", 0))
+        qty_unit = item.get("qty_unit", "unite")
+        qty_text = format_qty(qty, qty_unit)
         qty_width = p.stringWidth(qty_text, "Helvetica", 9)
         p.drawString(current_x + headers[1]["width"] - qty_width - 5, y_pos - 15, qty_text)
         current_x += headers[1]["width"]

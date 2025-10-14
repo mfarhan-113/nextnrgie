@@ -16,6 +16,10 @@ import Chip from '@mui/material/Chip';
 import Fade from '@mui/material/Fade';
 import Zoom from '@mui/material/Zoom';
 import TextField from '@mui/material/TextField';
+import Select from '@mui/material/Select';
+import MenuItem from '@mui/material/MenuItem';
+import FormControl from '@mui/material/FormControl';
+import InputLabel from '@mui/material/InputLabel';
 import InputAdornment from '@mui/material/InputAdornment';
 import { styled, alpha } from '@mui/material/styles';
 import { TextField as MuiTextField } from '@mui/material';
@@ -135,6 +139,7 @@ const Devis = () => {
   const [detailsForm, setDetailsForm] = useState({
     description: '',
     qty: '',
+    qty_unit: 'unite',
     unit_price: '',
     tva: '',
     total_ht: ''
@@ -159,6 +164,7 @@ const Devis = () => {
   const [editItemForm, setEditItemForm] = useState({
     description: '',
     qty: '',
+    qty_unit: 'unite',
     unit_price: '',
     tva: '',
     total_ht: ''
@@ -395,7 +401,7 @@ const Devis = () => {
 
   const openAddModal = () => {
     setEditingDetail(null);
-    setDetailsForm({ description: '', qty: '', unit_price: '', tva: '', total_ht: '' });
+    setDetailsForm({ description: '', qty: '', qty_unit: 'unite', unit_price: '', tva: '', total_ht: '' });
     setDetailsModalOpen(true);
     // Preselect a devis if one matches currently selected client
     if (createdDevis.length > 0) {
@@ -436,6 +442,7 @@ const Devis = () => {
     setEditItemForm({
       description: item.description || '',
       qty: item.qty || '',
+      qty_unit: item.qty_unit || 'unite',
       unit_price: item.unit_price || '',
       tva: item.tva || '',
       total_ht: item.total_ht || ''
@@ -470,6 +477,7 @@ const Devis = () => {
       newItems[editingItem.devisId][editingItem.itemIndex] = {
         description: editItemForm.description,
         qty: parseFloat(editItemForm.qty) || 0,
+        qty_unit: editItemForm.qty_unit || 'unite',
         unit_price: parseFloat(editItemForm.unit_price) || 0,
         tva: parseFloat(editItemForm.tva) || 0,
         total_ht: parseFloat(editItemForm.total_ht) || 0
@@ -516,6 +524,7 @@ const Devis = () => {
       const item = {
         description: detailsForm.description,
         qty: parseInt(detailsForm.qty) || 0,
+        qty_unit: detailsForm.qty_unit || 'unite',
         unit_price: parseFloat(detailsForm.unit_price) || 0,
         tva: parseFloat(detailsForm.tva) || 0,
         total_ht: parseFloat(detailsForm.total_ht) || 0
@@ -528,13 +537,34 @@ const Devis = () => {
         return next;
       });
 
+      // Persist to backend so Devis PDF (which reads contract_details) includes qty_unit
+      try {
+        if (selectedContractId) {
+          await axios.post(
+            `${process.env.REACT_APP_API_URL}/contract-details/`,
+            {
+              contract_id: parseInt(selectedContractId),
+              description: item.description,
+              qty: parseInt(item.qty) || 0,
+              qty_unit: item.qty_unit || 'unite',
+              unit_price: parseFloat(item.unit_price) || 0,
+              tva: parseFloat(item.tva) || 0,
+              total_ht: parseFloat(item.total_ht) || 0,
+            },
+            { headers: { ...authHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+      } catch (apiErr) {
+        console.warn('Failed to persist devis item to backend (contract-details)', apiErr);
+      }
+
       // Note: UI-only Devis; do not persist items to backend to avoid showing in Contracts/Factures
 
       setToast(t('document_saved'));
       setTimeout(() => setToast(''), 2500);
 
       // Reset and close
-      setDetailsForm({ description: '', qty: '', unit_price: '', tva: '', total_ht: '' });
+      setDetailsForm({ description: '', qty: '', qty_unit: 'unite', unit_price: '', tva: '', total_ht: '' });
       setDetailsModalOpen(false);
     } catch (err) {
       console.error('Error saving devis', err);
@@ -969,6 +999,20 @@ const Devis = () => {
                                             size="small"
                                             inputProps={{ min: 0 }}
                                           />
+                                          <FormControl size="small">
+                                            <InputLabel id="edit-qty-unit-label">Unit</InputLabel>
+                                            <Select
+                                              labelId="edit-qty-unit-label"
+                                              name="qty_unit"
+                                              value={editItemForm.qty_unit || 'unite'}
+                                              onChange={handleEditItemChange}
+                                              label="Unit"
+                                            >
+                                              <MenuItem value="unite">Unité</MenuItem>
+                                              <MenuItem value="ensemble">Ensemble</MenuItem>
+                                              <MenuItem value="meter">m</MenuItem>
+                                            </Select>
+                                          </FormControl>
                                           <TextField
                                             label={t('unit_price_euro') || 'Prix Unitaire (€)'}
                                             name="unit_price"
@@ -1028,7 +1072,15 @@ const Devis = () => {
                                             {item.description}
                                           </Typography>
                                           <Typography variant="caption" sx={{ color: '#666' }}>
-{t('qty') || 'Qté'}: {item.qty} × {Number(item.unit_price).toFixed(2)} € | TVA: {Number(item.tva).toFixed(2)}%
+                                            {(() => {
+                                              const unit = item.qty_unit || 'unite';
+                                              const qty = Number(item.qty) || 0;
+                                              let label = 'unités';
+                                              if (unit === 'meter') label = 'm';
+                                              else if (unit === 'ensemble') label = qty === 1 ? 'ensemble' : 'ensembles';
+                                              else label = qty === 1 ? 'unité' : 'unités';
+                                              return `${t('qty') || 'Qté'}: ${qty} ${label} × ${Number(item.unit_price).toFixed(2)} € | TVA: ${Number(item.tva).toFixed(2)}%`;
+                                            })()}
                                           </Typography>
                                         </Box>
                                         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
@@ -1101,6 +1153,7 @@ const Devis = () => {
                                 items: (itemsByDevis[row.id] || []).map(it => ({
                                   description: it.description,
                                   qty: Number(it.qty) || 0,
+                                  qty_unit: it.qty_unit || 'unite',
                                   unit_price: Number(it.unit_price) || 0,
                                   tva: Number(it.tva) || 0,
                                   total_ht: Number(it.total_ht) || ((Number(it.qty)||0)*(Number(it.unit_price)||0))
@@ -1279,9 +1332,19 @@ const Devis = () => {
                     />
                     <label htmlFor="devis_description">{t('description')}</label>
                   </div>
-                  <div className="form-group">
-                    <input id="devis_qty" name="qty" type="number" min="0" value={detailsForm.qty} onChange={handleDetailsChange} placeholder=" " required />
-                    <label htmlFor="devis_qty">{t('qty')}</label>
+                  <div className="form-group" style={{ display: 'flex', gap: '0.5rem', alignItems: 'flex-end' }}>
+                    <div style={{ flex: 1 }}>
+                      <input id="devis_qty" name="qty" type="number" min="0" value={detailsForm.qty} onChange={handleDetailsChange} placeholder=" " required />
+                      <label htmlFor="devis_qty">{t('qty')}</label>
+                    </div>
+                    <div style={{ minWidth: '120px' }}>
+                      <select id="devis_qty_unit" name="qty_unit" value={detailsForm.qty_unit || 'unite'} onChange={handleDetailsChange}>
+                        <option value="unite">Unité</option>
+                        <option value="ensemble">Ensemble</option>
+                        <option value="meter">m</option>
+                      </select>
+                      <label htmlFor="devis_qty_unit">Unit</label>
+                    </div>
                   </div>
                   <div className="form-group">
                     <input id="devis_unit_price" name="unit_price" type="number" min="0" step="0.01" value={detailsForm.unit_price} onChange={handleDetailsChange} placeholder=" " required />

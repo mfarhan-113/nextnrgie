@@ -60,7 +60,7 @@ const resources = {
       dueDate: 'Due Date',
       totalHT: 'Total HT',
       totalTTC: 'Total TTC',
-      tva: 'VAT',
+      tva: 'TVA',
       actions: 'Actions',
       view: 'View',
       edit: 'Edit',

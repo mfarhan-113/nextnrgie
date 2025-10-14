@@ -11,6 +11,7 @@ class Facture(Base):
     invoice_id = Column(Integer, ForeignKey("invoices.id"), nullable=True)
     description = Column(String(500), nullable=False)
     qty = Column(Float, nullable=False)
+    qty_unit = Column(String(20), nullable=False, default="unite")
     unit_price = Column(Float, nullable=False)
     tva = Column(Float, nullable=False)
     total_ht = Column(Float, nullable=False)
