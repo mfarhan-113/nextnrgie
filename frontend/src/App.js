@@ -1,4 +1,5 @@
 import React from 'react';
+import axios from 'axios';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { ThemeProvider } from '@mui/material/styles';
 import CssBaseline from '@mui/material/CssBaseline';
@@ -13,6 +14,8 @@ import ProtectedRoute from './components/ProtectedRoute';
 import { AuthProvider } from './firebase/AuthContext';
 import { app } from './firebase/init';
 import './responsive.css'; // Import the responsive CSS
+import { API_BASE_URL } from './config/api';
+axios.defaults.baseURL = API_BASE_URL;
 
 // Lazy load pages
 const Clients = React.lazy(() => import('./pages/Clients'));
@@ -42,6 +45,8 @@ const ResponsiveLayout = ({ children }) => {
     </div>
   );
 };
+
+
 
 function App() {
   return (
