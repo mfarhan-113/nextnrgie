@@ -111,6 +111,8 @@ jobs:
         host: ${{ secrets.PROD_HOST }}
         username: ${{ secrets.PROD_USER }}
         key: ${{ secrets.PROD_SSH_KEY }}
+        timeout: 2m
+        command_timeout: 20m
         script: |
           mkdir -p /opt/nextnrgie
 
@@ -138,6 +140,8 @@ jobs:
         host: ${{ secrets.PROD_HOST }}
         username: ${{ secrets.PROD_USER }}
         key: ${{ secrets.PROD_SSH_KEY }}
+        timeout: 2m
+        command_timeout: 20m
         script: |
           set -e
           mkdir -p /opt/nextnrgie
@@ -160,6 +164,8 @@ jobs:
         host: ${{ secrets.PROD_HOST }}
         username: ${{ secrets.PROD_USER }}
         key: ${{ secrets.PROD_SSH_KEY }}
+        timeout: 2m
+        command_timeout: 20m
         script: |
           set -e
           cd /opt/nextnrgie
