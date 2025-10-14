@@ -43,8 +43,9 @@ jobs:
       env:
         DATABASE_URL: mysql+pymysql://nextnrgie_user:Paki7stan8%23paki@127.0.0.1:3306/nextnrgie_prod
       run: |
-        pip install pytest pytest-cov
-        pytest --cov=./ --cov-report=xml
+        pip install pytest pytest-cov python-dotenv
+        cd backend
+        python -m pytest test_db.py -v
     
     - name: Upload coverage to Codecov
       uses: codecov/codecov-action@v3
