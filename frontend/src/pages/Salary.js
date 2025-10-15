@@ -470,7 +470,7 @@ const Salary = () => {
                 <Box display="flex" alignItems="center" justifyContent="space-between">
                   <Box>
                     <Typography variant="h4" fontWeight={700}>
-                      ${salaries.reduce((sum, s) => sum + (parseFloat(s.total_salary) || 0), 0).toFixed(0)}
+                      €{salaries.reduce((sum, s) => sum + (parseFloat(s.total_salary) || 0), 0).toFixed(0)}
                     </Typography>
                     <Typography variant="body2" sx={{ opacity: 0.8 }}>
                       {t('total_payroll') || 'Total Payroll'}
@@ -574,20 +574,14 @@ const Salary = () => {
                         </Box>
                       </TableCell>
                       <TableCell>
-                        <Box display="flex" alignItems="center">
-                          <AttachMoneyIcon fontSize="small" sx={{ mr: 0.5, color: 'success.main' }} />
-                          <Typography variant="body2" color="success.main">
-                            ${parseFloat(salary.salary_per_day).toFixed(2)}
-                          </Typography>
-                        </Box>
+                        <Typography variant="body2" color="success.main">
+                          €{parseFloat(salary.salary_per_day).toFixed(2)}
+                        </Typography>
                       </TableCell>
                       <TableCell align="right">
-                        <Box display="flex" alignItems="center" justifyContent="flex-end">
-                          <AttachMoneyIcon fontSize="small" sx={{ mr: 0.5, color: 'success.main' }} />
-                          <Typography variant="body2" fontWeight={600} color="success.main">
-                            ${parseFloat(salary.total_salary).toFixed(2)}
-                          </Typography>
-                        </Box>
+                        <Typography variant="body2" fontWeight={600} color="success.main">
+                          €{parseFloat(salary.total_salary).toFixed(2)}
+                        </Typography>
                       </TableCell>
                       <TableCell align="right">
                         <Box display="flex" justifyContent="flex-end" className="action-buttons" sx={{ opacity: 0.7, gap: 1 }}>
@@ -645,7 +639,7 @@ const Salary = () => {
             onPageChange={handleChangePage}
             onRowsPerPageChange={handleChangeRowsPerPage}
             sx={{
-              borderTop: `1px solid ${theme.palette.divider}`,
+              borderTop: `1px solid {theme.palette.divider}`,
               '& .MuiTablePagination-toolbar': {
                 padding: 2,
               },

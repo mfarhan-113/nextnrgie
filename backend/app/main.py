@@ -1,6 +1,10 @@
 from fastapi import FastAPI, APIRouter
 from fastapi.middleware.cors import CORSMiddleware
-from app.routes import dashboard, client, contract, contract_detail, facture, salary, auth, pdf, misc, invoice  # All routes
+from app.routes import (
+    auth_router, client_router, contract_router, contract_detail_router,
+    dashboard_router, facture_router, invoice_router, misc_router,
+    pdf_router, salary_router
+)
 
 app = FastAPI()
 
@@ -23,16 +27,17 @@ app.add_middleware(
 # Include all routers with /api prefix
 api_router = APIRouter(prefix="/api")
 
-api_router.include_router(dashboard.router)
-api_router.include_router(client.router)
-api_router.include_router(contract.router)
-api_router.include_router(contract_detail.router)
-api_router.include_router(facture.router)
-api_router.include_router(salary.router)
-api_router.include_router(auth.router)
-api_router.include_router(pdf.router)
-api_router.include_router(misc.router)
-api_router.include_router(invoice.router)
+# Include all routers
+api_router.include_router(dashboard_router)
+api_router.include_router(client_router)
+api_router.include_router(contract_router)
+api_router.include_router(contract_detail_router)
+api_router.include_router(facture_router)
+api_router.include_router(salary_router)
+api_router.include_router(auth_router)
+api_router.include_router(pdf_router)
+api_router.include_router(misc_router)
+api_router.include_router(invoice_router)
 
 app.include_router(api_router)
 

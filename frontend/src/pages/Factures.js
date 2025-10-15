@@ -198,6 +198,61 @@ const Factures = () => {
   // Total pages
   const totalPages = Math.ceil(filteredInvoices.length / itemsPerPage);
   
+  // Create a new invoice for a contract
+  const createInvoiceForContract = (contractId) => {
+    const contract = contractsById[contractId];
+    if (!contract) return;
+
+    // Generate a unique ID for the new invoice
+    const newInvoiceId = `inv-${Date.now()}`;
+    const today = new Date().toISOString().split('T')[0];
+    
+    const newInvoice = {
+      id: newInvoiceId,
+      contractId: contractId,
+      name: `INV-${contract.command_number || contractId}-${new Date().getFullYear()}`,
+      date: today,
+      dueDate: today // Will be updated when items are added
+    };
+
+    // Add the new invoice to the list
+    setCreatedInvoices(prev => [...prev, newInvoice]);
+    
+    // Initialize empty items array for this invoice
+    setItemsByInvoice(prev => ({
+      ...prev,
+      [newInvoiceId]: []
+    }));
+    
+    // Select the new invoice
+    setSelectedInvoiceId(newInvoiceId);
+    
+    // Show success message
+    setToast(t('invoice_created') || 'Invoice created successfully!');
+    setTimeout(() => setToast(''), 2500);
+  };
+
+  // Delete an invoice
+  const deleteInvoice = (invoiceId) => {
+    if (window.confirm(t('confirm_delete_invoice') || 'Are you sure you want to delete this invoice?')) {
+      setCreatedInvoices(prev => prev.filter(inv => inv.id !== invoiceId));
+      
+      // Also delete its items
+      setItemsByInvoice(prev => {
+        const newItems = { ...prev };
+        delete newItems[invoiceId];
+        return newItems;
+      });
+      
+      if (selectedInvoiceId === invoiceId) {
+        setSelectedInvoiceId('');
+      }
+      
+      setToast(t('invoice_deleted') || 'Invoice deleted successfully!');
+      setTimeout(() => setToast(''), 2500);
+    }
+  };
+
   // Handle page change
   const handlePageChange = (event, value) => {
     setCurrentPage(value);
@@ -212,7 +267,9 @@ const Factures = () => {
   // Persistence helpers (localStorage with cookie fallback)
   const persist = useMemo(() => ({
     get: (key) => {
-      try {
+      let tempPriceSet = false;
+    let originalPrice = undefined;
+    try {
         const v = localStorage.getItem(key);
         if (v) return v;
       } catch {}
@@ -237,6 +294,11 @@ const Factures = () => {
       } catch {}
     }
   }), []);
+
+  // Fetch contracts on component mount
+  useEffect(() => {
+    fetchContracts();
+  }, []);
 
   // Hydrate from localStorage on mount
   useEffect(() => {
@@ -285,47 +347,9 @@ const Factures = () => {
         byId[c.id] = c;
       });
       setContractsById(byId);
-    } catch (err) {
-      console.error('Error fetching contracts:', err);
+    } catch (error) {
+      console.error('Error fetching contracts:', error);
       setError(t('failed_to_load_contracts') || 'Failed to load contracts');
-    }
-  };
-
-  useEffect(() => {
-    fetchContracts();
-  }, []);
-
-  // Create new invoice for a contract
-  const createInvoiceForContract = (contractId) => {
-    const newInvoice = {
-      id: `INV-${Date.now()}`,
-      name: `Invoice ${createdInvoices.length + 1}`,
-      contractId: String(contractId),
-      date: new Date().toISOString().split('T')[0],
-      dueDate: ''
-    };
-    setCreatedInvoices(prev => [...prev, newInvoice]);
-    setSelectedInvoiceId(newInvoice.id);
-    setToast(t('invoice_created') || 'Invoice created successfully!');
-    setTimeout(() => setToast(''), 2500);
-  };
-
-  // Delete an invoice
-  const deleteInvoice = (invoiceId) => {
-    if (window.confirm(t('confirm_delete_invoice') || 'Are you sure you want to delete this invoice?')) {
-      setCreatedInvoices(prev => prev.filter(inv => inv.id !== invoiceId));
-      // Also delete its items
-      setItemsByInvoice(prev => {
-        const newItems = { ...prev };
-        delete newItems[invoiceId];
-        try { persist.set('itemsByInvoice', JSON.stringify(newItems)); } catch {}
-        return newItems;
-      });
-      if (selectedInvoiceId === invoiceId) {
-        setSelectedInvoiceId('');
-      }
-      setToast(t('invoice_deleted') || 'Invoice deleted successfully!');
-      setTimeout(() => setToast(''), 2500);
     }
   };
 
@@ -556,6 +580,8 @@ const Factures = () => {
   const generateInvoicePDF = async (invoice) => {
     const contract = contractsById[invoice.contractId];
     const items = itemsByInvoice[invoice.id] || [];
+    let tempPriceSet = false;
+    let originalPrice;
     
     if (!contract) {
       setToast(t('contract_not_found') || 'Contract not found');
@@ -579,24 +605,36 @@ const Factures = () => {
       // STEP 1: First, ensure contract has enough capacity by setting price to a large value
       // This prevents validation errors when adding items
       const TEMP_LARGE_PRICE = 999999; // Temporary large value
+      originalPrice = contract.price;
       await axios.put(getApiUrl(`contracts/${invoice.contractId}`), {
         ...contract,
         price: TEMP_LARGE_PRICE
       });
+      tempPriceSet = true;
       
       // STEP 2: Delete ALL existing factures for this contract
       try {
-        const existingFactures = await axios.get(getApiUrl(`factures/contract/${invoice.contractId}`));
-        for (const facture of existingFactures.data) {
-          await axios.delete(getApiUrl(`factures/${facture.id}`));
+        const existingFactures = await axios.get(getApiUrl(`/factures/contract/${invoice.contractId}`), {
+          validateStatus: function (status) {
+            return status === 200 || status === 404; // Resolve only if the status code is 200 or 404
+          }
+        });
+        
+        // If we have factures, delete them
+        if (existingFactures.data && existingFactures.data.length > 0) {
+          for (const facture of existingFactures.data) {
+            await axios.delete(getApiUrl(`factures/${facture.id}`));
+          }
+        } else {
+          console.log('No existing factures to delete');
         }
       } catch (e) {
-        console.log('No existing factures to delete');
+        console.log('Error checking for existing factures:', e.message);
       }
 
       // STEP 3: Add ONLY current invoice items to factures table
       for (const item of currentItems) {
-        await axios.post(getApiUrl('factures'), {
+        await axios.post(getApiUrl('/factures/'), {
           contract_id: parseInt(invoice.contractId),
           description: item.description,
           qty: Number(item.qty) || 0,
@@ -607,24 +645,21 @@ const Factures = () => {
         });
       }
 
-      // STEP 4: Call GET endpoint to generate PDF using the invoice ID
+      // STEP 4: Generate PDF using the contract ID directly
+      // Use backend endpoint /pdf/estimate/{contract_id}
       const res = await axios.get(
-        getPdfUrl(`/pdf/invoice/${invoice.id}`),
+        getApiUrl(`pdf/estimate/${invoice.contractId}`),
         { 
           responseType: 'blob',
           headers: { 'Accept': 'application/pdf' }
         }
       );
+      
+      if (!res.data) {
+        throw new Error('No PDF data received from server');
+      }
 
-      // STEP 5: Restore ORIGINAL contract price (from contractsById, not from contract variable)
-      const originalContract = contractsById[invoice.contractId];
-      await axios.put(getApiUrl(`contracts/${invoice.contractId}`), {
-        ...contract,
-        price: originalContract.price // Use original price from state
-      });
-
-      // Refresh contracts to get updated data
-      fetchContracts();
+      // Success path continues
 
       // Open PDF in new tab
       const blob = new Blob([res.data], { type: 'application/pdf' });
@@ -640,9 +675,24 @@ const Factures = () => {
       console.error('Failed to generate PDF', err);
       setToast(t('error_generating_pdf') || 'Failed to generate PDF');
       setTimeout(() => setToast(''), 2500);
+    } finally {
+      // Always attempt to restore original contract price if we changed it
+      try {
+        if (tempPriceSet) {
+          await axios.put(getApiUrl(`contracts/${invoice.contractId}`), {
+            ...contract,
+            price: originalPrice
+          });
+          // Refresh contracts to get updated data
+          fetchContracts();
+        }
+      } catch (e) {
+        console.error('Failed to restore original contract price', e);
+      }
     }
   };
 
+  // Main component return
   return (
     <Box sx={{ 
       display: 'flex', 
@@ -1259,9 +1309,6 @@ const Factures = () => {
                           sx={{
                             '& .MuiOutlinedInput-notchedOutline': {
                               borderColor: alpha('#9c27b0', 0.3),
-                            },
-                            '&:hover .MuiOutlinedInput-notchedOutline': {
-                              borderColor: '#9c27b0',
                             },
                             '&.Mui-focused .MuiOutlinedInput-notchedOutline': {
                               borderColor: '#9c27b0',

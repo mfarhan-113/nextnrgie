@@ -184,6 +184,8 @@ const Balance = () => {
   const [contracts, setContracts] = useState([]);
 
   const fetchContracts = async () => {
+    let tempPriceSet = false;
+    let originalPrice;
     try {
       const res = await axios.get(getApiUrl('contracts/'));
       setContracts(res.data || []);
@@ -192,27 +194,38 @@ const Balance = () => {
     }
   };
 
+  // Helper: detect localStorage invoices reliably (case-insensitive 'inv-')
+  const isLocalStorageInvoice = (id) => {
+    if (!id) return false;
+    const s = String(id);
+    return s.toLowerCase().startsWith('inv-');
+  };
+
   const fetchInvoices = async () => {
     setLoading(true);
     try {
-      // First try to get from localStorage (created in Factures page)
+      // Prefer backend invoices so DB statuses (paid/unpaid) are accurate
+      const res = await axios.get(getApiUrl('invoices/'));
+      const backendInvoices = Array.isArray(res.data) ? res.data : [];
+      if (backendInvoices.length > 0) {
+        setInvoices(backendInvoices);
+        return;
+      }
+
+      // Fallback to localStorage if backend has none
       const savedInvoices = localStorage.getItem('createdInvoices');
       const savedItems = localStorage.getItem('itemsByInvoice');
-      const savedStatuses = localStorage.getItem('invoiceStatuses'); // NEW: Get saved statuses
-      
+      const savedStatuses = localStorage.getItem('invoiceStatuses');
+
       if (savedInvoices && savedItems) {
         const invoicesList = JSON.parse(savedInvoices);
         const itemsByInvoice = JSON.parse(savedItems);
-        const invoiceStatuses = savedStatuses ? JSON.parse(savedStatuses) : {}; // NEW: Parse statuses
-        
-        // Transform to match the expected format
+        const invoiceStatuses = savedStatuses ? JSON.parse(savedStatuses) : {};
+
         const transformedInvoices = invoicesList.map(inv => {
           const items = itemsByInvoice[inv.id] || [];
           const totalAmount = items.reduce((sum, item) => sum + (parseFloat(item.total_ht) || 0), 0);
-          
-          // Get saved status or default to unpaid
           const savedStatus = invoiceStatuses[inv.id] || { status: 'unpaid', paid_amount: 0 };
-          
           return {
             id: inv.id,
             invoice_number: inv.name,
@@ -225,15 +238,43 @@ const Balance = () => {
             items: items
           };
         });
-        
         setInvoices(transformedInvoices);
       } else {
-        // Fallback to API
-        const res = await axios.get(getApiUrl('invoices/'));
-        setInvoices(res.data || []);
+        setInvoices([]);
       }
     } catch {
-      setInvoices([]);
+      // If API fails, fallback to localStorage
+      try {
+        const savedInvoices = localStorage.getItem('createdInvoices');
+        const savedItems = localStorage.getItem('itemsByInvoice');
+        const savedStatuses = localStorage.getItem('invoiceStatuses');
+        if (savedInvoices && savedItems) {
+          const invoicesList = JSON.parse(savedInvoices);
+          const itemsByInvoice = JSON.parse(savedItems);
+          const invoiceStatuses = savedStatuses ? JSON.parse(savedStatuses) : {};
+          const transformedInvoices = invoicesList.map(inv => {
+            const items = itemsByInvoice[inv.id] || [];
+            const totalAmount = items.reduce((sum, item) => sum + (parseFloat(item.total_ht) || 0), 0);
+            const savedStatus = invoiceStatuses[inv.id] || { status: 'unpaid', paid_amount: 0 };
+            return {
+              id: inv.id,
+              invoice_number: inv.name,
+              contract_id: inv.contractId,
+              amount: totalAmount,
+              paid_amount: savedStatus.paid_amount || 0,
+              status: savedStatus.status || 'unpaid',
+              due_date: inv.dueDate || inv.date,
+              date: inv.date,
+              items: items
+            };
+          });
+          setInvoices(transformedInvoices);
+        } else {
+          setInvoices([]);
+        }
+      } catch {
+        setInvoices([]);
+      }
     } finally {
       setLoading(false);
     }
@@ -283,10 +324,8 @@ const Balance = () => {
 
   // Action handlers
   const handleViewPDF = (invoice) => {
-    // Check if this is a localStorage invoice
-    const isLocalStorageInvoice = invoice.id && String(invoice.id).startsWith('INV-');
-    
-    if (isLocalStorageInvoice) {
+    // LocalStorage invoice?
+    if (isLocalStorageInvoice(invoice.id)) {
       // Generate PDF for localStorage invoice
       generateLocalInvoicePDF(invoice);
       return;
@@ -296,10 +335,7 @@ const Balance = () => {
   };
   
   const handleDownloadPDF = (invoice) => {
-    // Check if this is a localStorage invoice
-    const isLocalStorageInvoice = invoice.id && String(invoice.id).startsWith('INV-');
-    
-    if (isLocalStorageInvoice) {
+    if (isLocalStorageInvoice(invoice.id)) {
       // Generate PDF for localStorage invoice
       generateLocalInvoicePDF(invoice);
       return;
@@ -312,6 +348,8 @@ const Balance = () => {
 
   // Generate PDF for localStorage invoices using backend API
   const generateLocalInvoicePDF = async (invoice) => {
+    let tempPriceSet = false;
+    let originalPrice;
     const contract = contracts.find(c => String(c.id) === String(invoice.contract_id));
     const items = invoice.items || [];
     
@@ -333,11 +371,12 @@ const Balance = () => {
       
       // STEP 1: First, ensure contract has enough capacity by setting price to a large value
       const TEMP_LARGE_PRICE = 999999;
-      const originalPrice = contract.price;
+      originalPrice = contract.price;
       await axios.put(getApiUrl(`contracts/${invoice.contract_id}`), {
         ...contract,
         price: TEMP_LARGE_PRICE
       });
+      tempPriceSet = true;
       
       // STEP 2: Delete ALL existing factures for this contract
       try {
@@ -368,12 +407,6 @@ const Balance = () => {
         { responseType: 'blob' }
       );
 
-      // STEP 5: Restore ORIGINAL contract price
-      await axios.put(getApiUrl(`contracts/${invoice.contract_id}`), {
-        ...contract,
-        price: originalPrice
-      });
-
       // Open PDF in new tab
       const blob = new Blob([res.data], { type: 'application/pdf' });
       const url = window.URL.createObjectURL(blob);
@@ -384,17 +417,28 @@ const Balance = () => {
       console.error('Failed to generate PDF', err);
       setToast('Failed to generate PDF');
       setTimeout(() => setToast(''), 2500);
+    } finally {
+      // Always attempt to restore original contract price if we changed it
+      try {
+        if (tempPriceSet) {
+          await axios.put(getApiUrl(`contracts/${invoice.contract_id}`), {
+            ...contract,
+            price: originalPrice
+          });
+        }
+      } catch (e) {
+        console.error('Failed to restore original contract price', e);
+      }
     }
   };
   const handleDelete = async (invoice) => {
     if (!window.confirm(t('delete_confirm_invoice'))) return;
     
-    // Check if this is a localStorage invoice
-    const isLocalStorageInvoice = invoice.id && String(invoice.id).startsWith('INV-');
-    
+    // LocalStorage invoice?
+    const local = isLocalStorageInvoice(invoice.id);
     setLoading(true);
     try {
-      if (isLocalStorageInvoice) {
+      if (local) {
         // Delete from localStorage
         const savedInvoices = localStorage.getItem('createdInvoices');
         const savedItems = localStorage.getItem('itemsByInvoice');
@@ -429,8 +473,8 @@ const Balance = () => {
   };
 
   const handleStatusChange = async (invoice, newStatus) => {
-    // Check if this is a localStorage invoice (starts with INV-)
-    const isLocalStorageInvoice = invoice.id && String(invoice.id).startsWith('INV-');
+    // LocalStorage invoice?
+    const local = isLocalStorageInvoice(invoice.id);
     
     setLoading(true);
     try {
@@ -444,7 +488,7 @@ const Balance = () => {
         paidAmount = invoice.amount / 2; // Default to half for partial
       }
 
-      if (isLocalStorageInvoice) {
+      if (local) {
         // For localStorage invoices, just update local state
         setInvoices(prevInvoices =>
           prevInvoices.map(inv =>

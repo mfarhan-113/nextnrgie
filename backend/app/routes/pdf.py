@@ -1,5 +1,5 @@
 import logging
-from fastapi import APIRouter, Depends, HTTPException, Response
+from fastapi import APIRouter, Depends, HTTPException, Response, Request
 from sqlalchemy.orm import Session
 from sqlalchemy import event, select
 from sqlalchemy.engine import Engine
@@ -62,19 +62,135 @@ def receive_after_cursor_execute(conn, cursor, statement, params, context, execu
 
 router = APIRouter(prefix="/pdf", tags=["pdf"])
 
+@router.get("/generate_devis")
+async def generate_devis_pdf_get(
+    request: Request,
+    name: str = "Devis",
+    devis_number: str = None,
+    expiration: str = None,
+    db: Session = Depends(get_db)
+):
+    """
+    Generate a Devis PDF from query parameters.
+    This endpoint is kept for backward compatibility with the frontend.
+    """
+    from urllib.parse import unquote
+    
+    # Parse query parameters
+    query_params = dict(request.query_params)
+    
+    # Log incoming request
+    logger.info(f"Received PDF generation request with params: {query_params}")
+    
+    # Debug: Print all query parameters
+    logger.info("\n=== Raw Query Parameters ===")
+    for key, value in query_params.items():
+        logger.info(f"{key}: {value}")
+        
+    # Parse client and items from query parameters
+    client = {}
+    items = []
+    
+    # Extract client info
+    client_keys = ['name', 'email', 'phone', 'tva', 'tsa_number', 'client_address']
+    for key in client_keys:
+        param_key = f'client[{key}]'
+        if param_key in query_params:
+            client[key] = query_params[param_key]
+            
+    # Extract items (handle both indexed and non-indexed items)
+    item_count = 0
+    while True:
+        item_found = False
+        item = {}
+        item_keys = ['description', 'qty', 'qty_unit', 'unit_price', 'tva', 'total_ht']
+        
+        for key in item_keys:
+            # Try indexed parameter first (items[0][description])
+            param_key = f'items[{item_count}][{key}]'
+            if param_key in query_params:
+                item[key] = query_params[param_key]
+                item_found = True
+                
+        if not item_found and item_count == 0:
+            # Try non-indexed parameters (items[description])
+            for key in item_keys:
+                param_key = f'items[{key}]'
+                if param_key in query_params:
+                    item[key] = query_params[param_key]
+                    item_found = True
+                    
+        if not item_found:
+            break
+            
+        # Convert numeric fields to appropriate types
+        if 'qty' in item:
+            try:
+                item['qty'] = float(item['qty'])
+            except (ValueError, TypeError):
+                item['qty'] = 0.0
+                
+        if 'unit_price' in item:
+            try:
+                item['unit_price'] = float(item['unit_price'])
+            except (ValueError, TypeError):
+                item['unit_price'] = 0.0
+                
+        if 'tva' in item:
+            try:
+                item['tva'] = float(item['tva'])
+            except (ValueError, TypeError):
+                item['tva'] = 0.0
+                
+        if 'total_ht' in item:
+            try:
+                item['total_ht'] = float(item['total_ht'])
+            except (ValueError, TypeError):
+                item['total_ht'] = 0.0
+            
+        items.append(item)
+        item_count += 1
+        
+    # Prepare payload for internal function
+    payload = {
+        'name': name,
+        'devis_number': devis_number,
+        'expiration': expiration,
+        'client': client,
+        'items': items
+    }
+    
+    logger.info("\n=== Final Payload ===")
+    logger.info(payload)
+    
+    # Call the internal function with the parsed payload
+    return await generate_devis_pdf(payload)
+
 @router.get("/invoice/{invoice_id}")
-def generate_invoice_pdf(invoice_id: int, db: Session = Depends(get_db)):
+async def generate_invoice_pdf(invoice_id: str, db: Session = Depends(get_db)):
     from reportlab.lib.utils import ImageReader
     import os
+    import re
 
     logger.info(f"\n=== Starting PDF Generation for Invoice ID: {invoice_id} ===")
     
+    # Extract numeric ID if the input has "INV-" prefix
+    numeric_id = invoice_id
+    if isinstance(invoice_id, str) and invoice_id.startswith("INV-"):
+        numeric_id = re.sub(r'^INV-', '', invoice_id)
+    
+    try:
+        numeric_id = int(numeric_id)
+    except (ValueError, TypeError):
+        logger.error(f"Invalid invoice ID format: {invoice_id}")
+        raise HTTPException(status_code=400, detail="Invalid invoice ID format. Expected format: number or 'INV-{number}'")
+    
     # Log the SQL query for invoice
     logger.info("\n[1/3] Fetching invoice data...")
-    result = db.execute(select(Invoice).where(Invoice.id == invoice_id))
+    result = db.execute(select(Invoice).where(Invoice.id == numeric_id))
     invoice = result.scalars().first()
     if not invoice:
-        logger.error(f"Invoice with ID {invoice_id} not found")
+        logger.error(f"Invoice with ID {numeric_id} not found")
         raise HTTPException(status_code=404, detail="Invoice not found")
         
     logger.info(f"Found invoice: ID={invoice.id}, Contract ID={invoice.contract_id}")
@@ -1138,7 +1254,7 @@ def generate_facture_pdf(facture_data: dict, db: Session = Depends(get_db)):
     })
 
 @router.post("/devis")
-def generate_devis_pdf(payload: dict):
+async def generate_devis_pdf(payload: dict):
     """
     Generate a Devis PDF from a payload (client + items).
     Expected payload format:

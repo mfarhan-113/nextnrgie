@@ -4,7 +4,7 @@ from typing import List, Optional
 from .. import models, schemas, crud
 from ..core.database import get_db
 
-router = APIRouter(prefix="/api/factures", tags=["factures"])
+router = APIRouter(prefix="/factures", tags=["factures"])
 
 @router.post("/", response_model=schemas.Facture, status_code=status.HTTP_201_CREATED)
 def create_facture(facture: schemas.FactureCreate, db: Session = Depends(get_db)):
@@ -45,6 +45,7 @@ def read_factures_by_contract(
 ):
     """
     Get all factures for a specific contract.
+    Returns an empty list if no factures are found.
     """
     # Verify contract exists
     db_contract = db.query(models.Contract).filter(models.Contract.id == contract_id).first()
@@ -53,31 +54,13 @@ def read_factures_by_contract(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Contract with id {contract_id} not found"
         )
-    
+        
     factures = crud.get_factures_by_contract(
-        db, 
-        contract_id=contract_id, 
-        skip=skip, 
-        limit=limit
+        db, contract_id=contract_id, skip=skip, limit=limit
     )
-    return factures
-
-@router.put("/{facture_id}", response_model=schemas.Facture)
-def update_facture(
-    facture_id: int, 
-    facture: schemas.FactureUpdate, 
-    db: Session = Depends(get_db)
-):
-    """
-    Update a facture.
-    """
-    db_facture = crud.update_facture(db, facture_id=facture_id, facture=facture)
-    if db_facture is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Facture with id {facture_id} not found"
-        )
-    return db_facture
+    
+    # Return empty list if no factures found (no 404 error)
+    return factures or []
 
 @router.delete("/{facture_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_facture(facture_id: int, db: Session = Depends(get_db)):

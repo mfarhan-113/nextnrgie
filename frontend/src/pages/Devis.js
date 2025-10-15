@@ -1161,9 +1161,76 @@ const Devis = () => {
                                   total_ht: Number(it.total_ht) || ((Number(it.qty)||0)*(Number(it.unit_price)||0))
                                 }))
                               };
-                              const res = await axios.post(getPdfUrl('/pdf/devis'), payload, {
+                              // Convert payload to query parameters
+                              const queryParams = new URLSearchParams();
+                              
+                              // Add name and other top-level fields
+                              queryParams.append('name', payload.name || 'Devis');
+                              if (payload.devis_number) {
+                                queryParams.append('devis_number', payload.devis_number);
+                              }
+                              if (payload.expiration) {
+                                queryParams.append('expiration', payload.expiration);
+                              }
+                              
+                              // Add client details
+                              if (payload.client) {
+                                // Ensure all client fields are properly encoded
+                                const clientFields = {
+                                  'name': payload.client.name || '',
+                                  'email': payload.client.email || '',
+                                  'phone': payload.client.phone || '',
+                                  'tva': payload.client.tva || '',
+                                  'tsa_number': payload.client.tsa_number || '',
+                                  'client_address': payload.client.client_address || ''
+                                };
+                                
+                                // Add client fields to query params
+                                Object.entries(clientFields).forEach(([key, value]) => {
+                                  if (value !== undefined && value !== null && value !== '') {
+                                    queryParams.append(`client[${key}]`, value);
+                                  }
+                                });
+                              }
+                              
+                              // Add items
+                              if (payload.items && Array.isArray(payload.items)) {
+                                payload.items.forEach((item, index) => {
+                                  const itemFields = {
+                                    'description': item.description || '',
+                                    'qty': item.qty || 0,
+                                    'qty_unit': item.qty_unit || 'unite',
+                                    'unit_price': item.unit_price || 0,
+                                    'tva': item.tva || 0,
+                                    'total_ht': item.total_ht || 0
+                                  };
+                                  
+                                  // Add item fields to query params
+                                  Object.entries(itemFields).forEach(([key, value]) => {
+                                    if (value !== undefined && value !== null) {
+                                      queryParams.append(`items[${index}][${key}]`, value);
+                                    }
+                                  });
+                                });
+                              }
+                              
+                              // Log the payload and URL for debugging
+                              console.log('Full Payload:', JSON.stringify(payload, null, 2));
+                              const pdfUrl = `${getApiUrl('pdf/generate_devis')}?${queryParams.toString()}`;
+                              console.log('PDF Generation URL:', pdfUrl);
+                              console.log('Query Parameters:');
+                              queryParams.forEach((value, key) => {
+                                console.log(`  ${key} = ${value}`);
+                              });
+                              
+                              // Make GET request with query parameters
+                              const res = await axios.get(pdfUrl, { 
                                 responseType: 'blob',
-                                headers: { 'Content-Type': 'application/json' }
+                                headers: { 
+                                  'Accept': 'application/pdf',
+                                  'Cache-Control': 'no-cache',
+                                  'Pragma': 'no-cache'
+                                }
                               });
                               const blob = new Blob([res.data], { type: 'application/pdf' });
                               const url = window.URL.createObjectURL(blob);

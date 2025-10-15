@@ -445,7 +445,7 @@ const Miscellaneous = () => {
                 <Box display="flex" alignItems="center" justifyContent="space-between">
                   <Box>
                     <Typography variant="h4" fontWeight={700}>
-                      ${expenses.reduce((sum, e) => sum + (parseFloat(e.price) * parseFloat(e.units) || 0), 0).toFixed(0)}
+                      €{expenses.reduce((sum, e) => sum + (parseFloat(e.price) * parseFloat(e.units) || 0), 0).toFixed(0)}
                     </Typography>
                     <Typography variant="body2" sx={{ opacity: 0.8 }}>
                       {t('total_value') || 'Total Value'}
@@ -463,7 +463,7 @@ const Miscellaneous = () => {
                 <Box display="flex" alignItems="center" justifyContent="space-between">
                   <Box>
                     <Typography variant="h4" fontWeight={700}>
-                      ${expenses.length > 0 ? (expenses.reduce((sum, e) => sum + (parseFloat(e.price) * parseFloat(e.units) || 0), 0) / expenses.length).toFixed(0) : '0'}
+                      €{expenses.length > 0 ? (expenses.reduce((sum, e) => sum + (parseFloat(e.price) * parseFloat(e.units) || 0), 0) / expenses.length).toFixed(0) : '0'}
                     </Typography>
                     <Typography variant="body2" sx={{ opacity: 0.8 }}>
                       {t('average_cost') || 'Average Cost'}
@@ -556,12 +556,9 @@ const Miscellaneous = () => {
                         </Box>
                       </TableCell>
                       <TableCell>
-                        <Box display="flex" alignItems="center">
-                          <AttachMoneyIcon fontSize="small" sx={{ mr: 0.5, color: 'success.main' }} />
-                          <Typography variant="body2" color="success.main">
-                            ${parseFloat(expense.price).toFixed(2)}
-                          </Typography>
-                        </Box>
+                        <Typography variant="body2" color="success.main">
+                          €{parseFloat(expense.price).toFixed(2)}
+                        </Typography>
                       </TableCell>
                       <TableCell>
                         <Box display="flex" alignItems="center">
@@ -570,12 +567,9 @@ const Miscellaneous = () => {
                         </Box>
                       </TableCell>
                       <TableCell align="right">
-                        <Box display="flex" alignItems="center" justifyContent="flex-end">
-                          <AttachMoneyIcon fontSize="small" sx={{ mr: 0.5, color: 'success.main' }} />
-                          <Typography variant="body2" fontWeight={600} color="success.main">
-                            ${(parseFloat(expense.price) * parseFloat(expense.units)).toFixed(2)}
-                          </Typography>
-                        </Box>
+                        <Typography variant="body2" fontWeight={600} color="success.main">
+                          €{(parseFloat(expense.price) * parseFloat(expense.units)).toFixed(2)}
+                        </Typography>
                       </TableCell>
                       <TableCell>
                         <Typography variant="body2" color="text.secondary">
