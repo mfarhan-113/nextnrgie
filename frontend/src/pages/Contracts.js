@@ -97,6 +97,8 @@ const AddButton = styled(Fab)(({ theme }) => ({
   zIndex: 1000,
 }));
 
+const API_BASE = process.env.REACT_APP_API_URL || '/api';
+
 const Contracts = () => {
   const { t } = useTranslation();
   const navigate = useNavigate();
@@ -167,7 +169,7 @@ const Contracts = () => {
   const fetchContracts = async () => {
     try {
       setLoading(true);
-      const response = await axios.get(`${process.env.REACT_APP_API_URL}/contracts/`);
+      const response = await axios.get(`${API_BASE}/contracts/`);
       setContracts(response.data);
       setError(null);
     } catch (err) {
@@ -186,7 +188,7 @@ const Contracts = () => {
   // Fetch clients from API
   const fetchClients = async () => {
     try {
-      const response = await axios.get(`${process.env.REACT_APP_API_URL}/clients/`);
+      const response = await axios.get(`${API_BASE}/clients/`);
       setClients(response.data);
     } catch (err) {
       console.error('Error fetching clients:', err);
@@ -256,7 +258,7 @@ const Contracts = () => {
     
     try {
       setLoading(true);
-      await axios.delete(`${process.env.REACT_APP_API_URL}/contracts/${deleteModal.contractId}`);
+      await axios.delete(`${API_BASE}/contracts/${deleteModal.contractId}`);
       
       setContracts(contracts.filter(c => c.id !== deleteModal.contractId));
       setToast({
@@ -380,7 +382,7 @@ const Contracts = () => {
       };
       
       const response = await axios.put(
-        `${process.env.REACT_APP_API_URL}/contracts/${editModal.contract.id}`,
+        `${API_BASE}/contracts/${editModal.contract.id}`,
         contractData
       );
       
@@ -446,7 +448,7 @@ const Contracts = () => {
       };
       
       const response = await axios.post(
-        `${process.env.REACT_APP_API_URL}/contracts/`,
+        `${API_BASE}/contracts/`,
         contractData
       );
       

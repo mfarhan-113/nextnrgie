@@ -118,6 +118,8 @@ const AddButton = styled(IconButton)({
   }
 });
 
+const API_BASE = process.env.REACT_APP_API_URL || '/api';
+
 const Devis = () => {
   const { t } = useTranslation();
 
@@ -218,8 +220,8 @@ const Devis = () => {
     const load = async () => {
       try {
         const [clientsRes, contractsRes] = await Promise.all([
-          axios.get(`${process.env.REACT_APP_API_URL}/clients/`, { headers: authHeaders }),
-          axios.get(`${process.env.REACT_APP_API_URL}/contracts/`, { headers: authHeaders })
+          axios.get(`${API_BASE}/clients/`, { headers: authHeaders }),
+          axios.get(`${API_BASE}/contracts/`, { headers: authHeaders })
         ]);
 
         const formattedClients = (clientsRes.data || []).map(c => ({
@@ -329,7 +331,7 @@ const Devis = () => {
       
       try {
         // Try the main endpoint first
-        const url = `${process.env.REACT_APP_API_URL}/contract-details/contracts/${selectedContractId}`;
+        const url = `${API_BASE}/contract-details/contracts/${selectedContractId}`;
         console.log(`Fetching from: ${url}`);
         
         const res = await axios.get(url, { 
@@ -355,7 +357,7 @@ const Devis = () => {
         if (e.response?.status === 404) {
           try {
             console.log('Trying alternative endpoint...');
-            const altUrl = `${process.env.REACT_APP_API_URL}/api/contracts/${selectedContractId}/details`;
+            const altUrl = `${API_BASE}/contracts/${selectedContractId}/details`;
             const altRes = await axios.get(altUrl, { 
               headers: { 
                 ...authHeaders,
@@ -502,7 +504,7 @@ const Devis = () => {
     if (!selectedContractId) return;
     try {
       const res = await axios.get(
-        `${process.env.REACT_APP_API_URL}/contract-details/contract/${selectedContractId}`,
+        `${API_BASE}/contract-details/contract/${selectedContractId}`,
         { headers: authHeaders }
       );
       setDetails(res.data || []);
@@ -541,7 +543,7 @@ const Devis = () => {
       try {
         if (selectedContractId) {
           await axios.post(
-            `${process.env.REACT_APP_API_URL}/contract-details/`,
+            `${API_BASE}/contract-details/`,
             {
               contract_id: parseInt(selectedContractId),
               description: item.description,
