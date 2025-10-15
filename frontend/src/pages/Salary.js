@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import axios from 'axios';
+import { getApiUrl } from '../config/api';
 import {
   Box, Typography, IconButton, Tooltip, CircularProgress, CssBaseline,
   Paper, Table, TableBody, TableCell, TableContainer, TableHead, 
@@ -119,7 +120,7 @@ const Salary = () => {
   const fetchSalaries = async () => {
     try {
       setLoading(true);
-      const res = await axios.get(`${process.env.REACT_APP_API_URL}/salaries/`);
+      const res = await axios.get(getApiUrl('salaries/'));
       setSalaries(Array.isArray(res.data) ? res.data : []);
     } catch (err) {
       console.error('Error fetching salaries:', err);
@@ -186,6 +187,11 @@ const Salary = () => {
     setEditModal({ open: true, salary });
   };
 
+  // Open delete confirmation
+  const handleDeleteClick = (salaryId) => {
+    setDeleteModal({ open: true, salaryId });
+  };
+
   // Handle form changes with auto-calculation
   const handleAddFormChange = (event) => {
     const { name, value } = event.target;
@@ -246,7 +252,7 @@ const Salary = () => {
       };
       
       const response = await axios.post(
-        `${process.env.REACT_APP_API_URL}/salaries/`,
+        getApiUrl('salaries/'),
         salaryData
       );
       
@@ -302,7 +308,7 @@ const Salary = () => {
       };
       
       const response = await axios.put(
-        `${process.env.REACT_APP_API_URL}/salaries/${editModal.salary.id}`,
+        getApiUrl(`salaries/${editModal.salary.id}`),
         salaryData
       );
       
@@ -318,41 +324,27 @@ const Salary = () => {
         message: t('salary_updated_successfully') || 'Salaire mis à jour avec succès',
         severity: 'success'
       });
-      
       setEditModal({ open: false, salary: null });
     } catch (err) {
       console.error('Error updating salary:', err);
       const errorMessage = err.response?.data?.detail || err.message || (t('failed_to_update_salary') || 'Échec de la mise à jour du salaire');
-      setToast({
-        open: true,
-        message: errorMessage,
-        severity: 'error'
-      });
+      setToast({ open: true, message: errorMessage, severity: 'error' });
     } finally {
       setLoading(false);
     }
   };
 
-  // Handle delete click
-  const handleDeleteClick = (salaryId) => {
-    setDeleteModal({ open: true, salaryId });
-  };
-
-  // Handle delete salary
   const handleDelete = async () => {
     if (!deleteModal.salaryId) return;
-    
     try {
       setLoading(true);
-      await axios.delete(`${process.env.REACT_APP_API_URL}/salaries/${deleteModal.salaryId}`);
-      
+      await axios.delete(getApiUrl(`salaries/${deleteModal.salaryId}`));
       setSalaries(salaries.filter(s => s.id !== deleteModal.salaryId));
       setToast({
         open: true,
         message: t('salary_deleted_successfully') || 'Salaire supprimé avec succès',
         severity: 'success'
       });
-      
       setDeleteModal({ open: false, salaryId: null });
     } catch (err) {
       console.error('Error deleting salary:', err);

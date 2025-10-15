@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import axios from 'axios';
+import { getApiUrl } from '../config/api';
 import DeleteIcon from '@mui/icons-material/Delete';
 import VisibilityIcon from '@mui/icons-material/Visibility';
 import DownloadIcon from '@mui/icons-material/Download';
@@ -51,7 +52,7 @@ const Invoices = () => {
   const fetchInvoices = async () => {
     setLoading(true);
     try {
-      const res = await axios.get(`${process.env.REACT_APP_API_URL}/invoices/`);
+      const res = await axios.get(getApiUrl('invoices/'));
       setInvoices(res.data);
     } catch {
       setInvoices([]);
@@ -61,7 +62,7 @@ const Invoices = () => {
   };
   const fetchClients = async () => {
     try {
-      const res = await axios.get(`${process.env.REACT_APP_API_URL}/clients/`);
+      const res = await axios.get(getApiUrl('clients/'));
       setClients(res.data);
     } catch {
       setClients([]);
@@ -87,10 +88,10 @@ const Invoices = () => {
 
   // Action handlers
   const handleViewPDF = (invoice) => {
-    window.open(`${process.env.REACT_APP_API_URL}/pdf/invoice/${invoice.id}`, '_blank');
+    window.open(getApiUrl(`pdf/invoice/${invoice.id}`), '_blank');
   };
   const handleDownloadPDF = (invoice) => {
-    window.open(`${process.env.REACT_APP_API_URL}/pdf/invoice/${invoice.id}`, '_blank');
+    window.open(getApiUrl(`pdf/invoice/${invoice.id}`), '_blank');
     setToast('PDF downloaded');
     setTimeout(() => setToast(''), 2000);
   };
@@ -98,7 +99,7 @@ const Invoices = () => {
     if (!window.confirm('Delete this invoice?')) return;
     setLoading(true);
     try {
-      await axios.delete(`${process.env.REACT_APP_API_URL}/invoices/${invoice.id}`);
+      await axios.delete(getApiUrl(`invoices/${invoice.id}`));
       setToast('Invoice deleted');
       fetchInvoices();
     } catch {

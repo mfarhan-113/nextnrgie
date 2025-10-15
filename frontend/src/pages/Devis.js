@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import axios from 'axios';
 import { useTranslation } from 'react-i18next';
+import { getApiUrl } from '../config/api';
 
 // Material UI
 import Box from '@mui/material/Box';
@@ -118,7 +119,6 @@ const AddButton = styled(IconButton)({
   }
 });
 
-const API_BASE = process.env.REACT_APP_API_URL || '/api';
 
 const Devis = () => {
   const { t } = useTranslation();
@@ -220,8 +220,8 @@ const Devis = () => {
     const load = async () => {
       try {
         const [clientsRes, contractsRes] = await Promise.all([
-          axios.get(`${API_BASE}/clients/`, { headers: authHeaders }),
-          axios.get(`${API_BASE}/contracts/`, { headers: authHeaders })
+          axios.get(getApiUrl('clients/'), { headers: authHeaders }),
+          axios.get(getApiUrl('contracts/'), { headers: authHeaders })
         ]);
 
         const formattedClients = (clientsRes.data || []).map(c => ({
@@ -331,7 +331,7 @@ const Devis = () => {
       
       try {
         // Try the main endpoint first
-        const url = `${API_BASE}/contract-details/contracts/${selectedContractId}`;
+        const url = getApiUrl(`contract-details/contracts/${selectedContractId}`);
         console.log(`Fetching from: ${url}`);
         
         const res = await axios.get(url, { 
@@ -357,7 +357,7 @@ const Devis = () => {
         if (e.response?.status === 404) {
           try {
             console.log('Trying alternative endpoint...');
-            const altUrl = `${API_BASE}/contracts/${selectedContractId}/details`;
+            const altUrl = getApiUrl(`contracts/${selectedContractId}/details`);
             const altRes = await axios.get(altUrl, { 
               headers: { 
                 ...authHeaders,
@@ -504,7 +504,7 @@ const Devis = () => {
     if (!selectedContractId) return;
     try {
       const res = await axios.get(
-        `${API_BASE}/contract-details/contract/${selectedContractId}`,
+        getApiUrl(`contract-details/contract/${selectedContractId}`),
         { headers: authHeaders }
       );
       setDetails(res.data || []);
@@ -543,7 +543,7 @@ const Devis = () => {
       try {
         if (selectedContractId) {
           await axios.post(
-            `${API_BASE}/contract-details/`,
+            getApiUrl('contract-details/'),
             {
               contract_id: parseInt(selectedContractId),
               description: item.description,

@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import axios from 'axios';
 import { useTranslation } from 'react-i18next';
-
+import { getApiUrl } from '../config/api';
 // Material UI
 import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
@@ -119,7 +119,6 @@ const AddButton = styled(IconButton)({
   }
 });
 
-const API_BASE = process.env.REACT_APP_API_URL || '/api';
 
 const Factures = () => {
   const { t } = useTranslation();
@@ -276,7 +275,7 @@ const Factures = () => {
   // Fetch contracts on mount
   const fetchContracts = async () => {
     try {
-      const res = await axios.get(`${API_BASE}/contracts/`);
+      const res = await axios.get(getApiUrl('contracts/'));
       const contractsList = res.data || [];
       setContracts(contractsList);
       
@@ -580,16 +579,16 @@ const Factures = () => {
       // STEP 1: First, ensure contract has enough capacity by setting price to a large value
       // This prevents validation errors when adding items
       const TEMP_LARGE_PRICE = 999999; // Temporary large value
-      await axios.put(`${API_BASE}/contracts/${invoice.contractId}`, {
+      await axios.put(getApiUrl(`contracts/${invoice.contractId}`), {
         ...contract,
         price: TEMP_LARGE_PRICE
       });
       
       // STEP 2: Delete ALL existing factures for this contract
       try {
-        const existingFactures = await axios.get(`${API_BASE}/factures/contract/${invoice.contractId}`);
+        const existingFactures = await axios.get(getApiUrl(`factures/contract/${invoice.contractId}`));
         for (const facture of existingFactures.data) {
-          await axios.delete(`${API_BASE}/factures/${facture.id}`);
+          await axios.delete(getApiUrl(`factures/${facture.id}`));
         }
       } catch (e) {
         console.log('No existing factures to delete');
@@ -597,7 +596,7 @@ const Factures = () => {
 
       // STEP 3: Add ONLY current invoice items to factures table
       for (const item of currentItems) {
-        await axios.post(`${API_BASE}/factures`, {
+        await axios.post(getApiUrl('factures'), {
           contract_id: parseInt(invoice.contractId),
           description: item.description,
           qty: Number(item.qty) || 0,
@@ -610,13 +609,13 @@ const Factures = () => {
 
       // STEP 4: Call GET endpoint to generate PDF (backend uses factures table)
       const res = await axios.get(
-        `${API_BASE}/pdf/estimate/${invoice.contractId}`,
+        getApiUrl(`pdf/estimate/${invoice.contractId}`),
         { responseType: 'blob' }
       );
 
       // STEP 5: Restore ORIGINAL contract price (from contractsById, not from contract variable)
       const originalContract = contractsById[invoice.contractId];
-      await axios.put(`${API_BASE}/contracts/${invoice.contractId}`, {
+      await axios.put(getApiUrl(`contracts/${invoice.contractId}`), {
         ...contract,
         price: originalContract.price // Use original price from state
       });

@@ -14,8 +14,7 @@ import ProtectedRoute from './components/ProtectedRoute';
 import { AuthProvider } from './firebase/AuthContext';
 import { app } from './firebase/init';
 import './responsive.css'; // Import the responsive CSS
-import { API_BASE_URL } from './config/api';
-axios.defaults.baseURL = API_BASE_URL;
+// Note: Do not set axios.defaults.baseURL here; all API calls use getApiUrl() to avoid double prefixing
 
 // Lazy load pages
 const Clients = React.lazy(() => import('./pages/Clients'));

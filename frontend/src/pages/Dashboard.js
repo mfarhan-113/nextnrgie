@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
+import { getApiUrl } from '../config/api';
 import {
   Box, Typography, Grid, Card, CardContent, Paper, Fade, Zoom,
   useTheme, alpha, styled, CssBaseline, CircularProgress, Chip
@@ -110,48 +111,10 @@ const Dashboard = () => {
   // Recent activity state
   const [recentActivity, setRecentActivity] = useState([]);
   const [loadingRecent, setLoadingRecent] = useState(true);
-  
-  useEffect(() => {
-    // Fetch real dashboard stats
-    const fetchStats = async () => {
-      setLoadingStats(true);
-      try {
-        const res = await axios.get(`${process.env.REACT_APP_API_URL}/dashboard/stats`);
-        setStats(prevStats => prevStats.map(stat => ({
-          ...stat,
-          value: res.data[stat.label] || '0'
-        })));
-      } catch (err) {
-        console.error('Error fetching stats:', err);
-      } finally {
-        setLoadingStats(false);
-      }
-    };
-    
-    // Fetch recent activity
-    const fetchRecentActivity = async () => {
-      setLoadingRecent(true);
-      try {
-        const res = await axios.get(`${process.env.REACT_APP_API_URL}/dashboard/recent-activity`);
-        const activities = res.data.map(item => ({
-          id: item.id,
-          type: item.type || 'Recent',
-          name: item.name || `Activity ${item.id}`,
-          date: new Date(item.date || new Date()).toLocaleDateString()
-        }));
-        setRecentActivity(activities);
-      } catch (err) {
-        console.error('Error fetching recent activity:', err);
-        // Return empty array to show empty state
-        setRecentActivity([]);
-      } finally {
-        setLoadingRecent(false);
-      }
-    };
-    
-    fetchStats();
-    fetchRecentActivity();
-  }, []);
+
+  // Growth chart state
+  const [loadingGrowth, setLoadingGrowth] = useState(true);
+  const [contractGrowth, setContractGrowth] = useState([]);
 
   // Pie chart color mapping for activity types
   const activityPieColors = {
@@ -162,7 +125,7 @@ const Dashboard = () => {
     'Other': '#90caf9',
   };
 
-  // Helper: aggregate recent activity by type for pie chart
+  // Aggregate recent activity by type for pie chart
   const activityPieData = useMemo(() => {
     const counts = {};
     recentActivity.forEach(({ type }) => {
@@ -171,15 +134,53 @@ const Dashboard = () => {
     return Object.entries(counts).map(([type, value]) => ({ type, value }));
   }, [recentActivity]);
   
-  const [loadingGrowth, setLoadingGrowth] = useState(true);
-  const [contractGrowth, setContractGrowth] = useState([]);
+  useEffect(() => {
+    // Fetch real dashboard stats
+    const fetchStats = async () => {
+      setLoadingStats(true);
+      try {
+        const res = await axios.get(getApiUrl('dashboard/stats'));
+        setStats(prevStats => prevStats.map(stat => ({
+          ...stat,
+          value: res.data[stat.label] || '0'
+        })));
+      } catch (err) {
+        console.error('Error fetching stats:', err);
+      } finally {
+        setLoadingStats(false);
+      }
+    };
+    // Fetch recent activity
+    const fetchRecentActivity = async () => {
+      setLoadingRecent(true);
+      try {
+        const res = await axios.get(getApiUrl('dashboard/recent-activity'));
+        const activities = res.data.map(item => ({
+          id: item.id,
+          type: item.type || 'Recent',
+          name: item.name || `Activity ${item.id}`,
+          date: new Date(item.date || new Date()).toLocaleDateString(),
+          description: item.description || ''
+        }));
+        setRecentActivity(activities);
+      } catch (err) {
+        console.error('Error fetching recent activity:', err);
+        // Return empty array to show empty state
+        setRecentActivity([]);
+      } finally {
+        setLoadingRecent(false);
+      }
+    };
+    fetchStats();
+    fetchRecentActivity();
+  }, []);
 
   // Fetch contract growth data
   useEffect(() => {
     const fetchContractGrowth = async () => {
       setLoadingGrowth(true);
       try {
-        const response = await axios.get(`${process.env.REACT_APP_API_URL}/dashboard/contract-growth`);
+        const response = await axios.get(getApiUrl('dashboard/contract-growth'));
         setContractGrowth(response.data);
       } catch (error) {
         console.error('Error fetching contract growth data:', error);

@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import axios from 'axios';
+import { getApiUrl } from '../config/api';
 import { useTranslation } from 'react-i18next';
 import DeleteIcon from '@mui/icons-material/Delete';
 import VisibilityIcon from '@mui/icons-material/Visibility';
@@ -184,7 +185,7 @@ const Balance = () => {
 
   const fetchContracts = async () => {
     try {
-      const res = await axios.get(`${process.env.REACT_APP_API_URL}/contracts/`);
+      const res = await axios.get(getApiUrl('contracts/'));
       setContracts(res.data || []);
     } catch {
       setContracts([]);
@@ -228,7 +229,7 @@ const Balance = () => {
         setInvoices(transformedInvoices);
       } else {
         // Fallback to API
-        const res = await axios.get(`${process.env.REACT_APP_API_URL}/invoices/`);
+        const res = await axios.get(getApiUrl('invoices/'));
         setInvoices(res.data || []);
       }
     } catch {
@@ -240,7 +241,7 @@ const Balance = () => {
   
   const fetchClients = async () => {
     try {
-      const res = await axios.get(`${process.env.REACT_APP_API_URL}/clients/`);
+      const res = await axios.get(getApiUrl('clients/'));
       setClients(res.data);
     } catch {
       setClients([]);
@@ -291,7 +292,7 @@ const Balance = () => {
       return;
     }
     
-    window.open(`${process.env.REACT_APP_API_URL}/pdf/invoice/${invoice.id}`, '_blank');
+    window.open(getApiUrl(`pdf/invoice/${invoice.id}`), '_blank');
   };
   
   const handleDownloadPDF = (invoice) => {
@@ -304,7 +305,7 @@ const Balance = () => {
       return;
     }
     
-    window.open(`${process.env.REACT_APP_API_URL}/pdf/invoice/${invoice.id}`, '_blank');
+    window.open(getApiUrl(`pdf/invoice/${invoice.id}`), '_blank');
     setToast('PDF downloaded');
     setTimeout(() => setToast(''), 2000);
   };
@@ -333,16 +334,16 @@ const Balance = () => {
       // STEP 1: First, ensure contract has enough capacity by setting price to a large value
       const TEMP_LARGE_PRICE = 999999;
       const originalPrice = contract.price;
-      await axios.put(`${process.env.REACT_APP_API_URL}/contracts/${invoice.contract_id}`, {
+      await axios.put(getApiUrl(`contracts/${invoice.contract_id}`), {
         ...contract,
         price: TEMP_LARGE_PRICE
       });
       
       // STEP 2: Delete ALL existing factures for this contract
       try {
-        const existingFactures = await axios.get(`${process.env.REACT_APP_API_URL}/api/factures/contract/${invoice.contract_id}`);
+        const existingFactures = await axios.get(getApiUrl(`factures/contract/${invoice.contract_id}`));
         for (const facture of existingFactures.data) {
-          await axios.delete(`${process.env.REACT_APP_API_URL}/api/factures/${facture.id}`);
+          await axios.delete(getApiUrl(`factures/${facture.id}`));
         }
       } catch (e) {
         console.log('No existing factures to delete');
@@ -350,7 +351,7 @@ const Balance = () => {
 
       // STEP 3: Add ONLY current invoice items to factures table
       for (const item of items) {
-        await axios.post(`${process.env.REACT_APP_API_URL}/api/factures`, {
+        await axios.post(getApiUrl('factures'), {
           contract_id: parseInt(invoice.contract_id),
           description: item.description,
           qty: Number(item.qty) || 0,
@@ -363,12 +364,12 @@ const Balance = () => {
 
       // STEP 4: Call GET endpoint to generate PDF
       const res = await axios.get(
-        `${process.env.REACT_APP_API_URL}/pdf/estimate/${invoice.contract_id}`,
+        getApiUrl(`pdf/estimate/${invoice.contract_id}`),
         { responseType: 'blob' }
       );
 
       // STEP 5: Restore ORIGINAL contract price
-      await axios.put(`${process.env.REACT_APP_API_URL}/contracts/${invoice.contract_id}`, {
+      await axios.put(getApiUrl(`contracts/${invoice.contract_id}`), {
         ...contract,
         price: originalPrice
       });
@@ -415,7 +416,7 @@ const Balance = () => {
         setToast('Invoice deleted');
       } else {
         // Delete from backend
-        await axios.delete(`${process.env.REACT_APP_API_URL}/invoices/${invoice.id}`);
+        await axios.delete(getApiUrl(`invoices/${invoice.id}`));
         setToast('Invoice deleted');
         fetchInvoices();
       }
@@ -466,7 +467,7 @@ const Balance = () => {
       } else {
         // For backend invoices, make API call
         const response = await axios.put(
-          `${process.env.REACT_APP_API_URL}/invoices/${invoice.id}`, 
+          getApiUrl(`invoices/${invoice.id}`), 
           {
             status: newStatus,
             paid_amount: paidAmount

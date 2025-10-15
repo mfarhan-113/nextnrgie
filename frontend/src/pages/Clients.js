@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import { getApiUrl } from '../config/api';
 import axios from 'axios';
 import EditIcon from '@mui/icons-material/Edit';
 import DeleteIcon from '@mui/icons-material/Delete';
@@ -172,7 +173,7 @@ const Clients = () => {
   const fetchClients = async () => {
     setLoading(true);
     try {
-      const res = await axios.get(`${process.env.REACT_APP_API_URL}/clients/`);
+      const res = await axios.get(getApiUrl('clients/'));
       if (Array.isArray(res.data)) {
         setClients(res.data);
       } else {
@@ -201,7 +202,7 @@ const Clients = () => {
     setLoading(true);
     try {
       console.log('[CLIENT FORM PAYLOAD]', form);
-      await axios.post(`${process.env.REACT_APP_API_URL}/clients/`, form);
+      await axios.post(getApiUrl('clients/'), form);
       setToast(t('client_added_successfully') || 'Client ajouté avec succès !');
       setForm({ 
         client_number: '', 
@@ -265,7 +266,7 @@ const Clients = () => {
     try {
       console.log('[CLIENT EDIT PAYLOAD]', editForm);
       const { id, ...payload } = editForm;
-      await axios.put(`${process.env.REACT_APP_API_URL}/clients/${editModal.client.id}`, payload);
+      await axios.put(getApiUrl(`clients/${parseInt(editModal.client.id, 10)}`), payload);
       setToast(t('client_updated_successfully') || 'Client mis à jour avec succès !');
       closeEditModal();
       fetchClients();
@@ -274,11 +275,8 @@ const Clients = () => {
       if (err.response && err.response.data && err.response.data.detail) {
         setEditError(err.response.data.detail);
       } else {
-        setEditError(t('error_updating_client') || 'Une erreur s\'est produite lors de la mise à jour du client.');
+        setEditError(t('error_updating_client') || "Une erreur s'est produite lors de la mise à jour du client.");
       }
-    } finally {
-      setLoading(false);
-      setTimeout(() => setToast(''), 2500);
     }
   };
 
@@ -291,7 +289,7 @@ const Clients = () => {
     if (!modal.client) return;
     setLoading(true);
     try {
-      await axios.delete(`${process.env.REACT_APP_API_URL}/clients/${parseInt(modal.client.id, 10)}`);
+      await axios.delete(getApiUrl(`clients/${parseInt(modal.client.id, 10)}`));
       setToast(t('client_deleted_successfully') || 'Client supprimé avec succès');
       fetchClients();
       setModal({ show: false, client: null, type: '' });

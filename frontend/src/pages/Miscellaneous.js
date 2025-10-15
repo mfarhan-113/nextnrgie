@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import axios from 'axios';
+import { getApiUrl } from '../config/api';
 import {
   Box, Typography, IconButton, Tooltip, CircularProgress, CssBaseline,
   Paper, Table, TableBody, TableCell, TableContainer, TableHead, 
@@ -118,7 +119,7 @@ const Miscellaneous = () => {
   const fetchExpenses = async () => {
     try {
       setLoading(true);
-      const res = await axios.get(`${process.env.REACT_APP_API_URL}/misc/`);
+      const res = await axios.get(getApiUrl('misc/'));
       setExpenses(res.data);
     } catch (err) {
       console.error('Error fetching expenses:', err);
@@ -240,7 +241,7 @@ const Miscellaneous = () => {
       };
       
       const response = await axios.post(
-        `${process.env.REACT_APP_API_URL}/misc/`,
+        getApiUrl('misc/'),
         expenseData
       );
       
@@ -295,14 +296,14 @@ const Miscellaneous = () => {
       };
       
       const response = await axios.put(
-        `${process.env.REACT_APP_API_URL}/misc/${editModal.expense.id}`,
+        getApiUrl(`misc/${editModal.expense?.id}`),
         expenseData
       );
       
       // Update the expense in the local state
       setExpenses(prev => 
         prev.map(expense => 
-          expense.id === editModal.expense.id ? response.data : expense
+          expense.id === editModal.expense?.id ? response.data : expense
         )
       );
       
@@ -311,28 +312,22 @@ const Miscellaneous = () => {
         message: 'Expense updated successfully',
         severity: 'success'
       });
-      
       setEditModal({ open: false, expense: null });
     } catch (err) {
       console.error('Error updating expense:', err);
       const errorMessage = err.response?.data?.detail || err.message || 'Failed to update expense';
-      setToast({
-        open: true,
-        message: errorMessage,
-        severity: 'error'
-      });
+      setToast({ open: true, message: errorMessage, severity: 'error' });
     } finally {
       setLoading(false);
     }
   };
 
-  // Handle delete expense
   const handleDelete = async () => {
     if (!deleteModal.expenseId) return;
     
     try {
       setLoading(true);
-      await axios.delete(`${process.env.REACT_APP_API_URL}/misc/${deleteModal.expenseId}`);
+      await axios.delete(getApiUrl(`misc/${deleteModal.expenseId || ''}`));
       
       setExpenses(expenses.filter(e => e.id !== deleteModal.expenseId));
       setToast({

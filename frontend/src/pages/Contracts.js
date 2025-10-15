@@ -3,6 +3,8 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import axios from 'axios';
 import { format } from 'date-fns';
+import { getApiUrl } from '../config/api';
+
 
 // Material UI Components
 import {
@@ -97,7 +99,6 @@ const AddButton = styled(Fab)(({ theme }) => ({
   zIndex: 1000,
 }));
 
-const API_BASE = process.env.REACT_APP_API_URL || '/api';
 
 const Contracts = () => {
   const { t } = useTranslation();
@@ -169,7 +170,7 @@ const Contracts = () => {
   const fetchContracts = async () => {
     try {
       setLoading(true);
-      const response = await axios.get(`${API_BASE}/contracts/`);
+      const response = await axios.get(getApiUrl('contracts/'));
       setContracts(response.data);
       setError(null);
     } catch (err) {
@@ -182,13 +183,13 @@ const Contracts = () => {
       });
     } finally {
       setLoading(false);
-    }
+  }
   };
 
   // Fetch clients from API
   const fetchClients = async () => {
     try {
-      const response = await axios.get(`${API_BASE}/clients/`);
+      const response = await axios.get(getApiUrl('clients/'));
       setClients(response.data);
     } catch (err) {
       console.error('Error fetching clients:', err);
@@ -221,44 +222,43 @@ const Contracts = () => {
 
   // Filter and sort contracts
   const filteredContracts = useMemo(() => {
-    return contracts.filter(contract => {
-      const matchesSearch = 
-        contract.command_number?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        contract.client?.client_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        contract.name?.toLowerCase().includes(searchTerm.toLowerCase());
-      
-      return matchesSearch;
-    }).sort((a, b) => {
-      if (orderBy === 'date') {
-        return order === 'asc' 
-          ? new Date(a.date) - new Date(b.date)
-          : new Date(b.date) - new Date(a.date);
-      } else if (orderBy === 'price') {
-        return order === 'asc' ? a.price - b.price : b.price - a.price;
-      } else if (orderBy === 'deadline') {
-        return order === 'asc'
-          ? new Date(a.deadline) - new Date(b.deadline)
-          : new Date(b.deadline) - new Date(a.deadline);
-      }
-      return 0;
-    });
+    return contracts
+      .filter((contract) => {
+        const term = (searchTerm || '').toLowerCase();
+        return (
+          contract.command_number?.toLowerCase().includes(term) ||
+          contract.client?.client_name?.toLowerCase().includes(term) ||
+          contract.name?.toLowerCase().includes(term)
+        );
+      })
+      .sort((a, b) => {
+        if (orderBy === 'date') {
+          return order === 'asc'
+            ? new Date(a.date) - new Date(b.date)
+            : new Date(b.date) - new Date(a.date);
+        } else if (orderBy === 'price') {
+          return order === 'asc' ? (a.price || 0) - (b.price || 0) : (b.price || 0) - (a.price || 0);
+        } else if (orderBy === 'deadline') {
+          return order === 'asc'
+            ? new Date(a.deadline) - new Date(b.deadline)
+            : new Date(b.deadline) - new Date(a.deadline);
+        }
+        return 0;
+      });
   }, [contracts, searchTerm, orderBy, order]);
 
-  // Pagination
+  // Pagination slice
   const paginatedContracts = useMemo(() => {
-    return filteredContracts.slice(
-      page * rowsPerPage,
-      page * rowsPerPage + rowsPerPage
-    );
+    const start = page * rowsPerPage;
+    return filteredContracts.slice(start, start + rowsPerPage);
   }, [filteredContracts, page, rowsPerPage]);
 
-  // Handle delete contract
-  const handleDelete = async () => {
+const handleDelete = async () => {
     if (!deleteModal.contractId) return;
     
     try {
       setLoading(true);
-      await axios.delete(`${API_BASE}/contracts/${deleteModal.contractId}`);
+      await axios.delete(getApiUrl(`contracts/${deleteModal.contractId}`));
       
       setContracts(contracts.filter(c => c.id !== deleteModal.contractId));
       setToast({
@@ -382,7 +382,7 @@ const Contracts = () => {
       };
       
       const response = await axios.put(
-        `${API_BASE}/contracts/${editModal.contract.id}`,
+        getApiUrl(`contracts/${editModal.contract.id}`),
         contractData
       );
       
@@ -448,7 +448,7 @@ const Contracts = () => {
       };
       
       const response = await axios.post(
-        `${API_BASE}/contracts/`,
+        getApiUrl('contracts/'),
         contractData
       );
       
