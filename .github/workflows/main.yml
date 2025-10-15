@@ -101,6 +101,9 @@ jobs:
         file: ./frontend/Dockerfile.prod
         push: true
         tags: ${{ secrets.DOCKERHUB_USERNAME }}/nextnrgie-frontend:latest
+        build-args: |
+          REACT_APP_API_URL=http://82.29.172.241/api
+          REACT_APP_BASE_URL=http://82.29.172.241
 
     - name: Verify deploy files exist
       run: |
