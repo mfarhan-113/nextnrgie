@@ -1,8 +1,8 @@
 // frontend/src/config/api.js
 // For API endpoints
-const API_BASE = process.env.REACT_APP_API_URL || 'http://localhost:8000/api';
+const API_BASE = process.env.REACT_APP_API_URL || `${window.location.origin}/api`;
 // For direct PDF access
-const BASE_URL = process.env.REACT_APP_BASE_URL || 'http://localhost:8000';
+const BASE_URL = process.env.REACT_APP_BASE_URL || window.location.origin;
 
 export const getApiUrl = (endpoint) => {
   // Remove any leading/trailing slashes for consistency
