@@ -4,12 +4,20 @@ from app.routes import dashboard, client, contract, contract_detail, facture, sa
 
 app = FastAPI()
 
+# List of allowed origins (add your frontend URLs here)
+origins = [
+    "http://localhost:3000",  # Local development
+    "http://82.29.172.241",   # Your production IP
+    "https://nextnrgie.fr",   # Your production domain
+]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
+    expose_headers=["Content-Disposition"]  # Important for file downloads
 )
 
 # Include all routers with /api prefix

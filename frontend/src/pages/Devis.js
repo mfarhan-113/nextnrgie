@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import axios from 'axios';
 import { useTranslation } from 'react-i18next';
-import { getApiUrl } from '../config/api';
+import { getApiUrl, getPdfUrl } from '../config/api';
 
 // Material UI
 import Box from '@mui/material/Box';
@@ -1161,7 +1161,7 @@ const Devis = () => {
                                   total_ht: Number(it.total_ht) || ((Number(it.qty)||0)*(Number(it.unit_price)||0))
                                 }))
                               };
-                              const res = await axios.post(`${process.env.REACT_APP_API_URL}/pdf/devis`, payload, {
+                              const res = await axios.post(getPdfUrl('/pdf/devis'), payload, {
                                 responseType: 'blob',
                                 headers: { 'Content-Type': 'application/json' }
                               });

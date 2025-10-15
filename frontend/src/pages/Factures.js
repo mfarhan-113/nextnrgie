@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import axios from 'axios';
 import { useTranslation } from 'react-i18next';
-import { getApiUrl } from '../config/api';
+import { getApiUrl, getPdfUrl } from '../config/api';
 // Material UI
 import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
@@ -607,10 +607,13 @@ const Factures = () => {
         });
       }
 
-      // STEP 4: Call GET endpoint to generate PDF (backend uses factures table)
+      // STEP 4: Call GET endpoint to generate PDF using the invoice ID
       const res = await axios.get(
-        getApiUrl(`pdf/estimate/${invoice.contractId}`),
-        { responseType: 'blob' }
+        getPdfUrl(`/pdf/invoice/${invoice.id}`),
+        { 
+          responseType: 'blob',
+          headers: { 'Accept': 'application/pdf' }
+        }
       );
 
       // STEP 5: Restore ORIGINAL contract price (from contractsById, not from contract variable)
