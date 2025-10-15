@@ -19,4 +19,7 @@ class ClientCreate(ClientBase):
 class ClientOut(ClientBase):
     id: int
     class Config:
+        # Pydantic v2 compatibility: enable ORM object serialization
+        # FastAPI still reads orm_mode, but from_attributes is required in v2
+        from_attributes = True
         orm_mode = True
