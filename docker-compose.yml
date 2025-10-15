@@ -9,7 +9,7 @@ services:
       - SECRET_KEY=your-secret-key-here
       - ALGORITHM=HS256
       - ACCESS_TOKEN_EXPIRE_MINUTES=30
-      - CORS_ORIGINS=["https://nextnrgie.fr", "https://www.nextnrgie.fr"]
+      - CORS_ORIGINS=["https://nextnrgie.fr", "https://www.nextnrgie.fr", "http://localhost:3000", "http://82.29.172.241:3000"]
     depends_on:
       - mysql
     networks:
@@ -23,7 +23,7 @@ services:
       MYSQL_USER: nextnrgie_user
       MYSQL_PASSWORD: Paki7stan8#paki
     ports:
-      - "3307:3306"  # Changed from 3306 to 3307 to avoid port conflict
+      - "8000:8000"  # Changed from 3306 to 3307 to avoid port conflict
     volumes:
       - mysql_data:/var/lib/mysql
     networks:
@@ -34,7 +34,7 @@ services:
     ports:
       - "3000:3000"
     environment:
-      - REACT_APP_API_URL=https://nextnrgie.fr/api
+      - REACT_APP_API_URL=http://192.168.18.32:8000/api
     depends_on:
       - backend
     networks:
