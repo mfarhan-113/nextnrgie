@@ -173,7 +173,7 @@ const Clients = () => {
   const fetchClients = async () => {
     setLoading(true);
     try {
-      const res = await axios.get(getApiUrl('clients/'));
+      const res = await axios.get(getApiUrl('/clients/'));
       if (Array.isArray(res.data)) {
         setClients(res.data);
       } else {
