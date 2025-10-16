@@ -16,6 +16,12 @@ services:
 
   # Frontend (Nginx with built static files)
   frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile.prod
+      args:
+        - REACT_APP_API_URL=/api
+        - REACT_APP_BASE_URL=http://82.29.172.241
     image: ${DOCKERHUB_USERNAME}/nextnrgie-frontend:latest
     ports:
       - "80:80"
