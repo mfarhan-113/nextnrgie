@@ -274,7 +274,7 @@ async def generate_invoice_pdf(invoice_id: str, db: Session = Depends(get_db)):
     logo_width = 150
     logo_height = 55
     # Use a relative path to the logo in the frontend public directory
-    logo_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "..", "frontend", "public", "logonr.jpg")
+    logo_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "app", "static", "logonr.jpg")
     if os.path.exists(logo_path):
         p.drawImage(ImageReader(logo_path), logo_x, logo_y, width=logo_width, height=logo_height, mask='auto')
     else:
@@ -587,7 +587,7 @@ def generate_estimate_pdf(contract_id: int, db: Session = Depends(get_db)):
     logo_width = 150
     logo_height = 55
     # Use a relative path to the logo in the frontend public directory
-    logo_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "..", "frontend", "public", "logonr.jpg")
+    logo_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "app", "static", "logonr.jpg")
     if os.path.exists(logo_path):
         p.drawImage(ImageReader(logo_path), logo_x, logo_y, width=logo_width, height=logo_height, mask='auto')
     else:
@@ -1053,7 +1053,7 @@ def generate_facture_pdf(facture_data: dict, db: Session = Depends(get_db)):
     logo_x = 440
     logo_width = 150
     logo_height = 55
-    logo_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "..", "frontend", "public", "logonr.jpg")
+    logo_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "app", "static", "logonr.jpg")
     if os.path.exists(logo_path):
         p.drawImage(ImageReader(logo_path), logo_x, logo_y, width=logo_width, height=logo_height, mask='auto')
 
@@ -1335,7 +1335,7 @@ async def generate_devis_pdf(payload: dict):
     logo_x = 440
     logo_width = 150
     logo_height = 55
-    logo_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "..", "frontend", "public", "logonr.jpg")
+    logo_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "app", "static", "logonr.jpg")
     if os.path.exists(logo_path):
         p.drawImage(ImageReader(logo_path), logo_x, logo_y, width=logo_width, height=logo_height, mask='auto')
 

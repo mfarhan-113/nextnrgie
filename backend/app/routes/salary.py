@@ -12,7 +12,7 @@ router = APIRouter(prefix="/salaries", tags=["salaries"])
 def add_salary(salary: SalaryCreate, db: Session = Depends(get_db)):
     # Calculate total salary before creating the record
     salary_data = salary.dict()
-    salary_data['total_salary'] = salary.working_days * salary.salary_per_day
+    salary_data['total_salary'] = (salary.working_days - salary.leaves) * salary.salary_per_day
 
     db_salary = Salary(**salary_data)
     db.add(db_salary)
@@ -48,7 +48,7 @@ def update_salary(
     # Update fields and recalculate total_salary
     for field, value in salary_update.dict().items():
         if field == 'total_salary':
-            setattr(db_salary, 'total_salary', salary_update.working_days * salary_update.salary_per_day)
+            setattr(db_salary, 'total_salary', (salary_update.working_days - salary_update.leaves) * salary_update.salary_per_day)
         else:
             setattr(db_salary, field, value)
 
