@@ -4,6 +4,7 @@ services:
   # Backend API service
   backend:
     image: ${DOCKERHUB_USERNAME}/nextnrgie-backend:latest
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000
     env_file:
       - .env.prod
     depends_on:
@@ -18,6 +19,9 @@ services:
     image: ${DOCKERHUB_USERNAME}/nextnrgie-frontend:latest
     ports:
       - "80:80"
+    environment:
+      - REACT_APP_API_URL=/api
+      - REACT_APP_BASE_URL=http://82.29.172.241
     depends_on:
       - backend
     networks:
