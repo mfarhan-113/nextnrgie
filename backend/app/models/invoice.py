@@ -13,7 +13,6 @@ class Invoice(Base):
     due_date = Column(Date, nullable=False)
     status = Column(String(20), default="unpaid")
     created_at = Column(DateTime(timezone=True), server_default=func.now())
-    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
     
     # Relationships
     contract = relationship("Contract", back_populates="invoices")

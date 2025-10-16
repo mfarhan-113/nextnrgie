@@ -16,7 +16,6 @@ class Facture(Base):
     tva = Column(Float, nullable=False)
     total_ht = Column(Float, nullable=False)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
-    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
 
     # Relationships
     contract = relationship("Contract", back_populates="factures")

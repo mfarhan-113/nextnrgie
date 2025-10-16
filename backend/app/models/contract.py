@@ -18,7 +18,6 @@ class Contract(Base):
     name = Column(String(200), nullable=True)
     client_id = Column(Integer, ForeignKey("clients.id"), nullable=False)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
-    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
     
     # Relationships
     client = relationship("Client", back_populates="contracts")
