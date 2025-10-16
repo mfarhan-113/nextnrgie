@@ -124,7 +124,7 @@ const Clients = () => {
       phone: '', 
       tva_number: '', 
       client_name: '', 
-      siret_number: '', 
+      tsa_number: '', 
       contact_person: '', 
       contact_person_phone: '', 
       contact_person_designation: '', 
@@ -210,7 +210,7 @@ const Clients = () => {
         phone: '', 
         tva_number: '', 
         client_name: '', 
-        siret_number: '', 
+        tsa_number: '', 
         contact_person: '', 
         contact_person_phone: '', 
         contact_person_designation: '', 
@@ -238,7 +238,7 @@ const Clients = () => {
       email: client.email || '',
       phone: client.phone || '',
       tva_number: client.tva_number || '',
-      siret_number: client.siret_number || '',
+      tsa_number: client.tsa_number || '',
       contact_person: client.contact_person || '',
       contact_person_phone: client.contact_person_phone || '',
       contact_person_designation: client.contact_person_designation || '',
@@ -553,11 +553,11 @@ const Clients = () => {
                       )}
                     </Box>
 
-                    {(client.tva_number || client.siret_number) && (
+                    {(client.tva_number || client.tsa_number) && (
                       <Box sx={{ mt: 2, display: 'flex', gap: 1, flexWrap: 'wrap' }}>
-                        {client.siret_number && (
+                        {client.tsa_number && (
                           <Chip 
-                            label={`SIRET: ${client.siret_number}`}
+                            label={`TSA: ${client.tsa_number}`}
                             size="small"
                             sx={{ 
                               backgroundColor: alpha('#2196f3', 0.1),
@@ -790,9 +790,9 @@ const Clients = () => {
                   <Grid item xs={12} sm={6}>
                     <TextField
                       fullWidth
-                      label={t('siret_number') || 'Numéro SIRET'}
-                      name="siret_number"
-                      value={form.siret_number}
+                      label={t('tsa_number') || 'Numéro TSA'}
+                      name="tsa_number"
+                      value={form.tsa_number}
                       onChange={handleChange}
                       variant="outlined"
                       sx={{
@@ -1035,13 +1035,13 @@ const Clients = () => {
               </div>
               <div className="form-group">
                 <input 
-                  id="edit_siret_number" 
-                  name="siret_number" 
-                  value={editForm.siret_number} 
+                  id="edit_tsa_number" 
+                  name="tsa_number" 
+                  value={editForm.tsa_number} 
                   onChange={handleEditChange} 
                   placeholder=" " 
                 />
-                <label htmlFor="edit_siret_number">{t('siret_number') || 'Numéro SIRET'}</label>
+                <label htmlFor="edit_tsa_number">{t('tsa_number') || 'Numéro TSA'}</label>
               </div>
               <div className="form-group">
                 <input 

@@ -647,9 +647,9 @@ def generate_estimate_pdf(contract_id: int, db: Session = Depends(get_db)):
         p.setFont("Helvetica", 10)
         y_pos -= 15  # Move down for next line
         
-        # SIRET directly under client name if available
-        if getattr(client, 'siret_number', None):
-            p.drawString(right, y_pos, f"SIRET: {client.siret_number}")
+        # TSA directly under client name if available
+        if getattr(client, 'tsa_number', None):
+            p.drawString(right, y_pos, f"TSA: {client.tsa_number}")
             y_pos -= 15
             
         # Address with multi-line support
@@ -1359,8 +1359,8 @@ async def generate_devis_pdf(payload: dict):
     p.setFont("Helvetica", 10)
     
     y_offset = right_col_y - 15
-    if client.get("siret_number"): 
-        p.drawString(right, y_offset, f"SIRET: {client.get('siret_number')}")
+    if client.get("tsa_number"): 
+        p.drawString(right, y_offset, f"TSA: {client.get('tsa_number')}")
         y_offset -= 15
         
     # Handle multi-line address

@@ -10,7 +10,7 @@ class Client(Base, BaseModel):
     email = Column(String(255))
     phone = Column(String(50))
     tva_number = Column(String(100))
-    siret_number = Column(String(100))
+    tsa_number = Column(String(100))
     contact_person = Column(String(255))
     contact_person_phone = Column(String(50))
     contact_person_designation = Column(String(255))
