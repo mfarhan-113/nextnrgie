@@ -26,7 +26,12 @@ FROM nginx:stable-alpine
 # Copy the build output to replace the default nginx contents
 COPY --from=build /app/build /usr/share/nginx/html
 
-# Nginx config will be mounted as a volume in docker-compose
+# Create necessary directories and copy Nginx config
+RUN mkdir -p /etc/nginx/conf.d
+COPY nginx.prod.conf /etc/nginx/conf.d/default.conf
+
+# Ensure the file has the correct permissions
+RUN chmod 644 /etc/nginx/conf.d/default.conf
 
 # Expose port 80
 EXPOSE 80
