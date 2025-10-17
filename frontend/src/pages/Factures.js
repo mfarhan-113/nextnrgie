@@ -197,7 +197,7 @@ const Factures = () => {
   
   // Total pages
   const totalPages = Math.ceil(filteredInvoices.length / itemsPerPage);
- 
+
   const createBackendInvoice = async (invoiceData) => {
     const response = await axios.post(getApiUrl('invoices/'), {
       invoice_number: invoiceData.name,
@@ -209,7 +209,21 @@ const Factures = () => {
     });
     return response.data;
   };
-  
+
+  // Helper: resolve backend invoice id for a local invoice
+  const resolveBackendInvoiceId = async (invoice) => {
+    if (invoice.backendId) return invoice.backendId;
+    try {
+      const allInvRes = await axios.get(getApiUrl('invoices/'));
+      const match = (Array.isArray(allInvRes.data) ? allInvRes.data : []).find(
+        (row) => String(row.contract_id) === String(invoice.contractId) && String(row.invoice_number) === String(invoice.name)
+      );
+      return match?.id;
+    } catch {
+      return undefined;
+    }
+  };
+
   // Create a new invoice for a contract
   const createInvoiceForContract = async (contractId) => {
     const contract = contractsById[contractId];
@@ -420,8 +434,19 @@ const Factures = () => {
   };
 
   // Delete an item from an invoice
-  const deleteItem = (invoiceId, itemIndex) => {
+  const deleteItem = async (invoiceId, itemIndex) => {
     if (window.confirm(t('confirm_delete_item') || 'Are you sure you want to delete this item?')) {
+      // If this item exists in backend, delete it there first
+      try {
+        const current = itemsByInvoice[invoiceId] || [];
+        const item = current[itemIndex];
+        if (item && item.backendFactureId) {
+          await axios.delete(getApiUrl(`factures/${item.backendFactureId}`));
+        }
+      } catch (e) {
+        console.warn('Failed to delete facture from backend (continuing locally):', e?.message || e);
+      }
+
       setItemsByInvoice(prev => {
         const newItems = { ...prev };
         newItems[invoiceId] = newItems[invoiceId].filter((_, idx) => idx !== itemIndex);
@@ -562,13 +587,40 @@ const Factures = () => {
         }
       }
 
-      setItemsByInvoice(prev => {
-        const list = prev[selectedInvoiceId] ? [...prev[selectedInvoiceId]] : [];
-        list.push(newItem);
-        const next = { ...prev, [selectedInvoiceId]: list };
-        try { persist.set('itemsByInvoice', JSON.stringify(next)); } catch {}
-        return next;
-      });
+      // Persist the item to backend 'factures' with invoice linkage
+      try {
+        const invoice = createdInvoices.find(inv => inv.id === selectedInvoiceId);
+        const backendInvoiceId = invoice ? await resolveBackendInvoiceId(invoice) : undefined;
+        const res = await axios.post(getApiUrl('/factures/'), {
+          contract_id: invoice ? parseInt(invoice.contractId) : undefined,
+          invoice_id: backendInvoiceId ? parseInt(backendInvoiceId) : undefined,
+          description: newItem.description,
+          qty: Number(newItem.qty) || 0,
+          qty_unit: newItem.qty_unit || 'unite',
+          unit_price: Number(newItem.unit_price) || 0,
+          tva: Number(newItem.tva) || 0,
+          total_ht: Number(newItem.total_ht) || 0
+        });
+        const backendFactureId = res?.data?.id;
+
+        setItemsByInvoice(prev => {
+          const list = prev[selectedInvoiceId] ? [...prev[selectedInvoiceId]] : [];
+          list.push({ ...newItem, backendFactureId });
+          const next = { ...prev, [selectedInvoiceId]: list };
+          try { persist.set('itemsByInvoice', JSON.stringify(next)); } catch {}
+          return next;
+        });
+      } catch (err) {
+        console.error('Failed to persist facture to backend', err);
+        // Still store locally to not block the UI
+        setItemsByInvoice(prev => {
+          const list = prev[selectedInvoiceId] ? [...prev[selectedInvoiceId]] : [];
+          list.push(newItem);
+          const next = { ...prev, [selectedInvoiceId]: list };
+          try { persist.set('itemsByInvoice', JSON.stringify(next)); } catch {}
+          return next;
+        });
+      }
 
       setToast(t('item_added') || 'Item added successfully!');
       setTimeout(() => setToast(''), 2500);
@@ -664,9 +716,23 @@ const Factures = () => {
       }
 
       // STEP 3: Add ONLY current invoice items to factures table
+      // Ensure we have a backend invoice id to link factures so amounts sum correctly
+      let backendInvoiceId = invoice.backendId;
+      if (!backendInvoiceId) {
+        try {
+          const allInvRes = await axios.get(getApiUrl('invoices/'));
+          const match = (Array.isArray(allInvRes.data) ? allInvRes.data : []).find(
+            (row) => String(row.contract_id) === String(invoice.contractId) && String(row.invoice_number) === String(invoice.name)
+          );
+          if (match && match.id) {
+            backendInvoiceId = match.id;
+          }
+        } catch {}
+      }
       for (const item of currentItems) {
         await axios.post(getApiUrl('/factures/'), {
           contract_id: parseInt(invoice.contractId),
+          invoice_id: backendInvoiceId ? parseInt(backendInvoiceId) : undefined,
           description: item.description,
           qty: Number(item.qty) || 0,
           qty_unit: item.qty_unit || 'unite',  // Default to 'unite' if not specified
