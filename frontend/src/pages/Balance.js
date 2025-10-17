@@ -204,30 +204,27 @@ const Balance = () => {
   const fetchInvoices = async () => {
     setLoading(true);
     try {
-      // Prefer backend invoices so DB statuses (paid/unpaid) are accurate
+      // Fetch backend invoices first (authoritative source)
       const res = await axios.get(getApiUrl('invoices/'));
       const backendInvoices = Array.isArray(res.data) ? res.data : [];
-      if (backendInvoices.length > 0) {
-        setInvoices(backendInvoices);
-        return;
-      }
 
-      // Fallback to localStorage if backend has none
+      // Also read any locally created invoices and merge
       const savedInvoices = localStorage.getItem('createdInvoices');
       const savedItems = localStorage.getItem('itemsByInvoice');
       const savedStatuses = localStorage.getItem('invoiceStatuses');
 
+      let localTransformed = [];
       if (savedInvoices && savedItems) {
         const invoicesList = JSON.parse(savedInvoices);
         const itemsByInvoice = JSON.parse(savedItems);
         const invoiceStatuses = savedStatuses ? JSON.parse(savedStatuses) : {};
 
-        const transformedInvoices = invoicesList.map(inv => {
+        localTransformed = invoicesList.map(inv => {
           const items = itemsByInvoice[inv.id] || [];
           const totalAmount = items.reduce((sum, item) => sum + (parseFloat(item.total_ht) || 0), 0);
           const savedStatus = invoiceStatuses[inv.id] || { status: 'unpaid', paid_amount: 0 };
           return {
-            id: inv.id,
+            id: inv.id, // typically starts with 'inv-'
             invoice_number: inv.name,
             contract_id: inv.contractId,
             amount: totalAmount,
@@ -235,15 +232,25 @@ const Balance = () => {
             status: savedStatus.status || 'unpaid',
             due_date: inv.dueDate || inv.date,
             date: inv.date,
-            items: items
+            items
           };
         });
-        setInvoices(transformedInvoices);
-      } else {
-        setInvoices([]);
       }
+
+      // De-duplicate: prefer backend entries when invoice_number+contract_id collide
+      const map = new Map();
+      for (const b of backendInvoices) {
+        const key = `${b.invoice_number || ''}::${b.contract_id || ''}`;
+        map.set(key, b);
+      }
+      for (const l of localTransformed) {
+        const key = `${l.invoice_number || ''}::${l.contract_id || ''}`;
+        if (!map.has(key)) map.set(key, l);
+      }
+
+      setInvoices(Array.from(map.values()));
     } catch {
-      // If API fails, fallback to localStorage
+      // If API fails, fallback to localStorage only
       try {
         const savedInvoices = localStorage.getItem('createdInvoices');
         const savedItems = localStorage.getItem('itemsByInvoice');
