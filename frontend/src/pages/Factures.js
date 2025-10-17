@@ -203,30 +203,50 @@ const Factures = () => {
     const contract = contractsById[contractId];
     if (!contract) return;
 
-    // Generate a unique ID for the new invoice
+    // Generate a unique ID for the new invoice (client-side)
     const newInvoiceId = `inv-${Date.now()}`;
     const today = new Date().toISOString().split('T')[0];
-    
+
+    // Build a unique, human-friendly invoice number
+    const year = new Date().getFullYear();
+    const baseNumber = `INV-${contract.command_number || contractId}-${year}`;
+
+    // Determine next sequence for this contract/year
+    const existingForBase = createdInvoices.filter(inv =>
+      String(inv.contractId) === String(contractId) &&
+      typeof inv.name === 'string' &&
+      inv.name.startsWith(baseNumber)
+    );
+    let seq = existingForBase.length + 1;
+
+    // Ensure uniqueness across all invoices by incrementing if needed
+    let candidateName = `${baseNumber}-${String(seq).padStart(2, '0')}`;
+    const existingNames = new Set(createdInvoices.map(inv => inv.name));
+    while (existingNames.has(candidateName)) {
+      seq += 1;
+      candidateName = `${baseNumber}-${String(seq).padStart(2, '0')}`;
+    }
+
     const newInvoice = {
       id: newInvoiceId,
       contractId: contractId,
-      name: `INV-${contract.command_number || contractId}-${new Date().getFullYear()}`,
+      name: candidateName,
       date: today,
       dueDate: today // Will be updated when items are added
     };
 
     // Add the new invoice to the list
     setCreatedInvoices(prev => [...prev, newInvoice]);
-    
+
     // Initialize empty items array for this invoice
     setItemsByInvoice(prev => ({
       ...prev,
       [newInvoiceId]: []
     }));
-    
+
     // Select the new invoice
     setSelectedInvoiceId(newInvoiceId);
-    
+
     // Show success message
     setToast(t('invoice_created') || 'Invoice created successfully!');
     setTimeout(() => setToast(''), 2500);
