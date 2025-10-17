@@ -197,9 +197,21 @@ const Factures = () => {
   
   // Total pages
   const totalPages = Math.ceil(filteredInvoices.length / itemsPerPage);
+ 
+  const createBackendInvoice = async (invoiceData) => {
+    const response = await axios.post(getApiUrl('invoices/'), {
+      invoice_number: invoiceData.name,
+      contract_id: invoiceData.contractId,
+      amount: 0,
+      paid_amount: 0,
+      due_date: invoiceData.dueDate,
+      status: 'unpaid'
+    });
+    return response.data;
+  };
   
   // Create a new invoice for a contract
-  const createInvoiceForContract = (contractId) => {
+  const createInvoiceForContract = async (contractId) => {
     const contract = contractsById[contractId];
     if (!contract) return;
 
@@ -234,21 +246,20 @@ const Factures = () => {
       date: today,
       dueDate: today // Will be updated when items are added
     };
-
-    // Add the new invoice to the list
-    setCreatedInvoices(prev => [...prev, newInvoice]);
-
-    // Initialize empty items array for this invoice
-    setItemsByInvoice(prev => ({
-      ...prev,
-      [newInvoiceId]: []
-    }));
-
-    // Select the new invoice
-    setSelectedInvoiceId(newInvoiceId);
-
-    // Show success message
-    setToast(t('invoice_created') || 'Invoice created successfully!');
+    try {
+      const backendInvoice = await createBackendInvoice(newInvoice);
+      const backendId = backendInvoice && backendInvoice.id;
+      const persisted = { ...newInvoice, backendId };
+      setCreatedInvoices(prev => [...prev, persisted]);
+      setItemsByInvoice(prev => ({
+        ...prev,
+        [newInvoiceId]: []
+      }));
+      setSelectedInvoiceId(newInvoiceId);
+      setToast(t('invoice_created') || 'Invoice created successfully!');
+    } catch (e) {
+      setToast(t('invoice_create_error') || 'Error creating invoice. Please try again.');
+    }
     setTimeout(() => setToast(''), 2500);
   };
 
