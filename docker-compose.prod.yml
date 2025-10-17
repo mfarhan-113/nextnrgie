@@ -4,7 +4,7 @@ services:
   # Backend API service
   backend:
     image: ${DOCKERHUB_USERNAME}/nextnrgie-backend:latest
-    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --root-path /api
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000
     environment:
       - DATABASE_URL=mysql+pymysql://nextnrgie:Farhan113@mysql:3306/nextnrgie
       - SECRET_KEY=nextnrgie_secret_key
@@ -20,7 +20,7 @@ services:
   # Frontend (Nginx with built static files)
   frontend:
     build:
-      context: .
+      context: ./frontend
       dockerfile: Dockerfile.prod
       args:
         - REACT_APP_API_URL=/api
