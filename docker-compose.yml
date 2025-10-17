@@ -1,10 +1,11 @@
+version: '3.8'
+
 services:
   backend:
     build: ./backend
-    ports:
-      - "8000:8000"
+    restart: always
     environment:
-      - DATABASE_URL=mysql+pymysql://nextnrgie_user:Paki7stan8#paki@mysql:3306/nextnrgie_prod
+      - DATABASE_URL=mysql+pymysql://nextnrgie_user:Paki7stan8%23paki@mysql:3306/nextnrgie_prod
       - ENVIRONMENT=production
       - SECRET_KEY=your-secret-key-here
       - ALGORITHM=HS256
@@ -15,34 +16,34 @@ services:
     networks:
       - nextnrgie-network
 
-  mysql:
-    image: mysql:8.0
-    environment:
-      MYSQL_ROOT_PASSWORD: Paki7stan8#paki
-      MYSQL_DATABASE: nextnrgie_prod
-      MYSQL_USER: nextnrgie_user
-      MYSQL_PASSWORD: Paki7stan8#paki
-    ports:
-      - "8000:8000"  # Changed from 3306 to 3307 to avoid port conflict
-    volumes:
-      - mysql_data:/var/lib/mysql
-    networks:
-      - nextnrgie-network
-
   frontend:
-    build: ./frontend
+    build: 
+      context: ./frontend
+      dockerfile: Dockerfile.prod
+    restart: always
     ports:
-      - "3000:3000"
-    environment:
-      - REACT_APP_API_URL=http://192.168.18.32:8000/api
+      - "80:80"
     depends_on:
       - backend
     networks:
       - nextnrgie-network
 
-volumes:
-  mysql_data:
+  mysql:
+    image: mysql:8.0
+    restart: always
+    environment:
+      MYSQL_ROOT_PASSWORD: Paki7stan8#paki
+      MYSQL_DATABASE: nextnrgie_prod
+      MYSQL_USER: nextnrgie_user
+      MYSQL_PASSWORD: Paki7stan8#paki
+    volumes:
+      - mysql_data:/var/lib/mysql
+    networks:
+      - nextnrgie-network
 
 networks:
   nextnrgie-network:
     driver: bridge
+
+volumes:
+  mysql_data:
