@@ -221,8 +221,8 @@ async def generate_invoice_pdf(invoice_id: str, db: Session = Depends(get_db)):
         logger.info(f"  Created At: {facture.created_at}")
     logger.info("=====================\n")
     
-    # Get client data
-    client_result = db.execute(select(Client).where(Client.id == invoice.client_id))
+    # Get client data (from contract's client_id)
+    client_result = db.execute(select(Client).where(Client.id == contract.client_id))
     client = client_result.scalars().first()
     if client:
         logger.info(f"Found client: ID={client.id}, Name={client.client_name}")
