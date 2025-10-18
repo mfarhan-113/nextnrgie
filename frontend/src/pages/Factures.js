@@ -173,6 +173,133 @@ const Factures = () => {
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 5;
 
+  // Fetch contracts and cache by id
+  const fetchContracts = async () => {
+    try {
+      setLoading(true);
+      const res = await axios.get(getApiUrl('contracts/'));
+      const data = Array.isArray(res.data) ? res.data : [];
+      setContracts(data);
+      const map = {};
+      data.forEach(c => { map[c.id] = c; });
+      setContractsById(map);
+    } catch (err) {
+      setError(t('contracts_fetch_error') || 'Failed to fetch contracts');
+      setTimeout(() => setError(''), 3000);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Calculate invoice total from local items
+  const calculateInvoiceTotal = (invoiceId) => {
+    const items = itemsByInvoice[invoiceId] || [];
+    const total = items.reduce((sum, it) => sum + (parseFloat(it.total_ht) || 0), 0);
+    return total.toFixed(2);
+  };
+
+  // Remaining budget for contract (contract.price - sum of all invoice totals for that contract)
+  const calculateRemainingAmount = (contractId) => {
+    const contract = contractsById[contractId];
+    const price = parseFloat(contract?.price) || 0;
+    const totalUsed = createdInvoices
+      .filter(inv => String(inv.contractId) === String(contractId))
+      .reduce((sum, inv) => sum + (parseFloat(calculateInvoiceTotal(inv.id)) || 0), 0);
+    return (price - totalUsed).toFixed(2);
+  };
+
+  // Open/close add-item modal
+  const openAddItemModal = (invoiceId) => {
+    setSelectedInvoiceId(invoiceId);
+    setDetailsForm({ description: '', qty: '', qty_unit: 'unite', unit_price: '', tva: '', total_ht: '' });
+    setDetailsModalOpen(true);
+  };
+  const closeModal = () => {
+    setDetailsModalOpen(false);
+  };
+
+  // Toggle items list visibility for invoice
+  const toggleItemsVisibility = (invoiceId) => {
+    setExpandedItems(prev => ({ ...prev, [invoiceId]: !prev[invoiceId] }));
+  };
+
+  // Edit item handlers
+  const startEditItem = (invoiceId, itemIndex, item) => {
+    setEditingItem({ invoiceId, itemIndex });
+    setEditItemForm({
+      description: item.description,
+      qty: item.qty,
+      qty_unit: item.qty_unit || 'unite',
+      unit_price: item.unit_price,
+      tva: item.tva,
+      total_ht: item.total_ht
+    });
+  };
+  const cancelEditItem = () => {
+    setEditingItem(null);
+    setEditItemForm({ description: '', qty: '', qty_unit: 'unite', unit_price: '', tva: '', total_ht: '' });
+  };
+  const handleEditItemChange = (e) => {
+    const { name, value } = e.target;
+    setEditItemForm(prev => {
+      const next = { ...prev, [name]: value };
+      const qtyNum = parseFloat(next.qty) || 0;
+      const unitNum = parseFloat(next.unit_price) || 0;
+      const tvaNum = parseFloat(next.tva) || 0;
+      const subtotal = qtyNum * unitNum;
+      next.total_ht = Number.isFinite(subtotal) ? (subtotal * (1 + tvaNum / 100)).toFixed(2) : prev.total_ht;
+      return next;
+    });
+  };
+  const saveEditedItem = () => {
+    if (!editingItem) return;
+    const { invoiceId, itemIndex } = editingItem;
+    setItemsByInvoice(prev => {
+      const arr = [...(prev[invoiceId] || [])];
+      arr[itemIndex] = { ...arr[itemIndex], ...editItemForm };
+      return { ...prev, [invoiceId]: arr };
+    });
+    cancelEditItem();
+  };
+  const deleteItem = (invoiceId, itemIndex) => {
+    setItemsByInvoice(prev => {
+      const arr = [...(prev[invoiceId] || [])];
+      arr.splice(itemIndex, 1);
+      return { ...prev, [invoiceId]: arr };
+    });
+  };
+
+  // Details form change handler (re-compute total)
+  const handleDetailsChange = (e) => {
+    const { name, value } = e.target;
+    setDetailsForm(prev => {
+      const next = { ...prev, [name]: value };
+      const qtyNum = parseFloat(next.qty) || 0;
+      const unitNum = parseFloat(next.unit_price) || 0;
+      const tvaNum = parseFloat(next.tva) || 0;
+      const subtotal = qtyNum * unitNum;
+      next.total_ht = Number.isFinite(subtotal) ? (subtotal * (1 + tvaNum / 100)).toFixed(2) : prev.total_ht;
+      return next;
+    });
+  };
+
+  // Generate invoice PDF (best-effort)
+  const generateInvoicePDF = async (invoice) => {
+    try {
+      const bid = invoice.backendId || await resolveBackendInvoiceId(invoice);
+      if (!bid) {
+        setToast(t('pdf_no_backend_invoice') || 'Backend invoice not found');
+        setTimeout(() => setToast(''), 2500);
+        return;
+      }
+      // Placeholder route to open invoice; adjust if your backend exposes a PDF endpoint
+      window.open(getPdfUrl(`invoices/${bid}`), '_blank');
+    } catch (err) {
+      setToast(t('pdf_error') || 'Failed to open PDF');
+      setTimeout(() => setToast(''), 2500);
+    }
+  };
+
   // Filter invoices based on search term
   const filteredInvoices = useMemo(() => {
     if (!searchTerm.trim()) return createdInvoices;
