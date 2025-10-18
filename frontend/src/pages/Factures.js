@@ -199,16 +199,20 @@ const Factures = () => {
   const totalPages = Math.ceil(filteredInvoices.length / itemsPerPage);
 
   const createBackendInvoice = async (invoiceData) => {
+  try {
     const response = await axios.post(getApiUrl('invoices/'), {
       invoice_number: invoiceData.name,
-      contract_id: invoiceData.contractId,
-      amount: 0,
-      paid_amount: 0,
-      due_date: invoiceData.dueDate,
-      status: 'unpaid'
+      contract_id: parseInt(invoiceData.contractId, 10), // Ensure it's an integer
+      amount: 0, // Required by schema
+      due_date: invoiceData.dueDate || new Date().toISOString().split('T')[0], // Ensure valid date
+      status: 'unpaid' // Default status
     });
     return response.data;
-  };
+  } catch (error) {
+    console.error('Error creating invoice in backend:', error.response?.data || error.message);
+    throw error; // Re-throw to be caught by the caller
+  }
+};
 
   // Helper: resolve backend invoice id for a local invoice
   const resolveBackendInvoiceId = async (invoice) => {
