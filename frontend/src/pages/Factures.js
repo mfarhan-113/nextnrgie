@@ -399,6 +399,75 @@ const Factures = () => {
     fetchContracts();
   }, []);
 
+  // Sync invoices and items from backend so old invoices appear across devices
+  useEffect(() => {
+    // Only run after contracts have been fetched at least once
+    if (!contracts || contracts.length >= 0) {
+      syncInvoicesFromBackend();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [contracts.length]);
+
+  const syncInvoicesFromBackend = async () => {
+    try {
+      // 1) Fetch all backend invoices
+      const invRes = await axios.get(getApiUrl('invoices/'));
+      const backendInvoices = Array.isArray(invRes.data) ? invRes.data : [];
+
+      // 2) Build local createdInvoices entries from backend
+      const mapped = backendInvoices.map(b => ({
+        id: `inv-b-${b.id}`,
+        backendId: b.id,
+        contractId: b.contract_id,
+        name: b.invoice_number,
+        date: b.created_at ? b.created_at.split('T')[0] : undefined,
+        dueDate: b.due_date
+      }));
+
+      // Merge with existing local without duplicating by invoice_number
+      const byName = new Map();
+      [...createdInvoices, ...mapped].forEach(inv => {
+        if (!inv || !inv.name) return;
+        byName.set(`${inv.contractId}::${inv.name}`, inv);
+      });
+      const mergedInvoices = Array.from(byName.values());
+      setCreatedInvoices(mergedInvoices);
+
+      // 3) Fetch factures per contract and assign items per invoice
+      const contractIds = [...new Set(backendInvoices.map(b => b.contract_id))];
+      const itemsMap = {};
+      for (const cid of contractIds) {
+        try {
+          const fRes = await axios.get(getApiUrl(`factures/contract/${cid}`));
+          const list = Array.isArray(fRes.data) ? fRes.data : [];
+          // Group by invoice_id
+          const byInvoice = list.reduce((acc, f) => {
+            const key = f.invoice_id ? `inv-b-${f.invoice_id}` : `contract-${cid}-noinv`;
+            if (!acc[key]) acc[key] = [];
+            acc[key].push({
+              description: f.description,
+              qty: f.qty,
+              qty_unit: f.qty_unit || 'unite',
+              unit_price: f.unit_price,
+              tva: f.tva,
+              total_ht: f.total_ht,
+              backendFactureId: f.id
+            });
+            return acc;
+          }, {});
+          Object.assign(itemsMap, byInvoice);
+        } catch (e) {
+          // continue with others
+        }
+      }
+
+      // Merge with existing itemsByInvoice
+      setItemsByInvoice(prev => ({ ...itemsMap, ...prev }));
+    } catch (e) {
+      // Best-effort sync; ignore errors to keep UI responsive
+    }
+  };
+
   // Hydrate from localStorage on mount
   useEffect(() => {
     try {
