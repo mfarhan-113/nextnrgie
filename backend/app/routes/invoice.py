@@ -7,6 +7,7 @@ from app.schemas.invoice import InvoiceCreate, InvoiceOut
 from app.models.invoice import Invoice
 from app.models.contract import Contract
 from app.models.client import Client
+from app.models.facture import Facture
 
 router = APIRouter(prefix="/invoices", tags=["invoices"])
 
@@ -157,3 +158,24 @@ def update_invoice(
         raise HTTPException(status_code=500, detail=f"Error updating invoice: {str(e)}")
     finally:
         db.close()
+
+@router.delete("/{invoice_id}", status_code=204)
+def delete_invoice(invoice_id: int, db: Session = Depends(get_db)):
+    """Delete an invoice and its related factures to keep DB consistent."""
+    try:
+        db_invoice = db.query(Invoice).filter(Invoice.id == invoice_id).first()
+        if not db_invoice:
+            raise HTTPException(status_code=404, detail="Invoice not found")
+
+        # Delete related factures first to avoid FK issues
+        db.query(Facture).filter(Facture.invoice_id == invoice_id).delete(synchronize_session=False)
+
+        # Delete the invoice itself
+        db.delete(db_invoice)
+        db.commit()
+        return None
+    except HTTPException:
+        raise
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"Error deleting invoice: {str(e)}")
