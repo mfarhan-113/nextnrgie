@@ -238,14 +238,19 @@ const Balance = () => {
       }
 
       // De-duplicate: prefer backend entries when invoice_number+contract_id collide
+      // If backend is empty, treat it as authoritative (no invoices exist) and discard stale local data
       const map = new Map();
       for (const b of backendInvoices) {
         const key = `${b.invoice_number || ''}::${b.contract_id || ''}`;
         map.set(key, b);
       }
-      for (const l of localTransformed) {
-        const key = `${l.invoice_number || ''}::${l.contract_id || ''}`;
-        if (!map.has(key)) map.set(key, l);
+      // Only merge local invoices if backend has at least one invoice (indicating partial data)
+      // If backend is completely empty, assume all old local invoices are deleted
+      if (backendInvoices.length > 0) {
+        for (const l of localTransformed) {
+          const key = `${l.invoice_number || ''}::${l.contract_id || ''}`;
+          if (!map.has(key)) map.set(key, l);
+        }
       }
 
       setInvoices(Array.from(map.values()));
