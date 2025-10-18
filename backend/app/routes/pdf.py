@@ -202,11 +202,11 @@ async def generate_invoice_pdf(invoice_id: str, db: Session = Depends(get_db)):
         logger.error(f"Contract with ID {invoice.contract_id} not found for invoice {invoice_id}")
         raise HTTPException(status_code=404, detail="Contract not found for invoice")
 
-    # Log the SQL query for factures
+    # Log the SQL query for factures - fetch ONLY for THIS invoice
     logger.info("\n[3/3] Fetching factures data...")
-    factures_result = db.execute(select(Facture).where(Facture.contract_id == invoice.contract_id))
+    factures_result = db.execute(select(Facture).where(Facture.invoice_id == invoice.id))
     factures = factures_result.scalars().all()
-    logger.info(f"Found {len(factures)} factures for contract ID {invoice.contract_id}")
+    logger.info(f"Found {len(factures)} factures for invoice ID {invoice.id}")
     
     # Log detailed facture information
     logger.info("\n=== FACTURE DETAILS ===")
@@ -366,20 +366,16 @@ async def generate_invoice_pdf(invoice_id: str, db: Session = Depends(get_db)):
     current_x = header_x
     p.setStrokeColorRGB(0, 0, 0)  # Black for lines
     
-    # Fetch contract details
-    contract_details_result = db.execute(select(ContractDetail).where(ContractDetail.contract_id == contract.id))
-    contract_details = contract_details_result.scalars().all()
-    
     # Reset fill color to black for text
     p.setFillColorRGB(0, 0, 0)
     
-    # Draw contract details in the table
+    # Draw factures in the table (items for THIS invoice)
     row_height = 20
     y_position = table_header_y - 20
     total_amount = 0
     
-    if contract_details:
-        for detail in contract_details:
+    if factures:
+        for detail in factures:
             # Check if we need a new page
             if y_position < 100:  # If too close to bottom, start a new page
                 p.showPage()
