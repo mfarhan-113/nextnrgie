@@ -572,23 +572,8 @@ const Factures = () => {
         dueDate: b.due_date
       }));
 
-      // Merge with preference to BACKEND data to avoid resurrecting deleted local entries
-      const byName = new Map();
-      // Seed with backend invoices first
-      mapped.forEach(inv => {
-        if (!inv || !inv.name) return;
-        byName.set(`${inv.contractId}::${inv.name}`, inv);
-      });
-      // Add local-only invoices that don't exist in backend map
-      createdInvoices.forEach(inv => {
-        if (!inv || !inv.name) return;
-        const key = `${inv.contractId}::${inv.name}`;
-        if (!byName.has(key)) {
-          byName.set(key, inv);
-        }
-      });
-      const mergedInvoices = Array.from(byName.values());
-      setCreatedInvoices(mergedInvoices);
+      // Use ONLY backend data, no local merge to avoid ghost invoices
+      setCreatedInvoices(mapped);
 
       // 3) Fetch factures per contract and assign items per invoice
       const contractIds = [...new Set(backendInvoices.map(b => b.contract_id))];
@@ -636,8 +621,8 @@ const Factures = () => {
         }
       });
 
-      // Merge with existing itemsByInvoice: prefer backend data to avoid losing newly added items
-      setItemsByInvoice(prev => ({ ...prev, ...itemsMap }));
+      // Use ONLY backend items, no local merge to avoid stale data
+      setItemsByInvoice(itemsMap);
     } catch (e) {
       // Best-effort sync; ignore errors to keep UI responsive
     }
@@ -722,7 +707,7 @@ const Factures = () => {
           const subtotal = qtyNum * unitPriceNum;
           const total_ht_calc = subtotal * (1 + tvaNum / 100);
 
-          const res = await axios.post(getApiUrl('factures/'), {
+          await axios.post(getApiUrl('factures/'), {
             contract_id: invoice ? parseInt(invoice.contractId) : undefined,
             invoice_id: backendInvoiceId ? parseInt(backendInvoiceId) : undefined,
             description: newItem.description,
@@ -732,36 +717,14 @@ const Factures = () => {
             tva: tvaNum,
             total_ht: Number.isFinite(total_ht_calc) ? Number(total_ht_calc.toFixed(2)) : 0
           });
-          const backendFactureId = res?.data?.id;
-
-          // Update UI immediately for both local and backend keys
-          const newItemEntry = {
-            description: newItem.description,
-            qty: qtyNum,
-            qty_unit: newItem.qty_unit || 'unite',
-            unit_price: unitPriceNum,
-            tva: tvaNum,
-            total_ht: Number.isFinite(total_ht_calc) ? Number(total_ht_calc.toFixed(2)) : 0,
-            backendFactureId
-          };
-
-          setItemsByInvoice(prev => {
-            const localItems = prev[selectedInvoiceId] || [];
-            const backendKey = backendInvoiceId ? `inv-b-${backendInvoiceId}` : null;
-            const backendItems = backendKey ? (prev[backendKey] || []) : [];
-            return {
-              ...prev,
-              [selectedInvoiceId]: [...localItems, newItemEntry],
-              ...(backendKey ? { [backendKey]: [...backendItems, newItemEntry] } : {})
-            };
-          });
 
           // Close modal and reset form
           setDetailsModalOpen(false);
           setDetailsForm({ description: '', qty: '', qty_unit: 'unite', unit_price: '', tva: '', total_ht: '' });
 
-          // Refresh totals snapshot such as balance widgets
-          fetchContracts();
+          // Re-sync from backend to get fresh data (no local state manipulation)
+          await syncInvoicesFromBackend();
+          await fetchContracts();
 
           // Show success toast
           setToast(t('item_added') || 'Item added successfully!');
