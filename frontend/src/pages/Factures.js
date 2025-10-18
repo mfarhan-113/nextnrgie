@@ -458,25 +458,46 @@ const Factures = () => {
     setTimeout(() => setToast(''), 2500);
   };
 
-  // Delete an invoice
-  const deleteInvoice = (invoiceId) => {
-    if (window.confirm(t('confirm_delete_invoice') || 'Are you sure you want to delete this invoice?')) {
-      setCreatedInvoices(prev => prev.filter(inv => inv.id !== invoiceId));
-      
-      // Also delete its items
-      setItemsByInvoice(prev => {
-        const newItems = { ...prev };
-        delete newItems[invoiceId];
-        return newItems;
-      });
-      
-      if (selectedInvoiceId === invoiceId) {
-        setSelectedInvoiceId('');
+  // Delete an invoice (backend + local)
+  const deleteInvoice = async (invoiceId) => {
+    const proceed = window.confirm(t('confirm_delete_invoice') || 'Are you sure you want to delete this invoice?');
+    if (!proceed) return;
+
+    const invoice = createdInvoices.find(inv => inv.id === invoiceId);
+    try {
+      // Delete in backend first if we can resolve an id
+      const backendId = invoice ? (invoice.backendId || await resolveBackendInvoiceId(invoice)) : null;
+      if (backendId) {
+        await axios.delete(getApiUrl(`invoices/${backendId}`));
       }
-      
-      setToast(t('invoice_deleted') || 'Invoice deleted successfully!');
-      setTimeout(() => setToast(''), 2500);
+    } catch (err) {
+      console.error('Failed to delete backend invoice', err);
+      setToast(t('invoice_delete_error') || 'Failed to delete invoice');
+      setTimeout(() => setToast(''), 3000);
+      return;
     }
+
+    // Remove from local state regardless
+    setCreatedInvoices(prev => prev.filter(inv => inv.id !== invoiceId));
+
+    // Also delete its items (both local-id key and backend-key mirror)
+    setItemsByInvoice(prev => {
+      const next = { ...prev };
+      delete next[invoiceId];
+      const backendKey = (invoice && (invoice.backendId || null)) ? `inv-b-${invoice.backendId}` : null;
+      if (backendKey) delete next[backendKey];
+      return next;
+    });
+
+    if (selectedInvoiceId === invoiceId) {
+      setSelectedInvoiceId('');
+    }
+
+    // Refresh derived totals (e.g., Balance widgets that depend on backend)
+    try { await fetchContracts(); } catch {}
+
+    setToast(t('invoice_deleted') || 'Invoice deleted successfully!');
+    setTimeout(() => setToast(''), 2500);
   };
 
   // Handle page change
@@ -551,11 +572,20 @@ const Factures = () => {
         dueDate: b.due_date
       }));
 
-      // Merge with existing local without duplicating by invoice_number
+      // Merge with preference to BACKEND data to avoid resurrecting deleted local entries
       const byName = new Map();
-      [...createdInvoices, ...mapped].forEach(inv => {
+      // Seed with backend invoices first
+      mapped.forEach(inv => {
         if (!inv || !inv.name) return;
         byName.set(`${inv.contractId}::${inv.name}`, inv);
+      });
+      // Add local-only invoices that don't exist in backend map
+      createdInvoices.forEach(inv => {
+        if (!inv || !inv.name) return;
+        const key = `${inv.contractId}::${inv.name}`;
+        if (!byName.has(key)) {
+          byName.set(key, inv);
+        }
       });
       const mergedInvoices = Array.from(byName.values());
       setCreatedInvoices(mergedInvoices);
