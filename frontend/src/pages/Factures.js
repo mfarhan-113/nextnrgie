@@ -443,16 +443,20 @@ const Factures = () => {
           // Group by invoice_id
           const byInvoice = list.reduce((acc, f) => {
             const key = f.invoice_id ? `inv-b-${f.invoice_id}` : `contract-${cid}-noinv`;
-            if (!acc[key]) acc[key] = [];
-            acc[key].push({
-              description: f.description,
-              qty: f.qty,
-              qty_unit: f.qty_unit || 'unite',
-              unit_price: f.unit_price,
-              tva: f.tva,
-              total_ht: f.total_ht,
-              backendFactureId: f.id
-            });
+            const existingItems = itemsByInvoice[key] || [];
+            const updatedItems = [
+              ...existingItems,
+              {
+                description: f.description,
+                qty: f.qty,
+                qty_unit: f.qty_unit || 'unite',
+                unit_price: f.unit_price,
+                tva: f.tva,
+                total_ht: Number.isFinite(f.total_ht) ? Number(f.total_ht.toFixed(2)) : 0,
+                backendFactureId: f.id
+              }
+            ];
+            acc[key] = updatedItems;
             return acc;
           }, {});
           Object.assign(itemsMap, byInvoice);
@@ -461,481 +465,147 @@ const Factures = () => {
         }
       }
 
+      // Also mirror backend-keyed items to any local invoice IDs that share the same backendId
+      Object.keys(itemsMap).forEach(key => {
+        if (key.startsWith('inv-b-')) {
+          const bid = parseInt(key.slice(6), 10);
+          if (Number.isFinite(bid)) {
+            createdInvoices
+              .filter(inv => parseInt(inv.backendId) === bid)
+              .forEach(inv => {
+                itemsMap[inv.id] = itemsMap[key];
+              });
+          }
+        }
+      });
+
       // Merge with existing itemsByInvoice
       setItemsByInvoice(prev => ({ ...itemsMap, ...prev }));
     } catch (e) {
       // Best-effort sync; ignore errors to keep UI responsive
     }
-  };
 
-  // Hydrate from localStorage on mount
-  useEffect(() => {
-    try {
-      const savedInvoices = persist.get('createdInvoices');
-      const savedItems = persist.get('itemsByInvoice');
-      if (savedInvoices) {
-        setCreatedInvoices(JSON.parse(savedInvoices));
-      }
-      if (savedItems) {
-        setItemsByInvoice(JSON.parse(savedItems));
-      }
-    } catch (e) {
-      console.error('Hydration error:', e);
-    } finally {
-      setHydrationDone(true);
-    }
-  }, [persist]);
-
-  // Persist invoices whenever they change
-  useEffect(() => {
-    if (!hydrationDone) return;
-    try {
-      persist.set('createdInvoices', JSON.stringify(createdInvoices));
-    } catch {}
-  }, [createdInvoices, hydrationDone, persist]);
-
-  // Persist items whenever they change
-  useEffect(() => {
-    if (!hydrationDone) return;
-    try {
-      persist.set('itemsByInvoice', JSON.stringify(itemsByInvoice));
-    } catch {}
-  }, [itemsByInvoice, hydrationDone, persist]);
-
-  // Fetch contracts on mount
-  const fetchContracts = async () => {
-    try {
-      const res = await axios.get(getApiUrl('contracts/'));
-      const contractsList = res.data || [];
-      setContracts(contractsList);
-      
-      // Build contractsById map
-      const byId = {};
-      contractsList.forEach(c => {
-        byId[c.id] = c;
-      });
-      setContractsById(byId);
-    } catch (error) {
-      console.error('Error fetching contracts:', error);
-      setError(t('failed_to_load_contracts') || 'Failed to load contracts');
-    }
-  };
-
-  // Update invoice due date
-  const updateInvoiceDueDate = (invoiceId, dueDate) => {
-    setCreatedInvoices(prev => prev.map(inv => 
-      inv.id === invoiceId ? { ...inv, dueDate } : inv
-    ));
-  };
-
-  // Open modal to add item
-  const openAddItemModal = (invoiceId) => {
-    if (!invoiceId) {
-      setError(t('select_invoice_first') || 'Please select an invoice first.');
-      return;
-    }
-    setSelectedInvoiceId(invoiceId);
-    setDetailsForm({ 
-      description: '', 
-      qty: '', 
-      qty_unit: 'unite',
-      unit_price: '', 
-      tva: '', 
-      total_ht: '' 
-    });
-    setDetailsModalOpen(true);
-  };
-
-  const closeModal = () => setDetailsModalOpen(false);
-
-  // Toggle items visibility for a specific invoice
-  const toggleItemsVisibility = (invoiceId) => {
-    setExpandedItems(prev => ({
-      ...prev,
-      [invoiceId]: !prev[invoiceId]
-    }));
-  };
-
-  // Delete an item from an invoice
-  const deleteItem = async (invoiceId, itemIndex) => {
-    if (window.confirm(t('confirm_delete_item') || 'Are you sure you want to delete this item?')) {
-      // If this item exists in backend, delete it there first
-      try {
-        const current = itemsByInvoice[invoiceId] || [];
-        const item = current[itemIndex];
-        if (item && item.backendFactureId) {
-          await axios.delete(getApiUrl(`factures/${item.backendFactureId}`));
-        }
-      } catch (e) {
-        console.warn('Failed to delete facture from backend (continuing locally):', e?.message || e);
-      }
-
-      setItemsByInvoice(prev => {
-        const newItems = { ...prev };
-        newItems[invoiceId] = newItems[invoiceId].filter((_, idx) => idx !== itemIndex);
-        try { persist.set('itemsByInvoice', JSON.stringify(newItems)); } catch {}
-        return newItems;
-      });
-      setToast(t('item_deleted_successfully') || 'Item deleted successfully!');
-      setTimeout(() => setToast(''), 2500);
-    }
-  };
-
-  // Start editing an item
-  const startEditItem = (invoiceId, itemIndex, item) => {
-    console.log('Editing item:', item);
-    setEditingItem({ invoiceId, itemIndex });
-    setEditItemForm({
-      description: item.description || '',
-      qty: item.qty || '',
-      qty_unit: item.qty_unit || 'unite',
-      unit_price: item.unit_price || '',
-      tva: item.tva || '',
-      total_ht: item.total_ht || ''
-    });
-  };
-
-  // Handle edit form changes with TVA calculation
-  const handleEditItemChange = (e) => {
-    const { name, value } = e.target;
-    const updatedForm = { ...editItemForm, [name]: value };
-    
-    // Recalculate when any of these fields change
-    if (['qty', 'unit_price', 'tva'].includes(name)) {
-      const qty = parseFloat(updatedForm.qty) || 0;
-      const unitPrice = parseFloat(updatedForm.unit_price) || 0;
-      const tvaRate = (parseFloat(updatedForm.tva) || 0) / 100;
-      
-      const subtotal = qty * unitPrice;
-      const tvaAmount = subtotal * tvaRate;
-      updatedForm.total_ht = (subtotal + tvaAmount).toFixed(2);
-    }
-    
-    setEditItemForm(updatedForm);
-  };
-
-  // Save edited item
-  const saveEditedItem = () => {
-    if (!editingItem) return;
-    
-    setItemsByInvoice(prev => {
-      const newItems = { ...prev };
-      newItems[editingItem.invoiceId][editingItem.itemIndex] = {
-        description: editItemForm.description,
-        qty: parseFloat(editItemForm.qty) || 0,
-        qty_unit: editItemForm.qty_unit || 'unite',
-        unit_price: parseFloat(editItemForm.unit_price) || 0,
-        tva: parseFloat(editItemForm.tva) || 0,
-        total_ht: parseFloat(editItemForm.total_ht) || 0
-      };
-      try { persist.set('itemsByInvoice', JSON.stringify(newItems)); } catch {}
-      return newItems;
-    });
-    
-    setEditingItem(null);
-    setEditItemForm({ description: '', qty: '', unit_price: '', tva: '', total_ht: '' });
-    setToast(t('item_updated_successfully') || 'Item updated successfully!');
-    setTimeout(() => setToast(''), 2500);
-  };
-
-  // Cancel editing
-  const cancelEditItem = () => {
-    setEditingItem(null);
-    setEditItemForm({ description: '', qty: '', qty_unit: 'unite', unit_price: '', tva: '', total_ht: '' });
-  };
-
-  // Handle form input changes with TVA calculation
-  const handleDetailsChange = (e) => {
-    const { name, value } = e.target;
-    
-    // Update the form state
-    setDetailsForm(prev => {
-      // Create updated form with new value
-      const updatedForm = { ...prev, [name]: value };
-      
-      // Recalculate when any of these fields change
-      if (['qty', 'unit_price', 'tva'].includes(name)) {
-        const qty = parseFloat(updatedForm.qty) || 0;
-        const unitPrice = parseFloat(updatedForm.unit_price) || 0;
-        const tvaRate = (parseFloat(updatedForm.tva) || 0) / 100;
-        
-        const subtotal = qty * unitPrice;
-        const tvaAmount = subtotal * tvaRate;
-        updatedForm.total_ht = (subtotal + tvaAmount).toFixed(2);
-      }
-      
-      return updatedForm;
-    });
   };
 
   const handleDetailsSubmit = async (e) => {
-    e.preventDefault();
-    if (!selectedInvoiceId) {
-      setError(t('select_invoice_first') || 'Please select an invoice first.');
-      return;
-    }
-
-    try {
-      const newItem = {
-        description: detailsForm.description,
-        qty: detailsForm.qty,
-        qty_unit: detailsForm.qty_unit || 'unite',
-        unit_price: detailsForm.unit_price,
-        tva: detailsForm.tva,
-        total_ht: detailsForm.total_ht
-      };
-
-      // VALIDATION: Check if adding this item will exceed contract amount
-      const invoice = createdInvoices.find(inv => inv.id === selectedInvoiceId);
-      if (invoice) {
-        const contract = contractsById[invoice.contractId];
-        const contractPrice = parseFloat(contract?.price) || 0;
-        
-        // Calculate current total of all invoices for this contract
-        const invoicesForContract = createdInvoices.filter(inv => String(inv.contractId) === String(invoice.contractId));
-        const totalInvoiced = invoicesForContract.reduce((sum, inv) => {
-          const invTotal = parseFloat(calculateInvoiceTotal(inv.id)) || 0;
-          return sum + invTotal;
-        }, 0);
-        
-        // Add the new item amount
-        const newItemTotal = parseFloat(newItem.total_ht) || 0;
-        const newTotal = totalInvoiced + newItemTotal;
-        
-        if (newTotal > contractPrice) {
-          const remaining = (contractPrice - totalInvoiced).toFixed(2);
-          setToast(`Cannot add item! Contract limit exceeded. Remaining: €${remaining}, Tried to add: €${newItemTotal.toFixed(2)}`);
-          setTimeout(() => setToast(''), 4000);
-          return;
-        }
+      e.preventDefault();
+      if (!selectedInvoiceId) {
+        setError(t('select_invoice_first') || 'Please select an invoice first.');
+        return;
       }
 
-      // Persist the item to backend 'factures' with invoice linkage
       try {
+        const newItem = {
+          description: detailsForm.description,
+          qty: detailsForm.qty,
+          qty_unit: detailsForm.qty_unit || 'unite',
+          unit_price: detailsForm.unit_price,
+          tva: detailsForm.tva,
+          total_ht: detailsForm.total_ht
+        };
+
+        // VALIDATION: Check if adding this item will exceed contract amount
         const invoice = createdInvoices.find(inv => inv.id === selectedInvoiceId);
-        let backendInvoiceId = invoice ? (invoice.backendId || await resolveBackendInvoiceId(invoice)) : undefined;
-        // If no backend invoice exists yet, attempt to create it now and persist backendId locally
-        if (!backendInvoiceId && invoice) {
-          try {
-            const created = await createBackendInvoice({
-              name: invoice.name,
-              contractId: invoice.contractId,
-              dueDate: invoice.dueDate
-            });
-            backendInvoiceId = created?.id;
-            if (backendInvoiceId) {
-              setCreatedInvoices(prev => prev.map(inv => inv.id === invoice.id ? { ...inv, backendId: backendInvoiceId } : inv));
-            }
-          } catch (errCreate) {
-            // If duplicate, resolve instead
-            const allInvRes = await axios.get(getApiUrl('invoices/'));
-            const match = (Array.isArray(allInvRes.data) ? allInvRes.data : []).find(
-              (row) => String(row.contract_id) === String(invoice.contractId) && String(row.invoice_number) === String(invoice.name)
-            );
-            backendInvoiceId = match?.id;
-            if (backendInvoiceId) {
-              setCreatedInvoices(prev => prev.map(inv => inv.id === invoice.id ? { ...inv, backendId: backendInvoiceId } : inv));
-            }
+        if (invoice) {
+          const contract = contractsById[invoice.contractId];
+          const contractPrice = parseFloat(contract?.price) || 0;
+          
+          // Calculate current total of all invoices for this contract
+          const invoicesForContract = createdInvoices.filter(inv => String(inv.contractId) === String(invoice.contractId));
+          const totalInvoiced = invoicesForContract.reduce((sum, inv) => {
+            const invTotal = parseFloat(calculateInvoiceTotal(inv.id)) || 0;
+            return sum + invTotal;
+          }, 0);
+          
+          // Add the new item amount
+          const newItemTotal = parseFloat(newItem.total_ht) || 0;
+          const newTotal = totalInvoiced + newItemTotal;
+          
+          if (newTotal > contractPrice) {
+            const remaining = (contractPrice - totalInvoiced).toFixed(2);
+            setToast(`Cannot add item! Contract limit exceeded. Remaining: €${remaining}, Tried to add: €${newItemTotal.toFixed(2)}`);
+            setTimeout(() => setToast(''), 4000);
+            return;
           }
         }
 
-        const res = await axios.post(getApiUrl('factures/'), {
-          contract_id: invoice ? parseInt(invoice.contractId) : undefined,
-          invoice_id: backendInvoiceId ? parseInt(backendInvoiceId) : undefined,
-          description: newItem.description,
-          qty: Number(newItem.qty) || 0,
-          qty_unit: newItem.qty_unit || 'unite',
-          unit_price: Number(newItem.unit_price) || 0,
-          tva: Number(newItem.tva) || 0,
-          total_ht: Number(newItem.total_ht) || 0
-        });
-        const backendFactureId = res?.data?.id;
-
-        setItemsByInvoice(prev => {
-          const list = prev[selectedInvoiceId] ? [...prev[selectedInvoiceId]] : [];
-          list.push({ ...newItem, backendFactureId });
-          const next = { ...prev, [selectedInvoiceId]: list };
-          try { persist.set('itemsByInvoice', JSON.stringify(next)); } catch {}
-          return next;
-        });
-      } catch (err) {
-        console.error('Failed to persist facture to backend', err);
-        // Still store locally to not block the UI
-        setItemsByInvoice(prev => {
-          const list = prev[selectedInvoiceId] ? [...prev[selectedInvoiceId]] : [];
-          list.push(newItem);
-          const next = { ...prev, [selectedInvoiceId]: list };
-          try { persist.set('itemsByInvoice', JSON.stringify(next)); } catch {}
-          return next;
-        });
-      }
-
-      setToast(t('item_added') || 'Item added successfully!');
-      setTimeout(() => setToast(''), 2500);
-
-      // Reset and close
-      setDetailsForm({ description: '', qty: '', unit_price: '', tva: '', total_ht: '' });
-      setDetailsModalOpen(false);
-    } catch (err) {
-      console.error('Error saving invoice item', err);
-      setError(t('error_saving_data') || 'Error saving data');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // Calculate total for an invoice
-  const calculateInvoiceTotal = (invoiceId) => {
-    const items = itemsByInvoice[invoiceId] || [];
-    return items.reduce((sum, item) => sum + (parseFloat(item.total_ht) || 0), 0).toFixed(2);
-  };
-
-  // Calculate remaining amount for a contract
-  const calculateRemainingAmount = (contractId) => {
-    const contract = contractsById[contractId];
-    if (!contract) return 0;
-    
-    const contractPrice = parseFloat(contract.price) || 0;
-    
-    // Calculate total of all invoices for this contract
-    const invoicesForContract = createdInvoices.filter(inv => String(inv.contractId) === String(contractId));
-    const totalInvoiced = invoicesForContract.reduce((sum, inv) => {
-      const invTotal = parseFloat(calculateInvoiceTotal(inv.id)) || 0;
-      return sum + invTotal;
-    }, 0);
-    
-    return (contractPrice - totalInvoiced).toFixed(2);
-  };
-
-  // Generate PDF for an invoice using backend API
-  const generateInvoicePDF = async (invoice) => {
-    const contract = contractsById[invoice.contractId];
-    const items = itemsByInvoice[invoice.id] || [];
-    let tempPriceSet = false;
-    let originalPrice;
-    
-    if (!contract) {
-      setToast(t('contract_not_found') || 'Contract not found');
-      setTimeout(() => setToast(''), 2500);
-      return;
-    }
-
-    if (items.length === 0) {
-      setToast(t('no_items_to_generate_pdf') || 'Please add items before generating PDF');
-      setTimeout(() => setToast(''), 2500);
-      return;
-    }
-
-    try {
-      // For PDF generation, we need to temporarily save items to factures table
-      // Backend PDF reads from factures table, not contract_details
-      
-      const currentItems = itemsByInvoice[invoice.id] || [];
-      const currentTotal = currentItems.reduce((sum, item) => sum + (parseFloat(item.total_ht) || 0), 0);
-      
-      // STEP 1: First, ensure contract has enough capacity by setting price to a large value
-      // This prevents validation errors when adding items
-      const TEMP_LARGE_PRICE = 999999; // Temporary large value
-      originalPrice = contract.price;
-      await axios.put(getApiUrl(`contracts/${invoice.contractId}`), {
-        ...contract,
-        price: TEMP_LARGE_PRICE
-      });
-      tempPriceSet = true;
-      
-      // STEP 2: Delete ALL existing factures for this contract
-      try {
-        const existingFactures = await axios.get(getApiUrl(`/factures/contract/${invoice.contractId}`), {
-          validateStatus: function (status) {
-            return status === 200 || status === 404; // Resolve only if the status code is 200 or 404
-          }
-        });
-        
-        // If we have factures, delete them
-        if (existingFactures.data && existingFactures.data.length > 0) {
-          for (const facture of existingFactures.data) {
-            await axios.delete(getApiUrl(`factures/${facture.id}`));
-          }
-        } else {
-          console.log('No existing factures to delete');
-        }
-      } catch (e) {
-        console.log('Error checking for existing factures:', e.message);
-      }
-
-      // STEP 3: Add ONLY current invoice items to factures table
-      // Ensure we have a backend invoice id to link factures so amounts sum correctly
-      let backendInvoiceId = invoice.backendId;
-      if (!backendInvoiceId) {
+        // Persist the item to backend 'factures' with invoice linkage
         try {
-          const allInvRes = await axios.get(getApiUrl('invoices/'));
-          const match = (Array.isArray(allInvRes.data) ? allInvRes.data : []).find(
-            (row) => String(row.contract_id) === String(invoice.contractId) && String(row.invoice_number) === String(invoice.name)
-          );
-          if (match && match.id) {
-            backendInvoiceId = match.id;
+          const invoice = createdInvoices.find(inv => inv.id === selectedInvoiceId);
+          let backendInvoiceId = invoice ? (invoice.backendId || await resolveBackendInvoiceId(invoice)) : undefined;
+          // If no backend invoice exists yet, attempt to create it now and persist backendId locally
+          if (!backendInvoiceId && invoice) {
+            try {
+              const created = await createBackendInvoice({
+                name: invoice.name,
+                contractId: invoice.contractId,
+                dueDate: invoice.dueDate
+              });
+              backendInvoiceId = created?.id;
+              if (backendInvoiceId) {
+                setCreatedInvoices(prev => prev.map(inv => inv.id === invoice.id ? { ...inv, backendId: backendInvoiceId } : inv));
+              }
+            } catch (errCreate) {
+              // If duplicate, resolve instead
+              const allInvRes = await axios.get(getApiUrl('invoices/'));
+              const match = (Array.isArray(allInvRes.data) ? allInvRes.data : []).find(
+                (row) => String(row.contract_id) === String(invoice.contractId) && String(row.invoice_number) === String(invoice.name)
+              );
+              backendInvoiceId = match?.id;
+              if (backendInvoiceId) {
+                setCreatedInvoices(prev => prev.map(inv => inv.id === invoice.id ? { ...inv, backendId: backendInvoiceId } : inv));
+              }
+            }
           }
-        } catch {}
-      }
-      for (const item of currentItems) {
-        await axios.post(getApiUrl('/factures/'), {
-          contract_id: parseInt(invoice.contractId),
-          invoice_id: backendInvoiceId ? parseInt(backendInvoiceId) : undefined,
-          description: item.description,
-          qty: Number(item.qty) || 0,
-          qty_unit: item.qty_unit || 'unite',  // Default to 'unite' if not specified
-          unit_price: Number(item.unit_price) || 0,
-          tva: Number(item.tva) || 0,
-          total_ht: Number(item.total_ht) || ((Number(item.qty) || 0) * (Number(item.unit_price) || 0))
-        });
-      }
 
-      // STEP 4: Generate PDF using the contract ID directly
-      // Use backend endpoint /pdf/estimate/{contract_id}
-      const res = await axios.get(
-        getApiUrl(`pdf/estimate/${invoice.contractId}`),
-        { 
-          responseType: 'blob',
-          headers: { 'Accept': 'application/pdf' }
-        }
-      );
-      
-      if (!res.data) {
-        throw new Error('No PDF data received from server');
-      }
+          // Calculate totals exactly like backend expects
+          const qtyNum = Number(newItem.qty) || 0;
+          const unitPriceNum = Number(newItem.unit_price) || 0;
+          const tvaNum = Number(newItem.tva) || 0; // percent
+          const subtotal = qtyNum * unitPriceNum;
+          const total_ht_calc = subtotal * (1 + tvaNum / 100);
 
-      // Success path continues
-
-      // Open PDF in new tab
-      const blob = new Blob([res.data], { type: 'application/pdf' });
-      const url = window.URL.createObjectURL(blob);
-      window.open(url, '_blank');
-      setTimeout(() => window.URL.revokeObjectURL(url), 60_000);
-
-      // Show success message
-      setToast(t('pdf_generated_successfully') || 'PDF generated successfully!');
-      setTimeout(() => setToast(''), 2500);
-
-    } catch (err) {
-      console.error('Failed to generate PDF', err);
-      setToast(t('error_generating_pdf') || 'Failed to generate PDF');
-      setTimeout(() => setToast(''), 2500);
-    } finally {
-      // Always attempt to restore original contract price if we changed it
-      try {
-        if (tempPriceSet) {
-          await axios.put(getApiUrl(`contracts/${invoice.contractId}`), {
-            ...contract,
-            price: originalPrice
+          const res = await axios.post(getApiUrl('factures/'), {
+            contract_id: invoice ? parseInt(invoice.contractId) : undefined,
+            invoice_id: backendInvoiceId ? parseInt(backendInvoiceId) : undefined,
+            description: newItem.description,
+            qty: qtyNum,
+            qty_unit: newItem.qty_unit || 'unite',  // Default to 'unite' if not specified
+            unit_price: unitPriceNum,
+            tva: tvaNum,
+            total_ht: Number.isFinite(total_ht_calc) ? Number(total_ht_calc.toFixed(2)) : 0
           });
-          // Refresh contracts to get updated data
+          const backendFactureId = res?.data?.id;
+
+          // Update UI immediately for both local and backend keys
+          const newItemEntry = {
+            description: newItem.description,
+            qty: qtyNum,
+            qty_unit: newItem.qty_unit || 'unite',
+            unit_price: unitPriceNum,
+            tva: tvaNum,
+            total_ht: Number.isFinite(total_ht_calc) ? Number(total_ht_calc.toFixed(2)) : 0,
+            backendFactureId
+          };
+
+          setItemsByInvoice(prev => {
+            const localItems = prev[selectedInvoiceId] || [];
+            const backendKey = backendInvoiceId ? `inv-b-${backendInvoiceId}` : null;
+            const backendItems = backendKey ? (prev[backendKey] || []) : [];
+            return {
+              ...prev,
+              [selectedInvoiceId]: [...localItems, newItemEntry],
+              ...(backendKey ? { [backendKey]: [...backendItems, newItemEntry] } : {})
+            };
+          });
+
+          // Refresh totals snapshot such as balance widgets
           fetchContracts();
         }
       } catch (e) {
         console.error('Failed to restore original contract price', e);
       }
-    }
-  };
+    };
 
   // Main component return
   return (
