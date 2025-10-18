@@ -636,8 +636,8 @@ const Factures = () => {
         }
       });
 
-      // Merge with existing itemsByInvoice
-      setItemsByInvoice(prev => ({ ...itemsMap, ...prev }));
+      // Merge with existing itemsByInvoice: prefer backend data to avoid losing newly added items
+      setItemsByInvoice(prev => ({ ...prev, ...itemsMap }));
     } catch (e) {
       // Best-effort sync; ignore errors to keep UI responsive
     }
@@ -756,8 +756,16 @@ const Factures = () => {
             };
           });
 
+          // Close modal and reset form
+          setDetailsModalOpen(false);
+          setDetailsForm({ description: '', qty: '', qty_unit: 'unite', unit_price: '', tva: '', total_ht: '' });
+
           // Refresh totals snapshot such as balance widgets
           fetchContracts();
+
+          // Show success toast
+          setToast(t('item_added') || 'Item added successfully!');
+          setTimeout(() => setToast(''), 2500);
         } catch (postErr) {
           console.error('Failed to persist facture to backend', postErr);
           setToast(t('facture_create_error') || 'Failed to add item. Please try again.');
