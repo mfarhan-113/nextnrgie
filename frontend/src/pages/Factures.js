@@ -292,8 +292,8 @@ const Factures = () => {
         setTimeout(() => setToast(''), 2500);
         return;
       }
-      // Placeholder route to open invoice; adjust if your backend exposes a PDF endpoint
-      window.open(getPdfUrl(`invoices/${bid}`), '_blank');
+      // Open backend PDF endpoint for invoice
+      window.open(getApiUrl(`pdf/invoice/${bid}`), '_blank');
     } catch (err) {
       setToast(t('pdf_error') || 'Failed to open PDF');
       setTimeout(() => setToast(''), 2500);
