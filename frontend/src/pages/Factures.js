@@ -241,15 +241,43 @@ const Factures = () => {
     const year = new Date().getFullYear();
     const baseNumber = `INV-${contract.command_number || contractId}-${year}`;
 
-    // Determine next sequence for this contract/year
-    const existingForBase = createdInvoices.filter(inv =>
-      String(inv.contractId) === String(contractId) &&
-      typeof inv.name === 'string' &&
-      inv.name.startsWith(baseNumber)
-    );
-    let seq = existingForBase.length + 1;
+    // Determine next sequence for this contract/year based on BOTH local and backend invoices
+    let seq = 1;
+    try {
+      const allInvRes = await axios.get(getApiUrl('invoices/'));
+      const backendMatches = (Array.isArray(allInvRes.data) ? allInvRes.data : []).filter(
+        (row) => String(row.contract_id) === String(contractId) && typeof row.invoice_number === 'string' && row.invoice_number.startsWith(baseNumber)
+      );
+      // Extract existing sequence numbers from backend like INV-<command>-<year>-NN
+      const backendSeqs = backendMatches.map(r => {
+        const parts = r.invoice_number.split('-');
+        const maybe = parts[parts.length - 1];
+        const n = parseInt(maybe, 10);
+        return Number.isFinite(n) ? n : 0;
+      }).filter(n => n > 0);
 
-    // Ensure uniqueness across all invoices by incrementing if needed
+      // Local created invoices sequences
+      const localMatches = createdInvoices.filter(inv => String(inv.contractId) === String(contractId) && typeof inv.name === 'string' && inv.name.startsWith(baseNumber));
+      const localSeqs = localMatches.map(inv => {
+        const parts = inv.name.split('-');
+        const maybe = parts[parts.length - 1];
+        const n = parseInt(maybe, 10);
+        return Number.isFinite(n) ? n : 0;
+      }).filter(n => n > 0);
+
+      const maxSeq = Math.max(0, ...(backendSeqs.length ? backendSeqs : [0]), ...(localSeqs.length ? localSeqs : [0]));
+      seq = maxSeq + 1;
+    } catch (e) {
+      // Fallback to local-only if backend fetch fails
+      const existingForBase = createdInvoices.filter(inv =>
+        String(inv.contractId) === String(contractId) &&
+        typeof inv.name === 'string' &&
+        inv.name.startsWith(baseNumber)
+      );
+      seq = existingForBase.length + 1;
+    }
+
+    // Ensure uniqueness across all invoices by incrementing if needed (local set)
     let candidateName = `${baseNumber}-${String(seq).padStart(2, '0')}`;
     const existingNames = new Set(createdInvoices.map(inv => inv.name));
     while (existingNames.has(candidateName)) {
@@ -276,7 +304,29 @@ const Factures = () => {
       setSelectedInvoiceId(newInvoiceId);
       setToast(t('invoice_created') || 'Invoice created successfully!');
     } catch (e) {
-      setToast(t('invoice_create_error') || 'Error creating invoice. Please try again.');
+      // If invoice number already exists, resolve existing backend invoice and proceed
+      const detail = e?.response?.data?.detail || '';
+      if (String(detail).toLowerCase().includes('already exists')) {
+        try {
+          const allInvRes = await axios.get(getApiUrl('invoices/'));
+          const match = (Array.isArray(allInvRes.data) ? allInvRes.data : []).find(
+            (row) => String(row.contract_id) === String(contractId) && String(row.invoice_number) === String(candidateName)
+          );
+          const backendId = match?.id;
+          const persisted = { ...newInvoice, backendId };
+          setCreatedInvoices(prev => [...prev, persisted]);
+          setItemsByInvoice(prev => ({
+            ...prev,
+            [newInvoiceId]: []
+          }));
+          setSelectedInvoiceId(newInvoiceId);
+          setToast(t('invoice_created') || 'Invoice created successfully!');
+        } catch {
+          setToast(t('invoice_create_error') || 'Error creating invoice. Please try again.');
+        }
+      } else {
+        setToast(t('invoice_create_error') || 'Error creating invoice. Please try again.');
+      }
     }
     setTimeout(() => setToast(''), 2500);
   };
@@ -594,8 +644,33 @@ const Factures = () => {
       // Persist the item to backend 'factures' with invoice linkage
       try {
         const invoice = createdInvoices.find(inv => inv.id === selectedInvoiceId);
-        const backendInvoiceId = invoice ? await resolveBackendInvoiceId(invoice) : undefined;
-        const res = await axios.post(getApiUrl('/factures/'), {
+        let backendInvoiceId = invoice ? (invoice.backendId || await resolveBackendInvoiceId(invoice)) : undefined;
+        // If no backend invoice exists yet, attempt to create it now and persist backendId locally
+        if (!backendInvoiceId && invoice) {
+          try {
+            const created = await createBackendInvoice({
+              name: invoice.name,
+              contractId: invoice.contractId,
+              dueDate: invoice.dueDate
+            });
+            backendInvoiceId = created?.id;
+            if (backendInvoiceId) {
+              setCreatedInvoices(prev => prev.map(inv => inv.id === invoice.id ? { ...inv, backendId: backendInvoiceId } : inv));
+            }
+          } catch (errCreate) {
+            // If duplicate, resolve instead
+            const allInvRes = await axios.get(getApiUrl('invoices/'));
+            const match = (Array.isArray(allInvRes.data) ? allInvRes.data : []).find(
+              (row) => String(row.contract_id) === String(invoice.contractId) && String(row.invoice_number) === String(invoice.name)
+            );
+            backendInvoiceId = match?.id;
+            if (backendInvoiceId) {
+              setCreatedInvoices(prev => prev.map(inv => inv.id === invoice.id ? { ...inv, backendId: backendInvoiceId } : inv));
+            }
+          }
+        }
+
+        const res = await axios.post(getApiUrl('factures/'), {
           contract_id: invoice ? parseInt(invoice.contractId) : undefined,
           invoice_id: backendInvoiceId ? parseInt(backendInvoiceId) : undefined,
           description: newItem.description,
