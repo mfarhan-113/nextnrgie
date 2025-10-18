@@ -601,6 +601,11 @@ const Factures = () => {
 
           // Refresh totals snapshot such as balance widgets
           fetchContracts();
+        } catch (postErr) {
+          console.error('Failed to persist facture to backend', postErr);
+          setToast(t('facture_create_error') || 'Failed to add item. Please try again.');
+          setTimeout(() => setToast(''), 3500);
+          return;
         }
       } catch (e) {
         console.error('Failed to restore original contract price', e);
