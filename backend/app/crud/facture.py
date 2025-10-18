@@ -54,26 +54,37 @@ def create_facture(db: Session, facture: schemas.FactureCreate):
                 f"Tried to add: €{total_ht:.2f}"
             )
     
-    # Find or create a single invoice for this contract
-    invoice = db.query(models.Invoice).filter(
-        models.Invoice.contract_id == facture.contract_id
-    ).order_by(models.Invoice.id.asc()).first()
-    # If no invoice exists, create a new one
-    if not invoice:
-        invoice_count = db.query(models.Invoice).count()
-        invoice_number = f"INV-{invoice_count + 1:05d}"
-        due_date = datetime.utcnow() + timedelta(days=30)
-        
-        invoice = models.Invoice(
-            invoice_number=invoice_number,
-            contract_id=facture.contract_id,
-            amount=0,  # Will be updated below
-            due_date=due_date,
-            status="unpaid"
-        )
-        db.add(invoice)
-        db.commit()
-        db.refresh(invoice)
+    # Choose which invoice to link:
+    # 1) If a specific invoice_id is provided, use it after validation.
+    # 2) Else, use the first invoice for this contract or create one if none exists.
+    invoice = None
+    if getattr(facture, 'invoice_id', None):
+        candidate = db.query(models.Invoice).filter(models.Invoice.id == facture.invoice_id).first()
+        if not candidate:
+            raise ValueError(f"Invoice with id {facture.invoice_id} not found")
+        if int(candidate.contract_id) != int(facture.contract_id):
+            raise ValueError("Provided invoice does not belong to the given contract")
+        invoice = candidate
+    else:
+        invoice = db.query(models.Invoice).filter(
+            models.Invoice.contract_id == facture.contract_id
+        ).order_by(models.Invoice.id.asc()).first()
+        # If no invoice exists, create a new one
+        if not invoice:
+            invoice_count = db.query(models.Invoice).count()
+            invoice_number = f"INV-{invoice_count + 1:05d}"
+            due_date = datetime.utcnow() + timedelta(days=30)
+            
+            invoice = models.Invoice(
+                invoice_number=invoice_number,
+                contract_id=facture.contract_id,
+                amount=0,  # Will be updated below
+                due_date=due_date,
+                status="unpaid"
+            )
+            db.add(invoice)
+            db.commit()
+            db.refresh(invoice)
     
     # Create the facture with the provided total_ht
     db_facture = models.Facture(
