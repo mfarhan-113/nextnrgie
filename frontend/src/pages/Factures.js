@@ -585,20 +585,17 @@ const Factures = () => {
           // Group by invoice_id
           const byInvoice = list.reduce((acc, f) => {
             const key = f.invoice_id ? `inv-b-${f.invoice_id}` : `contract-${cid}-noinv`;
-            const existingItems = itemsByInvoice[key] || [];
-            const updatedItems = [
-              ...existingItems,
-              {
-                description: f.description,
-                qty: f.qty,
-                qty_unit: f.qty_unit || 'unite',
-                unit_price: f.unit_price,
-                tva: f.tva,
-                total_ht: Number.isFinite(f.total_ht) ? Number(f.total_ht.toFixed(2)) : 0,
-                backendFactureId: f.id
-              }
-            ];
-            acc[key] = updatedItems;
+            // Use accumulator's existing items, not stale state
+            if (!acc[key]) acc[key] = [];
+            acc[key].push({
+              description: f.description,
+              qty: f.qty,
+              qty_unit: f.qty_unit || 'unite',
+              unit_price: f.unit_price,
+              tva: f.tva,
+              total_ht: Number.isFinite(f.total_ht) ? Number(f.total_ht.toFixed(2)) : 0,
+              backendFactureId: f.id
+            });
             return acc;
           }, {});
           Object.assign(itemsMap, byInvoice);
