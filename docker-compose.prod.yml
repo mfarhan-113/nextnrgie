@@ -3,7 +3,6 @@ version: '3.8'
 services:
   # Backend API service
   backend:
-    container_name: nextnrgie-backend
     image: ${DOCKERHUB_USERNAME}/nextnrgie-backend:latest
     command: uvicorn app.main:app --host 0.0.0.0 --port 8000
     environment:
@@ -25,24 +24,21 @@ services:
       dockerfile: Dockerfile.prod
       args:
         - REACT_APP_API_URL=/api
-        - REACT_APP_BASE_URL=https://nextnrgie.fr
+        - REACT_APP_BASE_URL=http://82.29.172.241
     image: ${DOCKERHUB_USERNAME}/nextnrgie-frontend:latest
-    container_name: nextnrgie-frontend
-    expose:
-      - "80"
+    ports:
+      - "8080:80"
     environment:
       - REACT_APP_API_URL=/api
-      - REACT_APP_BASE_URL=https://nextnrgie.fr
+      - REACT_APP_BASE_URL=http://82.29.172.241
     depends_on:
       - backend
     networks:
-      nextnrgie-network:
-        ipv4_address: 172.18.0.4
+      - nextnrgie-network
     restart: unless-stopped
 
   # MySQL database
   mysql:
-    container_name: nextnrgie-mysql
     image: mysql:8.0
     environment:
       MYSQL_ROOT_PASSWORD: Farhan113
@@ -73,6 +69,3 @@ volumes:
 networks:
   nextnrgie-network:
     driver: bridge
-    ipam:
-      config:
-        - subnet: 172.18.0.0/16
