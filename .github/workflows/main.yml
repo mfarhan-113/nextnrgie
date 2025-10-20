@@ -12,7 +12,7 @@ jobs:
     
     services:
       mysql:
-        image: ghcr.io/docker-library/mysql:8.0
+        image: mysql:8.0
         env:
           MYSQL_ROOT_PASSWORD: Paki7stan8#paki
           MYSQL_DATABASE: nextnrgie_prod
@@ -25,28 +25,8 @@ jobs:
           --health-interval 10s
           --health-timeout 5s
           --health-retries 3
-          --network-alias=mysql
-          --retry 3
+    
     steps:
-    - name: Login to GitHub Container Registry
-      uses: docker/login-action@v3
-      with:
-        registry: ghcr.io
-        username: ${{ github.actor }}
-        password: ${{ secrets.GITHUB_TOKEN }}
-
-    - name: Wait for MySQL
-      run: |
-        for i in {1..10}; do
-          if docker run --network=host --rm ghcr.io/docker-library/mysql:8.0 mysqladmin ping -h 127.0.0.1 -u root -pPaki7stan8#paki --silent; then
-            echo "MySQL is ready!"
-            exit 0
-          fi
-          echo "Waiting for MySQL to be ready... (Attempt $i/10)"
-          sleep 5
-        done
-        echo "MySQL failed to start after 10 attempts"
-        exit 1
     - uses: actions/checkout@v3
     
     - name: Set up Python
