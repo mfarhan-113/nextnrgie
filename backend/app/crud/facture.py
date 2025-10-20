@@ -19,7 +19,7 @@ def update_contract_total(db: Session, contract_id: int):
     ).scalar() or 0.0
     
     # Get the contract
-    db_contract = db.query(models.Contract).filter(models.Contract.id == contract_id).first()
+    db_contract = db.query(models.Contract).filter(models.Contract.id == contract_id).first() 
     
     if db_contract:
         # Update the contract's price with the calculated total
