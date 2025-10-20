@@ -1,3 +1,208 @@
+# name: CI/CD Pipeline
+
+# on:
+#   push:
+#     branches: [ main ]
+#   pull_request:
+#     branches: [ main ]
+
+# jobs:
+#   test:
+#     runs-on: ubuntu-latest
+    
+#     services:
+#       mysql:
+#         image: mirror.gcr.io/library/mysql:8.0
+#         env:
+#           MYSQL_ROOT_PASSWORD: Paki7stan8#paki
+#           MYSQL_DATABASE: nextnrgie_prod
+#           MYSQL_USER: nextnrgie_user
+#           MYSQL_PASSWORD: Paki7stan8#paki
+#         ports:
+#           - 3306:3306
+#         options: >-
+#           --health-cmd "mysqladmin ping"
+#           --health-interval 10s
+#           --health-timeout 5s
+#           --health-retries 3
+    
+#     steps:
+#     - uses: actions/checkout@v3
+    
+#     - name: Set up Python
+#       uses: actions/setup-python@v4
+#       with:
+#         python-version: '3.11'
+    
+#     - name: Install Python dependencies
+#       run: |
+#         python -m pip install --upgrade pip
+#         # Install backend requirements first
+#         if [ -f backend/requirements.txt ]; then 
+#           pip install -r backend/requirements.txt; 
+#         fi
+#         # Install test dependencies
+#         pip install pytest pytest-cov python-dotenv
+#         # Install the package in development mode
+#         if [ -f setup.py ]; then
+#           pip install -e .
+#         fi
+    
+#     - name: Run tests
+#       env:
+#         DATABASE_URL: mysql+pymysql://nextnrgie_user:Paki7stan8%23paki@127.0.0.1:3306/nextnrgie_prod
+#         ENVIRONMENT: test
+#       run: |
+#         # Run tests in the backend directory
+#         cd backend
+#         python -m pytest test_*.py -v || echo "Tests completed with status code $?"
+        
+#         # Run specific test files in the root
+#         cd ..
+#         if [ -f test_db.py ]; then
+#           python -m pytest test_db.py -v || echo "test_db.py completed with status code $?"
+#         fi
+    
+#     - name: Upload coverage to Codecov
+#       uses: codecov/codecov-action@v3
+#       with:
+#         file: ./coverage.xml
+#         fail_ci_if_error: false
+
+#   deploy:
+#     needs: test
+#     if: github.ref == 'refs/heads/main'
+#     runs-on: ubuntu-latest
+    
+#     steps:
+#     - uses: actions/checkout@v4
+    
+#     - name: Set up Docker Buildx
+#       uses: docker/setup-buildx-action@v3
+#       with:
+#         driver: docker
+    
+#     - name: Login to Docker Hub
+#       uses: docker/login-action@v3
+#       with:
+#         username: ${{ secrets.DOCKERHUB_USERNAME }}
+#         password: ${{ secrets.DOCKERHUB_TOKEN }}
+    
+#     - name: Try to pull existing backend image
+#       id: pull-backend
+#       run: |
+#         if docker pull ${{ secrets.DOCKERHUB_USERNAME }}/nextnrgie-backend:latest; then
+#           echo "BACKEND_FOUND=true" >> $GITHUB_ENV
+#         else
+#           echo "BACKEND_FOUND=false" >> $GITHUB_ENV
+#         fi
+    
+#     - name: Build and push backend (only if not found)
+#       if: env.BACKEND_FOUND == 'false'
+#       uses: docker/build-push-action@v6
+#       with:
+#         context: ./backend
+#         file: ./backend/Dockerfile.prod
+#         push: true
+#         tags: ${{ secrets.DOCKERHUB_USERNAME }}/nextnrgie-backend:latest
+    
+#     - name: Try to pull existing frontend image
+#       id: pull-frontend
+#       run: |
+#         if docker pull ${{ secrets.DOCKERHUB_USERNAME }}/nextnrgie-frontend:latest; then
+#           echo "FRONTEND_FOUND=true" >> $GITHUB_ENV
+#         else
+#           echo "FRONTEND_FOUND=false" >> $GITHUB_ENV
+#         fi
+    
+#     - name: Build and push frontend (only if not found)
+#       if: env.FRONTEND_FOUND == 'false'
+#       uses: docker/build-push-action@v6
+#       with:
+#         context: ./frontend
+#         file: ./frontend/Dockerfile.prod
+#         push: true
+#         tags: ${{ secrets.DOCKERHUB_USERNAME }}/nextnrgie-frontend:latest
+#         build-args: |
+#           REACT_APP_API_URL=http://82.29.172.241/api
+#           REACT_APP_BASE_URL=http://82.29.172.241
+
+#     - name: Verify deploy files exist
+#       run: |
+#         ls -la
+#         ls -la mysql-init || true
+
+#     - name: Ensure target directory exists on server
+#       uses: appleboy/ssh-action@v1.0.3
+#       with:
+#         host: ${{ secrets.PROD_HOST }}
+#         username: ${{ secrets.PROD_USER }}
+#         key: ${{ secrets.PROD_SSH_KEY }}
+#         timeout: 2m
+#         command_timeout: 20m
+#         script: |
+#           mkdir -p /opt/nextnrgie
+
+#     - name: Copy compose file to server
+#       uses: appleboy/scp-action@v0.1.7
+#       with:
+#         host: ${{ secrets.PROD_HOST }}
+#         username: ${{ secrets.PROD_USER }}
+#         key: ${{ secrets.PROD_SSH_KEY }}
+#         source: "docker-compose.prod.yml"
+#         target: "/opt/nextnrgie/"
+
+#     - name: Copy mysql-init to server
+#       uses: appleboy/scp-action@v0.1.7
+#       with:
+#         host: ${{ secrets.PROD_HOST }}
+#         username: ${{ secrets.PROD_USER }}
+#         key: ${{ secrets.PROD_SSH_KEY }}
+#         source: "mysql-init/*"
+#         target: "/opt/nextnrgie/mysql-init/"
+
+#     - name: Create/update env file on server
+#       uses: appleboy/ssh-action@v1.0.3
+#       with:
+#         host: ${{ secrets.PROD_HOST }}
+#         username: ${{ secrets.PROD_USER }}
+#         key: ${{ secrets.PROD_SSH_KEY }}
+#         timeout: 2m
+#         command_timeout: 20m
+#         script: |
+#           set -e
+#           mkdir -p /opt/nextnrgie
+#           cat >/opt/nextnrgie/.env.prod <<'EOF'
+#           # Backend
+#           DATABASE_URL=mysql+pymysql://nextnrgie:Farhan113@mysql:3306/nextnrgie
+#           SECRET_KEY=${{ secrets.BACKEND_SECRET_KEY }}
+#           ENVIRONMENT=production
+          
+#           # MySQL
+#           MYSQL_ROOT_PASSWORD=Farhan113
+#           MYSQL_DATABASE=nextnrgie
+#           MYSQL_USER=nextnrgie
+#           MYSQL_PASSWORD=Farhan113
+#           EOF
+
+#     - name: Deploy with docker compose
+#       uses: appleboy/ssh-action@v1.0.3
+#       with:
+#         host: ${{ secrets.PROD_HOST }}
+#         username: ${{ secrets.PROD_USER }}
+#         key: ${{ secrets.PROD_SSH_KEY }}
+#         timeout: 2m
+#         command_timeout: 20m
+#         script: |
+#           set -e
+#           cd /opt/nextnrgie
+#           export DOCKERHUB_USERNAME=${{ secrets.DOCKERHUB_USERNAME }}
+#           docker compose -f docker-compose.prod.yml down --remove-orphans || true
+#           docker compose -f docker-compose.prod.yml pull
+#           docker compose -f docker-compose.prod.yml up -d
+#           docker ps
+
+
 name: CI/CD Pipeline
 
 on:
@@ -12,7 +217,7 @@ jobs:
     
     services:
       mysql:
-        image: mirror.gcr.io/library/mysql:8.0
+        image: mysql:8.0
         env:
           MYSQL_ROOT_PASSWORD: Paki7stan8#paki
           MYSQL_DATABASE: nextnrgie_prod
@@ -79,8 +284,6 @@ jobs:
     
     - name: Set up Docker Buildx
       uses: docker/setup-buildx-action@v3
-      with:
-        driver: docker
     
     - name: Login to Docker Hub
       uses: docker/login-action@v3
@@ -88,17 +291,7 @@ jobs:
         username: ${{ secrets.DOCKERHUB_USERNAME }}
         password: ${{ secrets.DOCKERHUB_TOKEN }}
     
-    - name: Try to pull existing backend image
-      id: pull-backend
-      run: |
-        if docker pull ${{ secrets.DOCKERHUB_USERNAME }}/nextnrgie-backend:latest; then
-          echo "BACKEND_FOUND=true" >> $GITHUB_ENV
-        else
-          echo "BACKEND_FOUND=false" >> $GITHUB_ENV
-        fi
-    
-    - name: Build and push backend (only if not found)
-      if: env.BACKEND_FOUND == 'false'
+    - name: Build and push backend
       uses: docker/build-push-action@v6
       with:
         context: ./backend
@@ -106,17 +299,7 @@ jobs:
         push: true
         tags: ${{ secrets.DOCKERHUB_USERNAME }}/nextnrgie-backend:latest
     
-    - name: Try to pull existing frontend image
-      id: pull-frontend
-      run: |
-        if docker pull ${{ secrets.DOCKERHUB_USERNAME }}/nextnrgie-frontend:latest; then
-          echo "FRONTEND_FOUND=true" >> $GITHUB_ENV
-        else
-          echo "FRONTEND_FOUND=false" >> $GITHUB_ENV
-        fi
-    
-    - name: Build and push frontend (only if not found)
-      if: env.FRONTEND_FOUND == 'false'
+    - name: Build and push frontend
       uses: docker/build-push-action@v6
       with:
         context: ./frontend
