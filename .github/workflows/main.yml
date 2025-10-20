@@ -310,10 +310,17 @@ jobs:
           REACT_APP_API_URL=http://82.29.172.241/api
           REACT_APP_BASE_URL=http://82.29.172.241
 
-    - name: Verify deploy files exist
+    - name: Check if mysql-init exists
+      id: check-mysql-init
       run: |
-        ls -la
-        ls -la mysql-init || true
+        if [ -d "mysql-init" ]; then
+          echo "mysql-init directory exists"
+          echo "exists=true" >> $GITHUB_OUTPUT
+          ls -la mysql-init/
+        else
+          echo "mysql-init directory not found"
+          echo "exists=false" >> $GITHUB_OUTPUT
+        fi
 
     - name: Ensure target directory exists on server
       uses: appleboy/ssh-action@v1.0.3
@@ -325,6 +332,7 @@ jobs:
         command_timeout: 20m
         script: |
           mkdir -p /opt/nextnrgie
+          mkdir -p /opt/nextnrgie/mysql-init
 
     - name: Copy compose file to server
       uses: appleboy/scp-action@v0.1.7
@@ -335,14 +343,17 @@ jobs:
         source: "docker-compose.prod.yml"
         target: "/opt/nextnrgie/"
 
-    - name: Copy mysql-init to server
+    - name: Copy mysql-init to server if exists
+      if: steps.check-mysql-init.outputs.exists == 'true'
       uses: appleboy/scp-action@v0.1.7
       with:
         host: ${{ secrets.PROD_HOST }}
         username: ${{ secrets.PROD_USER }}
         key: ${{ secrets.PROD_SSH_KEY }}
-        source: "mysql-init/*"
-        target: "/opt/nextnrgie/mysql-init/"
+        source: "mysql-init/"
+        target: "/opt/nextnrgie/"
+        strip_components: 1  # This will remove the mysql-init/ from the target path
+      continue-on-error: true
 
     - name: Create/update env file on server
       uses: appleboy/ssh-action@v1.0.3
