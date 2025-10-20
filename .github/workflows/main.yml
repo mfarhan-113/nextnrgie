@@ -15,17 +15,6 @@ env:
   BASE_URL: https://nextnrgie.fr
 
 jobs:
-
-
-name: CI/CD Pipeline
-
-on:
-  push:
-    branches: [ main ]
-  pull_request:
-    branches: [ main ]
-
-jobs:
   test:
     runs-on: ubuntu-latest
     
