@@ -1,4 +1,4 @@
-FROM ghcr.io/containerbase/python:3.11
+FROM ghcr.io/containerbase/python:3.11.0
 
 WORKDIR /app
 
