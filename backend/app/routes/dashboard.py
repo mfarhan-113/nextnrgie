@@ -8,7 +8,7 @@ from app.models.contract import Contract
 from app.models.invoice import Invoice
 from app.models.salary import Salary
 
-router = APIRouter(tags=["dashboard"])
+router = APIRouter(prefix="/dashboard", tags=["dashboard"])
 
 @router.get("/stats")
 def get_dashboard_stats(db: Session = Depends(get_db)):
