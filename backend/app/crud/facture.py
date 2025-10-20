@@ -18,10 +18,16 @@ def update_contract_total(db: Session, contract_id: int):
         models.Facture.contract_id == contract_id
     ).scalar() or 0.0
     
-    # Get the contract (without modifying its price)
+    # Get the contract
     db_contract = db.query(models.Contract).filter(models.Contract.id == contract_id).first()
     
-    # Return both the contract and the calculated total
+    if db_contract:
+        # Update the contract's price with the calculated total
+        db_contract.price = float(total)
+        db.add(db_contract)
+        db.commit()
+        db.refresh(db_contract)
+    
     return db_contract, float(total)
 
 def create_facture(db: Session, facture: schemas.FactureCreate):
@@ -138,16 +144,16 @@ def update_facture(db: Session, facture_id: int, facture: schemas.FactureUpdate)
     # Get current values
     qty = update_data.get('qty', db_facture.qty)
     unit_price = update_data.get('unit_price', db_facture.unit_price)
-    tva_rate = update_data.get('tva', db_facture.tva) / 100  # Convert percentage to decimal
+    tva_rate = update_data.get('tva', db_facture.tva)
     
     # Calculate new values
     subtotal = qty * unit_price
-    tva_amount = subtotal * tva_rate
+    tva_amount = subtotal * (tva_rate / 100)  # Convert percentage to decimal for calculation
     total_ht = subtotal + tva_amount
     
     # Update the facture with calculated values
     update_data['total_ht'] = total_ht
-    update_data['tva'] = tva_rate * 100  # Store as percentage
+    update_data['tva'] = tva_rate  # Keep as percentage
     
     for field, value in update_data.items():
         setattr(db_facture, field, value)
