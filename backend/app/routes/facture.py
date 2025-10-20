@@ -73,4 +73,4 @@ def delete_facture(facture_id: int, db: Session = Depends(get_db)):
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Facture with id {facture_id} not found"
         )
-    return None
+    return None 
