@@ -61,11 +61,6 @@ services:
     restart: unless-stopped
     command: --default-authentication-plugin=mysql_native_password
 
-  # Note: No separate nginx service required. The frontend image includes Nginx and serves static files, proxying /api to backend.
-
-volumes:
-  mysql-data:
-
   # Nginx reverse proxy
   nginx:
     image: nginx:alpine
@@ -82,6 +77,9 @@ volumes:
     networks:
       - nextnrgie-network
     restart: unless-stopped
+
+volumes:
+  mysql-data:
 
 networks:
   nextnrgie-network:
