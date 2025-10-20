@@ -251,22 +251,70 @@ const Factures = () => {
       return next;
     });
   };
-  const saveEditedItem = () => {
+  const saveEditedItem = async () => {
     if (!editingItem) return;
     const { invoiceId, itemIndex } = editingItem;
-    setItemsByInvoice(prev => {
-      const arr = [...(prev[invoiceId] || [])];
-      arr[itemIndex] = { ...arr[itemIndex], ...editItemForm };
-      return { ...prev, [invoiceId]: arr };
-    });
-    cancelEditItem();
+    try {
+      const item = (itemsByInvoice[invoiceId] || [])[itemIndex];
+      const backendId = item && item.backendFactureId;
+
+      // Prepare payload matching backend expectations
+      const qtyNum = Number(editItemForm.qty) || 0;
+      const unitPriceNum = Number(editItemForm.unit_price) || 0;
+      const tvaNum = Number(editItemForm.tva) || 0; // percent
+      const subtotal = qtyNum * unitPriceNum;
+      const total_ht_calc = subtotal * (1 + tvaNum / 100);
+
+      if (backendId) {
+        await axios.put(getApiUrl(`factures/${backendId}`), {
+          description: editItemForm.description,
+          qty: qtyNum,
+          qty_unit: editItemForm.qty_unit || 'unite',
+          unit_price: unitPriceNum,
+          tva: tvaNum,
+          total_ht: Number.isFinite(total_ht_calc) ? Number(total_ht_calc.toFixed(2)) : 0
+        });
+        // Re-sync fresh data from backend
+        await syncInvoicesFromBackend();
+        await fetchContracts();
+        setToast(t('item_updated') || 'Item updated successfully!');
+        setTimeout(() => setToast(''), 2500);
+      } else {
+        // Fallback: update only local state if no backend id
+        setItemsByInvoice(prev => {
+          const arr = [...(prev[invoiceId] || [])];
+          arr[itemIndex] = { ...arr[itemIndex], ...editItemForm, total_ht: Number(total_ht_calc.toFixed(2)) };
+          return { ...prev, [invoiceId]: arr };
+        });
+      }
+    } catch (e) {
+      setToast(t('facture_update_error') || 'Failed to update item. Please try again.');
+      setTimeout(() => setToast(''), 3500);
+    } finally {
+      cancelEditItem();
+    }
   };
-  const deleteItem = (invoiceId, itemIndex) => {
-    setItemsByInvoice(prev => {
-      const arr = [...(prev[invoiceId] || [])];
-      arr.splice(itemIndex, 1);
-      return { ...prev, [invoiceId]: arr };
-    });
+  const deleteItem = async (invoiceId, itemIndex) => {
+    try {
+      const item = (itemsByInvoice[invoiceId] || [])[itemIndex];
+      const backendId = item && item.backendFactureId;
+      if (backendId) {
+        await axios.delete(getApiUrl(`factures/${backendId}`));
+        await syncInvoicesFromBackend();
+        await fetchContracts();
+        setToast(t('item_deleted') || 'Item deleted successfully!');
+        setTimeout(() => setToast(''), 2500);
+      } else {
+        setItemsByInvoice(prev => {
+          const arr = [...(prev[invoiceId] || [])];
+          arr.splice(itemIndex, 1);
+          return { ...prev, [invoiceId]: arr };
+        });
+      }
+    } catch (e) {
+      setToast(t('facture_delete_error') || 'Failed to delete item. Please try again.');
+      setTimeout(() => setToast(''), 3500);
+    }
   };
 
   // Details form change handler (re-compute total)

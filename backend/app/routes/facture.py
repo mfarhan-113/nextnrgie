@@ -36,6 +36,19 @@ def read_facture(facture_id: int, db: Session = Depends(get_db)):
         )
     return db_facture
 
+@router.put("/{facture_id}", response_model=schemas.Facture)
+def update_facture(facture_id: int, facture: schemas.FactureUpdate, db: Session = Depends(get_db)):
+    """
+    Update an existing facture.
+    """
+    updated = crud.update_facture(db, facture_id=facture_id, facture=facture)
+    if updated is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Facture with id {facture_id} not found"
+        )
+    return updated
+
 @router.get("/contract/{contract_id}", response_model=List[schemas.Facture])
 def read_factures_by_contract(
     contract_id: int, 
@@ -73,4 +86,4 @@ def delete_facture(facture_id: int, db: Session = Depends(get_db)):
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Facture with id {facture_id} not found"
         )
-    return None 
+    return None

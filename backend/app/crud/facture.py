@@ -159,6 +159,26 @@ def update_facture(db: Session, facture_id: int, facture: schemas.FactureUpdate)
     # Update the contract total
     update_contract_total(db, contract_id=db_facture.contract_id)
     
+    # Recompute linked invoice totals and status if applicable
+    if db_facture.invoice_id:
+        invoice = db.query(models.Invoice).filter(models.Invoice.id == db_facture.invoice_id).first()
+        if invoice:
+            invoice.amount = db.query(
+                func.coalesce(func.sum(models.Facture.total_ht), 0.0)
+            ).filter(
+                models.Facture.invoice_id == invoice.id
+            ).scalar() or 0.0
+            current_paid = float(getattr(invoice, 'paid_amount', 0.0) or 0.0)
+            if current_paid >= invoice.amount:
+                invoice.status = 'paid'
+            elif current_paid > 0:
+                invoice.status = 'partial'
+            else:
+                invoice.status = 'unpaid'
+            db.add(invoice)
+            db.commit()
+            db.refresh(invoice)
+    
     return db_facture
 
 def delete_facture(db: Session, facture_id: int):
@@ -167,10 +187,31 @@ def delete_facture(db: Session, facture_id: int):
         return None
         
     contract_id = db_facture.contract_id
+    invoice_id = db_facture.invoice_id
     db.delete(db_facture)
     db.commit()
     
     # Update the contract total
     update_contract_total(db, contract_id=contract_id)
+    
+    # Recompute linked invoice totals and status if applicable
+    if invoice_id:
+        invoice = db.query(models.Invoice).filter(models.Invoice.id == invoice_id).first()
+        if invoice:
+            invoice.amount = db.query(
+                func.coalesce(func.sum(models.Facture.total_ht), 0.0)
+            ).filter(
+                models.Facture.invoice_id == invoice.id
+            ).scalar() or 0.0
+            current_paid = float(getattr(invoice, 'paid_amount', 0.0) or 0.0)
+            if current_paid >= invoice.amount:
+                invoice.status = 'paid'
+            elif current_paid > 0:
+                invoice.status = 'partial'
+            else:
+                invoice.status = 'unpaid'
+            db.add(invoice)
+            db.commit()
+            db.refresh(invoice)
     
     return db_facture
