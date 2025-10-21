@@ -723,11 +723,7 @@ const Devis = () => {
                   </button>
                 </span>
               </Tooltip>
-              {selectedClientId && !selectedContractId && (
-                <div style={{ fontSize: '0.85rem', color: '#4caf50' }}>
-                  {t('no_contract_required') || 'No contract required. You can still create a devis for this client.'}
-                </div>
-              )}
+              {/* Removed hint about no contract required */}
             </div>
           </div>
           {/* Per-client Create Devis actions */}

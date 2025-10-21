@@ -202,11 +202,15 @@ async def generate_invoice_pdf(invoice_id: str, db: Session = Depends(get_db)):
         logger.error(f"Contract with ID {invoice.contract_id} not found for invoice {invoice_id}")
         raise HTTPException(status_code=404, detail="Contract not found for invoice")
 
-    # Log the SQL query for factures - fetch ONLY for THIS invoice
+    # Log the SQL query for factures - prefer invoice-linked, fallback to contract-linked
     logger.info("\n[3/3] Fetching factures data...")
     factures_result = db.execute(select(Facture).where(Facture.invoice_id == invoice.id))
     factures = factures_result.scalars().all()
-    logger.info(f"Found {len(factures)} factures for invoice ID {invoice.id}")
+    if not factures:
+        logger.info("No factures linked by invoice_id. Falling back to contract_id factures for compatibility.")
+        factures_result = db.execute(select(Facture).where(Facture.contract_id == invoice.contract_id))
+        factures = factures_result.scalars().all()
+    logger.info(f"Found {len(factures)} facture(s) for rendering")
     
     # Log detailed facture information
     logger.info("\n=== FACTURE DETAILS ===")
@@ -240,12 +244,12 @@ async def generate_invoice_pdf(invoice_id: str, db: Session = Depends(get_db)):
 
     # Title
     p.setFont("Helvetica-Bold", 28)
-    p.drawString(left, y, "Devis")
+    p.drawString(left, y, "Facture")
     y -= 2 * line_height
 
     # Invoice info (left col)
     p.setFont("Helvetica-Bold", 12)
-    p.drawString(left, y, "Numéro de devis")
+    p.drawString(left, y, "Numéro de facture")
     p.setFont("Helvetica", 12)
     p.drawString(left + 170, y, f"{datetime.now().strftime('%Y%m%d')}")
     y -= line_height
@@ -643,9 +647,9 @@ def generate_estimate_pdf(contract_id: int, db: Session = Depends(get_db)):
         p.setFont("Helvetica", 10)
         y_pos -= 15  # Move down for next line
         
-        # TSA directly under client name if available
+        # SIRET directly under client name if available
         if getattr(client, 'tsa_number', None):
-            p.drawString(right, y_pos, f"TSA: {client.tsa_number}")
+            p.drawString(right, y_pos, f"SIRET: {client.tsa_number}")
             y_pos -= 15
             
         # Address with multi-line support

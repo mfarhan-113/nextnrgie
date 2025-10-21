@@ -557,7 +557,7 @@ const Clients = () => {
                       <Box sx={{ mt: 2, display: 'flex', gap: 1, flexWrap: 'wrap' }}>
                         {client.tsa_number && (
                           <Chip 
-                            label={`TSA: ${client.tsa_number}`}
+                            label={`SIRET: ${client.tsa_number}`}
                             size="small"
                             sx={{ 
                               backgroundColor: alpha('#2196f3', 0.1),
@@ -790,7 +790,7 @@ const Clients = () => {
                   <Grid item xs={12} sm={6}>
                     <TextField
                       fullWidth
-                      label={t('tsa_number') || 'Numéro TSA'}
+                      label={t('siret_number') || 'Numéro SIRET'}
                       name="tsa_number"
                       value={form.tsa_number}
                       onChange={handleChange}
