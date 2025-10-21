@@ -41,17 +41,23 @@ app.add_middleware(
 api_router = APIRouter()
 
 # Include all routers with their respective paths
-# Note: Each router already has its own prefix defined in the router file
-api_router.include_router(dashboard_router)
-api_router.include_router(client_router)
-api_router.include_router(contract_router)
-api_router.include_router(contract_detail_router)
-api_router.include_router(facture_router)
-api_router.include_router(salary_router)
-api_router.include_router(auth_router)
-api_router.include_router(pdf_router)
-api_router.include_router(misc_router)
-api_router.include_router(invoice_router)
+# Note: The order matters - more specific routes should come first
+routers = [
+    dashboard_router,
+    client_router,
+    contract_router,
+    contract_detail_router,
+    facture_router,
+    salary_router,
+    auth_router,
+    pdf_router,
+    misc_router,
+    invoice_router
+]
+
+# Include all routers with proper prefixing
+for router in routers:
+    api_router.include_router(router)
 
 # Mount the API router with /api prefix
 app.include_router(api_router, prefix="/api")

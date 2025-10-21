@@ -50,6 +50,7 @@ def add_client(client: ClientCreate, db: Session = Depends(get_db)):
         raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
 
 # Get all clients
+@router.get("", response_model=List[ClientOut])
 @router.get("/", response_model=List[ClientOut])
 def get_clients(db: Session = Depends(get_db)):
     result = db.execute(select(Client))
@@ -57,12 +58,14 @@ def get_clients(db: Session = Depends(get_db)):
     return clients
 
 # Get client names for dropdown
+@router.get("/names/")
 @router.get("/names")
 def get_client_names(db: Session = Depends(get_db)):
     result = db.execute(select(Client.id, Client.client_name))
     return [{"id": id, "name": name} for id, name in result.all()]
 
 # Update existing client
+@router.put("/{client_id}/", response_model=ClientOut)
 @router.put("/{client_id}", response_model=ClientOut)
 def update_client(
     client_id: int, 
@@ -89,6 +92,7 @@ def update_client(
     return db_client
 
 # Delete client
+@router.delete("/{client_id}/")
 @router.delete("/{client_id}")
 def delete_client(client_id: int, db: Session = Depends(get_db)):
     print(f"[delete_client] Deleting client {client_id}")

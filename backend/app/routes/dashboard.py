@@ -8,9 +8,9 @@ from app.models.contract import Contract
 from app.models.invoice import Invoice
 from app.models.salary import Salary
 
-router = APIRouter(tags=["dashboard"])
+router = APIRouter(prefix="/dashboard", tags=["dashboard"])
 
-@router.get("/dashboard/stats")
+@router.get("/stats")
 def get_dashboard_stats(db: Session = Depends(get_db)):
     try:
         from sqlalchemy import text
@@ -36,7 +36,7 @@ def get_dashboard_stats(db: Session = Depends(get_db)):
             "employees_tracked": 0
         }
 
-@router.get("/dashboard/recent-activity")
+@router.get("/recent-activity")
 def get_recent_activity(db: Session = Depends(get_db)):
     try:
         from sqlalchemy import text
@@ -57,7 +57,7 @@ def get_recent_activity(db: Session = Depends(get_db)):
         # Return empty array if query fails
         return []
 
-@router.get("/dashboard/contract-growth")
+@router.get("/contract-growth")
 def get_contract_growth(db: Session = Depends(get_db)):
     try:
         from sqlalchemy import text
