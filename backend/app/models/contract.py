@@ -23,3 +23,4 @@ class Contract(Base):
     client = relationship("Client", back_populates="contracts")
     invoices = relationship("Invoice", back_populates="contract", cascade="all, delete-orphan")
     factures = relationship("Facture", back_populates="contract", cascade="all, delete-orphan")
+    contract_details = relationship("ContractDetail", back_populates="contract", cascade="all, delete-orphan")
