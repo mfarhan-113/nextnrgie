@@ -1,10 +1,10 @@
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel
 from typing import Optional
 
 class ClientBase(BaseModel):
     client_number: str
     client_name: Optional[str] = None
-    email: EmailStr
+    email: Optional[str] = None
     phone: str
     tva_number: Optional[str] = None
     tsa_number: Optional[str] = None

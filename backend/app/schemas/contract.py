@@ -5,9 +5,9 @@ from datetime import date
 class ClientInfo(BaseModel):
     id: int
     client_name: Optional[str] = None
-    client_number: str
-    email: str
-    phone: str
+    client_number: Optional[str] = None
+    email: Optional[str] = None
+    phone: Optional[str] = None
     
     class Config:
         orm_mode = True
