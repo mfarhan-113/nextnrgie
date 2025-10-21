@@ -37,21 +37,21 @@ app.add_middleware(
     max_age=600  # Cache preflight requests for 10 minutes
 )
 
-# Include all routers with /api prefix
+# Create API router without prefix
 api_router = APIRouter()
 
-# Include all routers with their respective prefixes
-# Dashboard router has its own prefix defined in the router file
+# Include all routers with their respective paths
+# Note: Each router already has its own prefix defined in the router file
 api_router.include_router(dashboard_router)
-api_router.include_router(client_router, prefix="/clients", tags=["clients"])
-api_router.include_router(contract_router, prefix="/contracts", tags=["contracts"])
-api_router.include_router(contract_detail_router, prefix="/contract-details", tags=["contract-details"])
-api_router.include_router(facture_router, prefix="/factures", tags=["factures"])
-api_router.include_router(salary_router, prefix="/salaries", tags=["salaries"])
-api_router.include_router(auth_router, prefix="/auth", tags=["auth"])
-api_router.include_router(pdf_router, prefix="/pdf", tags=["pdf"])
-api_router.include_router(misc_router, prefix="/misc", tags=["misc"])
-api_router.include_router(invoice_router, prefix="/invoices", tags=["invoices"])
+api_router.include_router(client_router)
+api_router.include_router(contract_router)
+api_router.include_router(contract_detail_router)
+api_router.include_router(facture_router)
+api_router.include_router(salary_router)
+api_router.include_router(auth_router)
+api_router.include_router(pdf_router)
+api_router.include_router(misc_router)
+api_router.include_router(invoice_router)
 
 # Mount the API router with /api prefix
 app.include_router(api_router, prefix="/api")
