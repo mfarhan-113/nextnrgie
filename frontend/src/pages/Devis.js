@@ -704,7 +704,7 @@ const Devis = () => {
                   <button
                     type="button"
                     className="btn-primary"
-                    disabled={!selectedClientId || !selectedContractId || loading}
+                    disabled={!selectedClientId || loading}
                     onClick={openAddModal}
                     style={{
                       background: '#9c27b0',
@@ -716,7 +716,7 @@ const Devis = () => {
                       display: 'flex',
                       alignItems: 'center',
                       gap: '0.5rem',
-                      cursor: !selectedClientId || !selectedContractId ? 'not-allowed' : 'pointer'
+                      cursor: !selectedClientId ? 'not-allowed' : 'pointer'
                     }}
                   >
                     {loading ? <CircularProgress size={20} style={{ color: 'white' }} /> : <><AddIcon fontSize="small" style={{ marginRight: '0.5rem' }} /> +</>}
@@ -724,8 +724,8 @@ const Devis = () => {
                 </span>
               </Tooltip>
               {selectedClientId && !selectedContractId && (
-                <div style={{ fontSize: '0.85rem', color: '#b00020' }}>
-                  {t('no_contract_for_client') || 'No contract found for selected client. Create one in Contracts to add devis.'}
+                <div style={{ fontSize: '0.85rem', color: '#4caf50' }}>
+                  {t('no_contract_required') || 'No contract required. You can still create a devis for this client.'}
                 </div>
               )}
             </div>
