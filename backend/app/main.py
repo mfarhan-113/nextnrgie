@@ -41,8 +41,8 @@ app.add_middleware(
 api_router = APIRouter()
 
 # Include all routers with their respective prefixes
-# Dashboard router already has its own prefix defined in the router file
-api_router.include_router(dashboard_router, tags=["dashboard"])
+# Dashboard router has its own prefix defined in the router file
+api_router.include_router(dashboard_router)
 api_router.include_router(client_router, prefix="/clients", tags=["clients"])
 api_router.include_router(contract_router, prefix="/contracts", tags=["contracts"])
 api_router.include_router(contract_detail_router, prefix="/contract-details", tags=["contract-details"])
