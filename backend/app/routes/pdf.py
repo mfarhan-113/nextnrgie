@@ -971,15 +971,12 @@ def generate_estimate_pdf(contract_id: int, db: Session = Depends(get_db)):
     y_position -= 14
     
     p.drawString(label_x, y_position, "BIC")
-    p.drawString(value_x, y_position, "QNTOFRP1XXX")
+    p.drawString(value_x, y_position, "CMCIFR2A")
     y_position -= 14
     
     p.drawString(label_x, y_position, "IBAN")
-    p.drawString(value_x, y_position, "FR7616958000013394623012453")
+    p.drawString(value_x, y_position, "FR7610278062310002236670146")
     y_position -= 14
-    
-    p.drawString(label_x, y_position, "Référence")
-    p.drawString(value_x, y_position, "QECVZDX")
     
     p.showPage()
     p.save()
@@ -1443,9 +1440,9 @@ async def generate_devis_pdf(payload: dict):
         y_offset -= 15
 
     # Chantier (site/project) - Add "CHANTIER BEIGE MONCEAU" above the table
-    chantier_y = left_col_y - 100
-    p.setFont("Helvetica-Bold", 12)
-    p.drawString(left, chantier_y, "CHANTIER BEIGE MONCEAU")
+    # chantier_y = left_col_y - 100
+    # p.setFont("Helvetica-Bold", 12)
+    # p.drawString(left, chantier_y, "CHANTIER BEIGE MONCEAU")
     
     # Table header
     table_y = chantier_y - 30

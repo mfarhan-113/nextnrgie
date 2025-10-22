@@ -171,6 +171,9 @@ const Devis = () => {
     tva: '',
     total_ht: ''
   });
+  
+  // State for custom devis number
+  const [customDevisNumber, setCustomDevisNumber] = useState('');
 
   // Filter devis based on search term
   const filteredDevis = useMemo(() => {
@@ -753,31 +756,59 @@ const Devis = () => {
                           onChange={(e) => setExpirationDrafts(prev => ({ ...prev, [String(c.value)]: e.target.value }))}
                           style={{ padding: '0.35rem 0.4rem' }}
                         />
-                        <button
-                          type="button"
-                          className="btn-primary"
-                          onClick={async () => {
-                            const now = new Date();
-                            const dateStr = now.toLocaleDateString();
-                            const name = `Devis ${c.label} ${dateStr}`;
-                            const id = `${c.value}-${now.getTime()}`; // UI-only unique id
-                            // Use drafted expiration or default, store as 'YYYY-MM-DD' to avoid timezone shifts
-                            const expirationDateStr = expirationDrafts[String(c.value)] || defaultDraft;
-                            setCreatedDevis(prev => {
-                              const next = [{ id, name, clientId: c.value, date: now.toISOString(), expiration: expirationDateStr }, ...prev];
-                              try { persist.set('createdDevis', JSON.stringify(next)); } catch {}
-                              return next;
-                            });
-                            setItemsByDevis(prev => {
-                              const next = { ...prev, [id]: (prev[id] || []) };
-                              try { persist.set('itemsByDevis', JSON.stringify(next)); } catch {}
-                              return next;
-                            });
-                          }}
-                          style={{ padding: '0.35rem 0.6rem' }}
-                        >
-                          {t('create_devis') || 'Create Devis'}
-                        </button>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                          <input
+                            type="text"
+                            placeholder="Numéro de devis (optionnel)"
+                            value={customDevisNumber}
+                            onChange={(e) => setCustomDevisNumber(e.target.value)}
+                            style={{
+                              padding: '0.5rem',
+                              border: '1px solid #ddd',
+                              borderRadius: '4px',
+                              fontSize: '0.9rem',
+                              width: '100%'
+                            }}
+                          />
+                          <Button
+                            type="button"
+                            className="btn-primary"
+                            onClick={async () => {
+                              const now = new Date();
+                              const dateStr = now.toLocaleDateString();
+                              // Use custom devis number if provided
+                              const name = customDevisNumber.trim() ? 
+                                `Devis ${customDevisNumber} - ${c.label} ${dateStr}` : 
+                                `Devis ${c.label} ${dateStr}`;
+                              const id = `${c.value}-${now.getTime()}`; // UI-only unique id
+                              // Use drafted expiration or default, store as 'YYYY-MM-DD' to avoid timezone shifts
+                              const expirationDateStr = expirationDrafts[String(c.value)] || defaultDraft;
+                              setCreatedDevis(prev => {
+                                const next = [{ id, name, clientId: c.value, date: now.toISOString(), expiration: expirationDateStr }, ...prev];
+                                try { persist.set('createdDevis', JSON.stringify(next)); } catch {}
+                                return next;
+                              });
+                              setItemsByDevis(prev => {
+                                const next = { ...prev, [id]: (prev[id] || []) };
+                                try { persist.set('itemsByDevis', JSON.stringify(next)); } catch {}
+                                return next;
+                              });
+                              // Reset the input field after creating devis
+                              setCustomDevisNumber('');
+                            }}
+                            style={{ 
+                              padding: '0.5rem 0.6rem',
+                              width: '100%',
+                              background: '#9c27b0',
+                              color: 'white',
+                              border: 'none',
+                              borderRadius: '4px',
+                              cursor: 'pointer'
+                            }}
+                          >
+                            {t('create_devis') || 'Create Devis'}
+                          </Button>
+                        </div>
                       </div>
                     </div>
                   );
@@ -1160,11 +1191,16 @@ const Devis = () => {
                               // Convert payload to query parameters
                               const queryParams = new URLSearchParams();
                               
-                              // Add name and other top-level fields
-                              queryParams.append('name', payload.name || 'Devis');
-                              if (payload.devis_number) {
-                                queryParams.append('devis_number', payload.devis_number);
+                              // Add name, devis number, and expiration to query params
+                              queryParams.append('name', payload.name);
+                              
+                              // Extract custom devis number from the name (format: "Devis 123 - Client Name 01/01/2025")
+                              const devisNumberMatch = payload.name.match(/^Devis\s+([^-]+?)(\s+-|$)/);
+                              if (devisNumberMatch && devisNumberMatch[1]) {
+                                const customNumber = devisNumberMatch[1].trim();
+                                queryParams.append('devis_number', customNumber);
                               }
+                              
                               if (payload.expiration) {
                                 queryParams.append('expiration', payload.expiration);
                               }
