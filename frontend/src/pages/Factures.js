@@ -368,6 +368,7 @@ const Factures = () => {
   const [selectedInvoice, setSelectedInvoice] = useState(null); // set when viewing existing invoice
   const [pendingContractId, setPendingContractId] = useState(null); // set when creating new invoice
   const [showInvoiceDetails, setShowInvoiceDetails] = useState(false);
+  const [editingInvoiceDetails, setEditingInvoiceDetails] = useState(false); // true when editing an existing invoice
 
   // Generate invoice PDF (existing invoice): open directly, add known params
   const generateInvoicePDF = async (invoice) => {
@@ -385,7 +386,9 @@ const Factures = () => {
       else if (invoice?.invoice_number) params.append('invoice_number', invoice.invoice_number);
       // Use stored issue and expiration dates if available (YYYY-MM-DD)
       if (invoice?.issue_date) params.append('issue_date', invoice.issue_date);
+      else if (invoice?.date) params.append('issue_date', invoice.date);
       if (invoice?.expiration_date) params.append('expiration_date', invoice.expiration_date);
+      else if (invoice?.dueDate) params.append('expiration_date', invoice.dueDate);
       const qs = params.toString();
       if (qs) pdfUrl += `?${qs}`;
       window.open(pdfUrl, '_blank');
@@ -399,6 +402,47 @@ const Factures = () => {
   // Handle confirm from invoice details modal
   const handleConfirmInvoiceDetails = async (details) => {
     const { invoiceNumber, issueDate, expirationDate } = details;
+
+    // Flow EDIT: Updating an existing invoice's number/date fields
+    if (editingInvoiceDetails && selectedInvoice) {
+      try {
+        const bid = selectedInvoice.backendId || await resolveBackendInvoiceId(selectedInvoice);
+        if (!bid) {
+          setToast(t('pdf_no_backend_invoice') || 'Backend invoice not found');
+          setTimeout(() => setToast(''), 2500);
+          return;
+        }
+        await axios.put(getApiUrl(`invoices/${bid}`), {
+          invoice_number: invoiceNumber,
+          due_date: expirationDate
+        });
+
+        // Update local state: name and date fields used by PDF params
+        setCreatedInvoices(prev => prev.map(inv => {
+          if (inv.id === selectedInvoice.id) {
+            return {
+              ...inv,
+              name: invoiceNumber,
+              issue_date: issueDate,
+              expiration_date: expirationDate,
+              date: issueDate,
+              dueDate: expirationDate
+            };
+          }
+          return inv;
+        }));
+        setToast(t('invoice_updated') || 'Invoice updated');
+        setTimeout(() => setToast(''), 2000);
+      } catch (e) {
+        setToast(t('invoice_update_error') || 'Error updating invoice');
+        setTimeout(() => setToast(''), 3000);
+      } finally {
+        setEditingInvoiceDetails(false);
+        setShowInvoiceDetails(false);
+        setSelectedInvoice(null);
+      }
+      return;
+    }
 
     // Flow A: Creating a new invoice for a selected contract
     if (pendingContractId && !selectedInvoice) {
@@ -1191,6 +1235,11 @@ const Factures = () => {
                             <Tooltip title={t('view_pdf') || 'View PDF'}>
                               <ActionButton variant="view" onClick={() => generateInvoicePDF(invoice)}>
                                 <VisibilityIcon />
+                              </ActionButton>
+                            </Tooltip>
+                            <Tooltip title={t('edit_invoice') || 'Edit Invoice'}>
+                              <ActionButton variant="create" onClick={() => { setSelectedInvoice(invoice); setPendingContractId(null); setEditingInvoiceDetails(true); setShowInvoiceDetails(true); }}>
+                                <EditIcon />
                               </ActionButton>
                             </Tooltip>
                             <Tooltip title={t('add_item') || 'Add Item'}>

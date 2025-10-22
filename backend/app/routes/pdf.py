@@ -452,7 +452,8 @@ async def generate_invoice_pdf(
     # Draw factures in the table (items for THIS invoice)
     row_height = 20
     y_position = table_header_y - 20
-    total_amount = 0
+    total_ht_sum = 0.0
+    tva_sum = 0.0
     
     if factures:
         for detail in factures:
@@ -504,13 +505,22 @@ async def generate_invoice_pdf(
             p.drawString(current_x + headers[3]["width"] - tva_width - 5, y_position - 15, tva_text)
             current_x += headers[3]["width"]
             
-            # Total HT
-            total_ht_text = f"{detail.total_ht:.2f}"
-            total_ht_width = p.stringWidth(total_ht_text, "Helvetica", 9)
-            p.drawString(current_x + headers[4]["width"] - total_ht_width - 5, y_position - 15, total_ht_text)
-            
-            # Add to total
-            total_amount += detail.total_ht
+            # Total HT per row (exclude tax): qty * unit_price
+            try:
+                row_ht = float(detail.qty or 0) * float(detail.unit_price or 0)
+            except Exception:
+                row_ht = 0.0
+            row_ht_text = f"{row_ht:.2f}"
+            row_ht_width = p.stringWidth(row_ht_text, "Helvetica", 9)
+            p.drawString(current_x + headers[4]["width"] - row_ht_width - 5, y_position - 15, row_ht_text)
+
+            # Accumulate totals
+            total_ht_sum += row_ht
+            try:
+                item_tva_rate = float(getattr(detail, 'tva', 0.0) or 0.0)
+            except Exception:
+                item_tva_rate = 0.0
+            tva_sum += row_ht * (item_tva_rate / 100.0)
             
             # Draw horizontal line for this row
             p.line(header_x, y_position - 20, header_x + total_width, y_position - 20)
@@ -519,7 +529,8 @@ async def generate_invoice_pdf(
             y_position -= row_height
     else:
         # No items: don't render any placeholder rows; totals remain zero
-        total_amount = 0
+        total_ht_sum = 0.0
+        tva_sum = 0.0
     
     # Draw vertical lines for all columns
     current_x = header_x
@@ -532,19 +543,19 @@ async def generate_invoice_pdf(
     # Draw bottom line
     p.line(header_x, y_position, header_x + total_width, y_position)
     
-    # Add totals section (compute TVA like old working template)
+    # Add totals section
     y_position = ensure_space(y_position - 20, 160)
     p.setFont("Helvetica-Bold", 10)
     
     # Total HT
     p.drawString(header_x + 5, y_position - 15, "Total HT:")
-    total_text = f"{total_amount:.2f} €"
+    total_text = f"{total_ht_sum:.2f} €"
     total_width_text = p.stringWidth(total_text, "Helvetica-Bold", 10)
     p.drawString(header_x + total_width - total_width_text - 5, y_position - 15, total_text)
     
-    # Calculate total TVA from all factures
+    # Calculate total TVA from all factures (sum of qty * unit_price * tva%)
     y_position = ensure_space(y_position - 20, 140)
-    tva_amount = sum(item.total_ht * (getattr(item, 'tva', 0.0) / 100) for item in factures) if factures else 0.0
+    tva_amount = tva_sum
     p.drawString(header_x + 5, y_position - 15, "TVA:")
     tva_text = f"{tva_amount:.2f} €"
     tva_width_text = p.stringWidth(tva_text, "Helvetica-Bold", 10)
@@ -552,7 +563,7 @@ async def generate_invoice_pdf(
     
     # Total TTC (HT + TVA)
     y_position = ensure_space(y_position - 20, 140)
-    total_ttc = total_amount
+    total_ttc = total_ht_sum + tva_amount
     p.drawString(header_x + 5, y_position - 15, "Total TTC:")
     ttc_text = f"{total_ttc:.2f} €"
     ttc_width_text = p.stringWidth(ttc_text, "Helvetica-Bold", 10)

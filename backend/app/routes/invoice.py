@@ -1,4 +1,23 @@
+    # Update invoice number if provided
+    if 'invoice_number' in invoice_data:
+        new_number = invoice_data['invoice_number']
+        if not isinstance(new_number, str) or not new_number.strip():
+            raise HTTPException(status_code=422, detail="Invalid invoice_number")
+        db_invoice.invoice_number = new_number.strip()
+
+    # Update due_date if provided (accept 'YYYY-MM-DD')
+    if 'due_date' in invoice_data and invoice_data['due_date']:
+        try:
+            if isinstance(invoice_data['due_date'], str):
+                db_invoice.due_date = datetime.strptime(invoice_data['due_date'], '%Y-%m-%d').date()
+            else:
+                # Assume it's already a date
+                db_invoice.due_date = invoice_data['due_date']
+        except Exception:
+            raise HTTPException(status_code=422, detail="Invalid due_date format, expected YYYY-MM-DD")
 from fastapi import APIRouter, Depends, HTTPException
+from datetime import datetime
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, joinedload
 from typing import List
 
@@ -153,6 +172,10 @@ def update_invoice(
             
         return db_invoice
         
+    except IntegrityError as e:
+        db.rollback()
+        # Likely unique constraint on invoice_number
+        raise HTTPException(status_code=400, detail="Invoice number already exists")
     except Exception as e:
         db.rollback()
         raise HTTPException(status_code=500, detail=f"Error updating invoice: {str(e)}")
