@@ -277,6 +277,13 @@ async def generate_invoice_pdf(invoice_id: str, db: Session = Depends(get_db)):
     p.drawString(left + 170, y, f"{end_date}")
     y -= line_height
     
+    # Numéro de contrat
+    p.setFont("Helvetica-Bold", 11)
+    p.drawString(left, y, "Numéro de contrat")
+    p.setFont("Helvetica", 12)
+    p.drawString(left + 170, y, f"{contract.command_number}" if hasattr(contract, 'command_number') else "")
+    y -= line_height
+    
 
 
     # Logo (top right)
@@ -284,12 +291,21 @@ async def generate_invoice_pdf(invoice_id: str, db: Session = Depends(get_db)):
     logo_x = 440
     logo_width = 150
     logo_height = 55
-    # Use a relative path to the logo in the frontend public directory (as in old file)
-    logo_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "..", "frontend", "public", "logonr.jpg")
-    if os.path.exists(logo_path):
+    # Resolve logo from multiple possible locations to work across environments
+    base_dir = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
+    candidate_paths = [
+        os.path.join(base_dir, "app", "static", "logonr.jpg"),
+        os.path.join(base_dir, "..", "frontend", "public", "logonr.jpg"),
+    ]
+    logo_path = None
+    for pth in candidate_paths:
+        if os.path.exists(pth):
+            logo_path = pth
+            break
+    if logo_path:
         p.drawImage(ImageReader(logo_path), logo_x, logo_y, width=logo_width, height=logo_height, mask='auto')
     else:
-        print(f"Logo not found at: {logo_path}")
+        logger.warning(f"Logo not found. Tried: {candidate_paths}")
 
     # Addresses and info
     y -= 2 * line_height
@@ -1403,7 +1419,7 @@ async def generate_devis_pdf(payload: dict):
     
     y_offset = right_col_y - 15
     if client.get("tsa_number"): 
-        p.drawString(right, y_offset, f"TSA: {client.get('tsa_number')}")
+        p.drawString(right, y_offset, f"SIRET: {client.get('tsa_number')}")
         y_offset -= 15
         
     # Handle multi-line address
