@@ -3,9 +3,9 @@ import {
   Dialog, DialogTitle, DialogContent, DialogActions,
   Button, TextField, Box, Typography
 } from '@mui/material';
-import { DatePicker } from '@mui/x-date-pickers/DatePicker';
 import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
 import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
+import { DatePicker } from '@mui/x-date-pickers/DatePicker';
 import { format, addDays } from 'date-fns';
 
 const InvoiceDetailsModal = ({ open, onClose, onConfirm, invoice }) => {
@@ -50,30 +50,28 @@ const InvoiceDetailsModal = ({ open, onClose, onConfirm, invoice }) => {
               <DatePicker
                 label="Issue Date"
                 value={issueDate}
-                onChange={(date) => setIssueDate(date)}
-                renderInput={(params) => (
-                  <TextField
-                    {...params}
-                    fullWidth
-                    margin="normal"
-                    required
-                  />
-                )}
+                onChange={(newValue) => setIssueDate(newValue)}
+                slotProps={{
+                  textField: {
+                    fullWidth: true,
+                    margin: 'normal',
+                    required: true
+                  }
+                }}
               />
               
               <DatePicker
                 label="Expiration Date"
                 value={expirationDate}
-                onChange={(date) => setExpirationDate(date)}
+                onChange={(newValue) => setExpirationDate(newValue)}
                 minDate={issueDate}
-                renderInput={(params) => (
-                  <TextField
-                    {...params}
-                    fullWidth
-                    margin="normal"
-                    required
-                  />
-                )}
+                slotProps={{
+                  textField: {
+                    fullWidth: true,
+                    margin: 'normal',
+                    required: true
+                  }
+                }}
               />
             </LocalizationProvider>
           </Box>
