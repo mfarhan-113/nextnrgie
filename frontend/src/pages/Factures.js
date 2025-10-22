@@ -358,18 +358,37 @@ const Factures = () => {
   };
   
   // Handle confirm from invoice details modal
-  const handleConfirmInvoiceDetails = (details) => {
-    const { invoiceNumber, issueDate, expirationDate } = details;
-    const url = new URL(getApiUrl(`pdf/invoice/${selectedInvoice.backendId}`));
-    
-    // Add query parameters
-    url.searchParams.append('invoice_number', invoiceNumber);
-    url.searchParams.append('issue_date', issueDate);
-    url.searchParams.append('expiration_date', expirationDate);
-    
-    // Open the PDF with the specified parameters
-    window.open(url.toString(), '_blank');
-    setShowInvoiceDetails(false);
+  const handleConfirmInvoiceDetails = async (details) => {
+    try {
+      const { invoiceNumber, issueDate, expirationDate } = details;
+      
+      // First, update the invoice with the custom details
+      const updateResponse = await axios.put(
+        getApiUrl(`invoices/${selectedInvoice.id}`),
+        {
+          name: invoiceNumber,
+          issue_date: issueDate,
+          expiration_date: expirationDate
+        }
+      );
+      
+      // Then generate the PDF with the updated details
+      const pdfUrl = `${getApiUrl(`pdf/invoice/${selectedInvoice.backendId}`)}?` +
+        `invoice_number=${encodeURIComponent(invoiceNumber)}&` +
+        `issue_date=${encodeURIComponent(issueDate)}&` +
+        `expiration_date=${encodeURIComponent(expirationDate)}`;
+      
+      // Open the PDF in a new tab
+      window.open(pdfUrl, '_blank');
+      setShowInvoiceDetails(false);
+      
+      // Refresh the invoices list to show updated details
+      fetchInvoices();
+    } catch (error) {
+      console.error('Error updating invoice details:', error);
+      setToast('Failed to update invoice details');
+      setTimeout(() => setToast(''), 3000);
+    }
   };
 
   // Filter invoices based on search term

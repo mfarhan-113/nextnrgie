@@ -16,18 +16,45 @@ const InvoiceDetailsModal = ({ open, onClose, onConfirm, invoice }) => {
   useEffect(() => {
     if (invoice) {
       // Set default values when invoice changes
-      setInvoiceNumber(invoice.name || '');
-      setIssueDate(invoice.creation_date ? new Date(invoice.creation_date) : new Date());
-      setExpirationDate(invoice.expiration_date ? new Date(invoice.expiration_date) : addDays(new Date(), 30));
+      setInvoiceNumber(invoice.name || `INV-${new Date().getTime()}`);
+      
+      // Handle issue date (use current date if not set)
+      const today = new Date();
+      const issueDate = invoice.issue_date ? 
+        (typeof invoice.issue_date === 'string' ? new Date(invoice.issue_date) : invoice.issue_date) : 
+        today;
+      
+      // Handle expiration date (default to 30 days from issue date)
+      const expirationDate = invoice.expiration_date ? 
+        (typeof invoice.expiration_date === 'string' ? new Date(invoice.expiration_date) : invoice.expiration_date) : 
+        addDays(issueDate, 30);
+      
+      setIssueDate(issueDate);
+      setExpirationDate(expirationDate);
     }
   }, [invoice]);
 
   const handleSubmit = (e) => {
     e.preventDefault();
+    if (!invoiceNumber || !issueDate || !expirationDate) {
+      return; // Don't submit if any required field is missing
+    }
+    
+    // Format dates to YYYY-MM-DD
+    const formatDate = (date) => {
+      if (!date) return '';
+      try {
+        return format(new Date(date), 'yyyy-MM-dd');
+      } catch (e) {
+        console.error('Error formatting date:', e);
+        return '';
+      }
+    };
+    
     onConfirm({
-      invoiceNumber,
-      issueDate: format(issueDate, 'yyyy-MM-dd'),
-      expirationDate: format(expirationDate, 'yyyy-MM-dd')
+      invoiceNumber: invoiceNumber.trim(),
+      issueDate: formatDate(issueDate),
+      expirationDate: formatDate(expirationDate)
     });
   };
 
