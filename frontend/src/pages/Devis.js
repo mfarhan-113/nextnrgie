@@ -175,6 +175,11 @@ const Devis = () => {
   // State for custom devis number
   const [customDevisNumber, setCustomDevisNumber] = useState('');
 
+  // State for devis creation modal
+  const [isCreateDevisModalOpen, setIsCreateDevisModalOpen] = useState(false);
+  const [newDevisNumber, setNewDevisNumber] = useState('');
+  const [newDevisDate, setNewDevisDate] = useState(new Date().toISOString().split('T')[0]);
+
   // Filter devis based on search term
   const filteredDevis = useMemo(() => {
     if (!searchTerm.trim()) return createdDevis;
@@ -579,6 +584,47 @@ const Devis = () => {
     }
   };
 
+  // Open create devis modal
+  const openCreateDevisModal = () => {
+    setNewDevisNumber('');
+    setNewDevisDate(new Date().toISOString().split('T')[0]);
+    setIsCreateDevisModalOpen(true);
+  };
+
+  // Create new devis
+  const handleCreateDevis = () => {
+    if (!selectedClientId || !newDevisNumber) return;
+    
+    const client = clients.find(c => String(c.value) === String(selectedClientId));
+    if (!client) return;
+    
+    const dateObj = new Date(newDevisDate);
+    const dateStr = dateObj.toLocaleDateString('fr-FR');
+    const newDevis = {
+      id: `devis-${Date.now()}`,
+      name: `Devis ${newDevisNumber} - ${client.label} ${dateStr}`,
+      clientId: selectedClientId,
+      date: dateObj.toISOString(),
+      creationDate: newDevisDate, // Store the creation date separately for editing
+      expiration: ''
+    };
+    
+    setCreatedDevis(prev => [...prev, newDevis]);
+    setItemsByDevis(prev => ({ ...prev, [newDevis.id]: [] }));
+    setIsCreateDevisModalOpen(false);
+  };
+
+  // Update devis date
+  const updateDevisDate = (devisId, newDate) => {
+    setCreatedDevis(prev => 
+      prev.map(devis => 
+        devis.id === devisId 
+          ? { ...devis, creationDate: newDate, date: new Date(newDate).toISOString() } 
+          : devis
+      )
+    );
+  };
+
   return (
     <Box sx={{ 
       display: 'flex', 
@@ -701,122 +747,80 @@ const Devis = () => {
               <label htmlFor="client_select">{t('client_name')}</label>
             </div>
 
-            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: '0.25rem' }}>
-              <Tooltip title={t('add_devis_item') || 'Add Devis Item'}>
-                <span>
-                  <button
-                    type="button"
-                    className="btn-primary"
-                    disabled={!selectedClientId || loading}
-                    onClick={openAddModal}
-                    style={{
-                      background: '#9c27b0',
-                      color: 'white',
-                      border: 'none',
-                      padding: '0.6rem 1rem',
-                      borderRadius: '6px',
-                      fontWeight: '500',
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '0.5rem',
-                      cursor: !selectedClientId ? 'not-allowed' : 'pointer'
-                    }}
-                  >
-                    {loading ? <CircularProgress size={20} style={{ color: 'white' }} /> : <><AddIcon fontSize="small" style={{ marginRight: '0.5rem' }} /> +</>}
-                  </button>
-                </span>
-              </Tooltip>
-              {/* Removed hint about no contract required */}
+            <Box sx={{ display: 'flex', justifyContent: 'flex-end', mb: 3 }}>
+              <ActionButton
+                variant="create"
+                onClick={openCreateDevisModal}
+                disabled={!selectedClientId}
+                startIcon={<AddIcon />}
+              >
+                {t('create_devis') || 'Créer un devis'}
+              </ActionButton>
+            </Box>
+          </div>
+        </div>
+
+        {/* Create Devis Modal */}
+        {isCreateDevisModalOpen && (
+          <div className="modal-overlay" onClick={() => setIsCreateDevisModalOpen(false)} style={{
+            position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+            backgroundColor: 'rgba(0, 0, 0, 0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000
+          }}>
+            <div className="modal-content" onClick={e => e.stopPropagation()} style={{
+              background: 'white', borderRadius: '12px', boxShadow: '0 8px 30px rgba(0,0,0,0.12)',
+              width: '90%', maxWidth: '500px', padding: '1.5rem', overflow: 'auto', display: 'flex', flexDirection: 'column'
+            }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
+                <h3 style={{ margin: 0 }}>{t('create_devis') || 'Créer un devis'}</h3>
+                <IconButton onClick={() => setIsCreateDevisModalOpen(false)} size="small">
+                  <CloseIcon />
+                </IconButton>
+              </div>
+              
+              <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, mb: 3 }}>
+                <TextField
+                  label={t('devis_number') || 'Numéro de devis'}
+                  value={newDevisNumber}
+                  onChange={(e) => setNewDevisNumber(e.target.value)}
+                  fullWidth
+                  required
+                  size="small"
+                />
+                
+                <TextField
+                  label={t('creation_date') || 'Date de création'}
+                  type="date"
+                  value={newDevisDate}
+                  onChange={(e) => setNewDevisDate(e.target.value)}
+                  fullWidth
+                  required
+                  size="small"
+                  InputLabelProps={{
+                    shrink: true,
+                  }}
+                />
+              </Box>
+              
+              <Box sx={{ display: 'flex', justifyContent: 'flex-end', gap: 1, mt: 2 }}>
+                <Button
+                  variant="outlined"
+                  onClick={() => setIsCreateDevisModalOpen(false)}
+                  sx={{ color: '#666', borderColor: '#666' }}
+                >
+                  {t('cancel') || 'Annuler'}
+                </Button>
+                <Button
+                  variant="contained"
+                  onClick={handleCreateDevis}
+                  disabled={!newDevisNumber}
+                  sx={{ backgroundColor: '#9c27b0' }}
+                >
+                  {t('create') || 'Créer'}
+                </Button>
+              </Box>
             </div>
           </div>
-          {/* Per-client Create Devis actions */}
-          {clients.length > 0 && (
-            <div style={{ marginTop: '0.75rem' }}>
-              <Typography variant="subtitle1" sx={{ color: '#7b1fa2', mb: 1 }}>
-                {t('create_devis_for_client') || 'Create Devis for a client:'}
-              </Typography>
-              <div style={{ maxHeight: '200px', overflowY: 'auto', border: '1px solid #eee', borderRadius: 6, padding: '0.5rem' }}>
-                {clients.map(c => {
-                  // Compute default expiration (today + 30 days) in yyyy-mm-dd
-                  const today = new Date();
-                  const defaultDate = new Date(today.getTime() + 30 * 24 * 60 * 60 * 1000);
-                  const yyyy = defaultDate.getFullYear();
-                  const mm = String(defaultDate.getMonth() + 1).padStart(2, '0');
-                  const dd = String(defaultDate.getDate()).padStart(2, '0');
-                  const defaultDraft = `${yyyy}-${mm}-${dd}`;
-                  const draftVal = expirationDrafts[String(c.value)] ?? defaultDraft;
-                  return (
-                    <div key={c.value} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0.25rem 0.5rem', gap: '0.5rem' }}>
-                      <div style={{ color: '#333', flex: 1 }}>{c.label}</div>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                        <label style={{ fontSize: '0.85rem', color: '#555' }}>{t('expiration_date') || 'Expiration'}:</label>
-                        <input
-                          type="date"
-                          value={draftVal}
-                          onChange={(e) => setExpirationDrafts(prev => ({ ...prev, [String(c.value)]: e.target.value }))}
-                          style={{ padding: '0.35rem 0.4rem' }}
-                        />
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                          <input
-                            type="text"
-                            placeholder="Numéro de devis (optionnel)"
-                            value={customDevisNumber}
-                            onChange={(e) => setCustomDevisNumber(e.target.value)}
-                            style={{
-                              padding: '0.5rem',
-                              border: '1px solid #ddd',
-                              borderRadius: '4px',
-                              fontSize: '0.9rem',
-                              width: '100%'
-                            }}
-                          />
-                          <Button
-                            type="button"
-                            className="btn-primary"
-                            onClick={async () => {
-                              const now = new Date();
-                              const dateStr = now.toLocaleDateString();
-                              // Use custom devis number if provided
-                              const name = customDevisNumber.trim() ? 
-                                `Devis ${customDevisNumber} - ${c.label} ${dateStr}` : 
-                                `Devis ${c.label} ${dateStr}`;
-                              const id = `${c.value}-${now.getTime()}`; // UI-only unique id
-                              // Use drafted expiration or default, store as 'YYYY-MM-DD' to avoid timezone shifts
-                              const expirationDateStr = expirationDrafts[String(c.value)] || defaultDraft;
-                              setCreatedDevis(prev => {
-                                const next = [{ id, name, clientId: c.value, date: now.toISOString(), expiration: expirationDateStr }, ...prev];
-                                try { persist.set('createdDevis', JSON.stringify(next)); } catch {}
-                                return next;
-                              });
-                              setItemsByDevis(prev => {
-                                const next = { ...prev, [id]: (prev[id] || []) };
-                                try { persist.set('itemsByDevis', JSON.stringify(next)); } catch {}
-                                return next;
-                              });
-                              // Reset the input field after creating devis
-                              setCustomDevisNumber('');
-                            }}
-                            style={{ 
-                              padding: '0.5rem 0.6rem',
-                              width: '100%',
-                              background: '#9c27b0',
-                              color: 'white',
-                              border: 'none',
-                              borderRadius: '4px',
-                              cursor: 'pointer'
-                            }}
-                          >
-                            {t('create_devis') || 'Create Devis'}
-                          </Button>
-                        </div>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          )}
-        </div>
+        )}
 
         {/* Created Devis Cards */}
         {createdDevis.length > 0 && (
@@ -890,11 +894,31 @@ const Devis = () => {
                           </Typography>
                         </Box>
                         
-                        <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
-                          <CalendarTodayIcon sx={{ color: '#9c27b0', mr: 1, fontSize: '1.2rem' }} />
-                          <Typography variant="body2" sx={{ color: '#666' }}>
-{t('created') || 'Créé'}: {dateStr}
+                        <Box sx={{ display: 'flex', alignItems: 'center', mb: 1, gap: 1 }}>
+                          <CalendarTodayIcon sx={{ color: '#9c27b0', fontSize: '1.2rem', flexShrink: 0 }} />
+                          <Typography variant="body2" sx={{ color: '#666', minWidth: '100px' }}>
+                            {t('created') || 'Créé'}:
                           </Typography>
+                          <input
+                            type="date"
+                            value={row.creationDate || new Date(row.date).toISOString().split('T')[0]}
+                            onChange={(e) => updateDevisDate(row.id, e.target.value)}
+                            style={{
+                              padding: '4px 8px',
+                              border: '1px solid #ddd',
+                              borderRadius: '4px',
+                              fontSize: '0.85rem',
+                              color: '#333',
+                              backgroundColor: '#fff',
+                              flex: 1,
+                              maxWidth: '160px',
+                              '&:focus': {
+                                outline: 'none',
+                                borderColor: '#9c27b0',
+                                boxShadow: '0 0 0 1px #9c27b0'
+                              }
+                            }}
+                          />
                         </Box>
                         
                         <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
@@ -1193,12 +1217,17 @@ const Devis = () => {
                               
                               // Add name, devis number, and expiration to query params
                               queryParams.append('name', payload.name);
-                              
-                              // Extract custom devis number from the name (format: "Devis 123 - Client Name 01/01/2025")
-                              const devisNumberMatch = payload.name.match(/^Devis\s+([^-]+?)(\s+-|$)/);
-                              if (devisNumberMatch && devisNumberMatch[1]) {
-                                const customNumber = devisNumberMatch[1].trim();
-                                queryParams.append('devis_number', customNumber);
+        
+                              // Use the exact devis_number from payload if available
+                              if (payload.devis_number) {
+                                queryParams.append('devis_number', payload.devis_number);
+                              } else {
+                                // Fallback to extracting from name if devis_number is not in payload
+                                const devisNumberMatch = payload.name.match(/^Devis\s+([^-]+?)(\s+-|$)/);
+                                if (devisNumberMatch && devisNumberMatch[1]) {
+                                  const customNumber = devisNumberMatch[1].trim();
+                                  queryParams.append('devis_number', customNumber);
+                                }
                               }
                               
                               if (payload.expiration) {

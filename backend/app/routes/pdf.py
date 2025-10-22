@@ -342,10 +342,10 @@ async def generate_invoice_pdf(invoice_id: str, db: Session = Depends(get_db)):
         p.drawString(right, right_col_y - 45, "")
 
     # Chantier (site/project)
-    chantier_y = left_col_y - 100
-    chantier = getattr(contract, 'name', '') if contract else ''
-    p.setFont("Helvetica-Bold", 12)
-    p.drawString(left, chantier_y, "CHANTIER Arc de seine")
+    # chantier_y = left_col_y - 100
+    # chantier = getattr(contract, 'name', '') if contract else ''
+    # p.setFont("Helvetica-Bold", 12)
+    # p.drawString(left, chantier_y, "CHANTIER Arc de seine")
 
     # Add table header below chantier
     table_y = chantier_y - 30  # Position below chantier
@@ -561,13 +561,13 @@ async def generate_invoice_pdf(invoice_id: str, db: Session = Depends(get_db)):
     p.drawString(value_x, y_position, "NEXT NR-GIE")
     y_position -= 14
     p.drawString(label_x, y_position, "BIC")
-    p.drawString(value_x, y_position, "QNTOFRP1XXX")
+    p.drawString(value_x, y_position, "CMCIFR2A")
     y_position -= 14
     p.drawString(label_x, y_position, "IBAN")
-    p.drawString(value_x, y_position, "FR7616958000013394623012453")
+    p.drawString(value_x, y_position, "FR7610278062310002236670146")
     y_position -= 14
-    p.drawString(label_x, y_position, "Référence")
-    p.drawString(value_x, y_position, "QECVZDX")
+    # p.drawString(label_x, y_position, "Référence")
+    # p.drawString(value_x, y_position, "QECVZDX")
 
     p.showPage()
     p.save()
@@ -727,9 +727,9 @@ def generate_estimate_pdf(contract_id: int, db: Session = Depends(get_db)):
         p.drawString(right, right_col_y, "Client")
     
     # Chantier (site/project)
-    chantier_y = left_col_y - 100
-    p.setFont("Helvetica-Bold", 12)
-    p.drawString(left, chantier_y, "CHANTIER Arc de seine")
+    # chantier_y = left_col_y - 100
+    # p.setFont("Helvetica-Bold", 12)
+    # p.drawString(left, chantier_y, "CHANTIER Arc de seine")
     
     # Add table header below chantier
     table_y = chantier_y - 30  # Position below chantier
@@ -1275,13 +1275,13 @@ def generate_facture_pdf(facture_data: dict, db: Session = Depends(get_db)):
     p.drawString(value_x, y, "NEXT NR-GIE")
     y -= 14
     p.drawString(label_x, y, "BIC")
-    p.drawString(value_x, y, "QNTOFRP1XXX")
+    p.drawString(value_x, y, "CMCIFR2A")
     y -= 14
     p.drawString(label_x, y, "IBAN")
-    p.drawString(value_x, y, "FR7616958000013394623012453")
+    p.drawString(value_x, y, "FR7610278062310002236670146")
     y -= 14
-    p.drawString(label_x, y, "Référence")
-    p.drawString(value_x, y, "QECVZDX")
+    # p.drawString(label_x, y, "Référence")
+    # p.drawString(value_x, y, "QECVZDX")
 
     # Footer
     # Show invoice number in footer
