@@ -266,32 +266,57 @@ async def generate_invoice_pdf(
     p.setFont("Helvetica-Bold", 12)
     p.drawString(left, y, "Numéro de facture")
     p.setFont("Helvetica", 12)
-    # Use provided invoice number or fallback to auto-generated
-    invoice_num = invoice_number or datetime.now().strftime('%Y%m%d')
+    # Use provided invoice number, else DB value, else auto-generated
+    try:
+        db_invoice_number = getattr(invoice, 'invoice_number', None)
+    except Exception:
+        db_invoice_number = None
+    invoice_num = invoice_number or db_invoice_number or datetime.now().strftime('%Y%m%d')
     p.drawString(left + 170, y, f"{invoice_num}")
     y -= line_height
     
-    # Get dates from parameters or fall back to contract dates
+    # Get dates from parameters or fall back to invoice fields then contract
+    def to_ddmmyyyy(dt):
+        try:
+            return dt.strftime('%d/%m/%Y') if dt else ''
+        except Exception:
+            return ''
+    
+    # Issue date
     if issue_date:
         try:
-            # Convert from YYYY-MM-DD to DD/MM/YYYY
             issue_date_dt = datetime.strptime(issue_date, '%Y-%m-%d')
             issue_date_str = issue_date_dt.strftime('%d/%m/%Y')
         except ValueError:
             issue_date_str = datetime.now().strftime('%d/%m/%Y')
     else:
-        issue_date_str = contract.date.strftime('%d/%m/%Y') if hasattr(contract, 'date') else datetime.now().strftime('%d/%m/%Y')
+        # Prefer invoice.created_at if available, else contract.date, else today
+        created_at = getattr(invoice, 'created_at', None)
+        if created_at:
+            try:
+                issue_date_str = to_ddmmyyyy(created_at)
+            except Exception:
+                issue_date_str = datetime.now().strftime('%d/%m/%Y')
+        else:
+            issue_date_str = contract.date.strftime('%d/%m/%Y') if hasattr(contract, 'date') and contract.date else datetime.now().strftime('%d/%m/%Y')
     
+    # Expiration date
     if expiration_date:
         try:
-            # Convert from YYYY-MM-DD to DD/MM/YYYY
             exp_date_dt = datetime.strptime(expiration_date, '%Y-%m-%d')
             expiration_date_str = exp_date_dt.strftime('%d/%m/%Y')
         except ValueError:
-            # If invalid date, use 30 days from now
             expiration_date_str = (datetime.now() + timedelta(days=30)).strftime('%d/%m/%Y')
     else:
-        expiration_date_str = contract.deadline.strftime('%d/%m/%Y') if hasattr(contract, 'deadline') else (datetime.now() + timedelta(days=30)).strftime('%d/%m/%Y')
+        # Prefer invoice.due_date if available, else contract.deadline, else +30 days
+        due_date = getattr(invoice, 'due_date', None)
+        if due_date:
+            try:
+                expiration_date_str = to_ddmmyyyy(due_date)
+            except Exception:
+                expiration_date_str = (datetime.now() + timedelta(days=30)).strftime('%d/%m/%Y')
+        else:
+            expiration_date_str = contract.deadline.strftime('%d/%m/%Y') if hasattr(contract, 'deadline') and contract.deadline else (datetime.now() + timedelta(days=30)).strftime('%d/%m/%Y')
     
     # Draw issue date
     p.setFont("Helvetica-Bold", 12)
@@ -372,9 +397,12 @@ async def generate_invoice_pdf(
         p.drawString(right, right_col_y - 45, "")
 
     # Chantier (site/project)
-    # If you want to render a chantier/title section above the table, set its Y position here.
-    # For now, we simply anchor the table relative to the current Y position.
-    chantier_y = y
+    # Anchor the table safely below the address blocks to prevent overlap
+    # Estimate bottoms of both columns and position the table below the lowest point
+    left_bottom = left_col_y - 90
+    right_bottom = right_col_y - 120
+    y_after_blocks = min(left_bottom, right_bottom) - 10
+    chantier_y = y_after_blocks
 
     # Add table header below chantier
     table_y = chantier_y - 30  # Position below chantier

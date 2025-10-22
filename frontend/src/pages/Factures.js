@@ -417,6 +417,15 @@ const Factures = () => {
         setSelectedInvoiceId(newInvoiceId);
         setToast(t('invoice_created') || 'Invoice created successfully!');
         setTimeout(() => setToast(''), 2500);
+
+        // Open PDF immediately with provided values
+        if (backendId) {
+          const pdfUrl = `${getApiUrl(`pdf/invoice/${backendId}`)}?` +
+            `invoice_number=${encodeURIComponent(invoiceNumber)}&` +
+            `issue_date=${encodeURIComponent(issueDate)}&` +
+            `expiration_date=${encodeURIComponent(expirationDate)}`;
+          window.open(pdfUrl, '_blank');
+        }
       } catch (e) {
         setToast(t('invoice_create_error') || 'Error creating invoice. Please try again.');
         setTimeout(() => setToast(''), 3000);
