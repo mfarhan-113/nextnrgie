@@ -24,6 +24,7 @@ def add_invoice(invoice: InvoiceCreate, db: Session = Depends(get_db)):
     db.add(db_invoice)
     db.commit()
     db.refresh(db_invoice)
+    # Note: If caller wants to set a custom created_at (issue date), they must call PUT after POST.
     return db_invoice
 
 @router.get("/", response_model=List[InvoiceOut])
@@ -147,6 +148,23 @@ def update_invoice(
                 db_invoice.due_date = invoice_data['due_date']
         except Exception:
             raise HTTPException(status_code=422, detail="Invalid due_date format, expected YYYY-MM-DD")
+
+    # Update created_at if provided (treats as issue date). Accept 'created_at' or 'issue_date' keys in 'YYYY-MM-DD'.
+    created_key = None
+    if 'created_at' in invoice_data:
+        created_key = 'created_at'
+    elif 'issue_date' in invoice_data:
+        created_key = 'issue_date'
+    if created_key and invoice_data.get(created_key):
+        try:
+            if isinstance(invoice_data[created_key], str):
+                # set time to 00:00:00 for consistency
+                dt = datetime.strptime(invoice_data[created_key], '%Y-%m-%d')
+            else:
+                dt = invoice_data[created_key]
+            db_invoice.created_at = dt
+        except Exception:
+            raise HTTPException(status_code=422, detail="Invalid issue date format, expected YYYY-MM-DD")
 
     print(f"Updated invoice - Status: {db_invoice.status}, Paid: {db_invoice.paid_amount}")  # Debug log
     

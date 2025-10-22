@@ -192,6 +192,27 @@ const Factures = () => {
     }
   };
 
+  // Helper to synchronously read latest overrides (avoids race on first render)
+  const getInvoiceOverrides = () => {
+    // Try localStorage first
+    try {
+      const raw = localStorage.getItem('invoice_overrides');
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (parsed && typeof parsed === 'object') return parsed;
+      }
+    } catch {}
+    // Fallback to cookies
+    try {
+      const match = document.cookie.match(/(?:^|; )invoice_overrides=([^;]*)/);
+      if (match) {
+        const parsed = JSON.parse(decodeURIComponent(match[1]));
+        if (parsed && typeof parsed === 'object') return parsed;
+      }
+    } catch {}
+    return invoiceOverrides;
+  };
+
   // Fetch invoices from the backend
   const fetchInvoices = async () => {
     try {
@@ -201,7 +222,8 @@ const Factures = () => {
       
       // Transform the backend data to match our frontend structure
       const formattedInvoices = invoices.map(b => {
-        const ov = invoiceOverrides[b.id] || {};
+        const overrides = getInvoiceOverrides();
+        const ov = overrides[b.id] || {};
         const issue = ov.issue_date || (b.created_at ? b.created_at.split('T')[0] : undefined);
         const exp = ov.expiration_date || b.due_date;
         return {
@@ -423,7 +445,8 @@ const Factures = () => {
         }
         await axios.put(getApiUrl(`invoices/${bid}`), {
           invoice_number: invoiceNumber,
-          due_date: expirationDate
+          due_date: expirationDate,
+          issue_date: issueDate
         });
 
         // Persist manual dates for this invoice
@@ -484,8 +507,17 @@ const Factures = () => {
         setToast(t('invoice_created') || 'Invoice created successfully!');
         setTimeout(() => setToast(''), 2500);
 
-        // Persist manual dates for this invoice so future syncs keep them
-        if (backendId) setInvoiceOverride(backendId, { issue_date: issueDate, expiration_date: expirationDate });
+        // Persist manual dates for this invoice so future syncs keep them (both backend and local override)
+        if (backendId) {
+          try {
+            await axios.put(getApiUrl(`invoices/${backendId}`), {
+              invoice_number: invoiceNumber,
+              due_date: expirationDate,
+              issue_date: issueDate
+            });
+          } catch {}
+          setInvoiceOverride(backendId, { issue_date: issueDate, expiration_date: expirationDate });
+        }
 
         // Do not open PDF here; user will add items and click View PDF later
       } catch (e) {
@@ -763,12 +795,16 @@ const Factures = () => {
     } catch {}
   }, []);
 
-  // Helper to save/merge an override and persist it
+  // Helper to save/merge an override and persist it (no dependency on persist)
   const setInvoiceOverride = (backendId, data) => {
     if (!backendId) return;
     setInvoiceOverrides(prev => {
       const next = { ...prev, [backendId]: { ...(prev[backendId] || {}), ...data } };
-      try { persist.set('invoice_overrides', JSON.stringify(next)); } catch {}
+      try { localStorage.setItem('invoice_overrides', JSON.stringify(next)); } catch {}
+      try {
+        const expires = new Date(Date.now() + 365*24*60*60*1000).toUTCString();
+        document.cookie = `invoice_overrides=${encodeURIComponent(JSON.stringify(next))}; expires=${expires}; path=/`;
+      } catch {}
       return next;
     });
   };
@@ -799,7 +835,8 @@ const Factures = () => {
 
       // 2) Build local createdInvoices entries from backend
       const mapped = backendInvoices.map(b => {
-        const ov = invoiceOverrides[b.id] || {};
+        const overrides = getInvoiceOverrides();
+        const ov = overrides[b.id] || {};
         const issue = ov.issue_date || (b.created_at ? b.created_at.split('T')[0] : undefined);
         const exp = ov.expiration_date || b.due_date;
         return {
