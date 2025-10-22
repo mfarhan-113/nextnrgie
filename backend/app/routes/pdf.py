@@ -214,11 +214,7 @@ async def generate_invoice_pdf(
     logger.info("\n[3/3] Fetching factures data...")
     factures_result = db.execute(select(Facture).where(Facture.invoice_id == invoice.id))
     factures = factures_result.scalars().all()
-    if not factures:
-        logger.info("No factures linked by invoice_id. Falling back to contract_id factures for compatibility.")
-        factures_result = db.execute(select(Facture).where(Facture.contract_id == invoice.contract_id))
-        factures = factures_result.scalars().all()
-    logger.info(f"Found {len(factures)} facture(s) for rendering")
+    logger.info(f"Found {len(factures)} facture(s) linked to invoice for rendering")
     
     # Log detailed facture information
     logger.info("\n=== FACTURE DETAILS ===")
@@ -522,36 +518,8 @@ async def generate_invoice_pdf(
             # Move to next row
             y_position -= row_height
     else:
-        row_height = 20  # Define row_height for the else case
-        # If no details, add a placeholder row
-        p.setFont("Helvetica", 9)
-        p.drawString(header_x + 5, y_position - 15, "Services as per contract")
-        current_x = header_x + headers[0]["width"]
-        
-        # Quantity
-        p.drawString(current_x + headers[1]["width"] - 15, y_position - 15, "1")
-        current_x += headers[1]["width"]
-        
-        # Unit Price
-        price_text = f"{contract.price:.2f}"
-        price_width = p.stringWidth(price_text, "Helvetica", 9)
-        p.drawString(current_x + headers[2]["width"] - price_width - 5, y_position - 15, price_text)
-        current_x += headers[2]["width"]
-        
-        # TVA (use contract TVA if available, otherwise 0%)
-        tva_rate = getattr(contract, 'tva', 0.0)
-        tva_text = f"{tva_rate:.2f}%"
-        tva_width = p.stringWidth(tva_text, "Helvetica", 9)
-        p.drawString(current_x + headers[3]["width"] - tva_width - 5, y_position - 15, tva_text)
-        current_x += headers[3]["width"]
-        
-        # Total HT
-        p.drawString(current_x + headers[4]["width"] - price_width - 5, y_position - 15, price_text)
-        total_amount = contract.price
-        
-        # Draw horizontal line for this row
-        p.line(header_x, y_position - 20, header_x + total_width, y_position - 20)
-        y_position -= row_height
+        # No items: don't render any placeholder rows; totals remain zero
+        total_amount = 0
     
     # Draw vertical lines for all columns
     current_x = header_x
@@ -604,7 +572,7 @@ async def generate_invoice_pdf(
     p.drawString(left, y_position, "Tout retard de paiement entraînera une indemnité forfaitaire pour frais de recouvrement de 40€.")
     
     # Spacing before payment details
-    y_position -= (6 * 12)
+    y_position -= (6 * 8)
     
     # Payment details
     y_position = ensure_space(y_position - 30, 150)

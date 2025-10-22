@@ -369,7 +369,7 @@ const Factures = () => {
   const [pendingContractId, setPendingContractId] = useState(null); // set when creating new invoice
   const [showInvoiceDetails, setShowInvoiceDetails] = useState(false);
 
-  // Generate invoice PDF (existing invoice): open directly, no modal
+  // Generate invoice PDF (existing invoice): open directly, add known params
   const generateInvoicePDF = async (invoice) => {
     try {
       const bid = invoice.backendId || await resolveBackendInvoiceId(invoice);
@@ -378,7 +378,17 @@ const Factures = () => {
         setTimeout(() => setToast(''), 2500);
         return;
       }
-      window.open(getApiUrl(`pdf/invoice/${bid}`), '_blank');
+      let pdfUrl = getApiUrl(`pdf/invoice/${bid}`);
+      const params = new URLSearchParams();
+      // Prefer invoice.name for invoice number; fallback to invoice.invoice_number if present
+      if (invoice?.name) params.append('invoice_number', invoice.name);
+      else if (invoice?.invoice_number) params.append('invoice_number', invoice.invoice_number);
+      // Use stored issue and expiration dates if available (YYYY-MM-DD)
+      if (invoice?.issue_date) params.append('issue_date', invoice.issue_date);
+      if (invoice?.expiration_date) params.append('expiration_date', invoice.expiration_date);
+      const qs = params.toString();
+      if (qs) pdfUrl += `?${qs}`;
+      window.open(pdfUrl, '_blank');
     } catch (err) {
       console.error('Error preparing invoice PDF:', err);
       setToast(t('pdf_error') || 'Failed to open PDF');
@@ -418,14 +428,7 @@ const Factures = () => {
         setToast(t('invoice_created') || 'Invoice created successfully!');
         setTimeout(() => setToast(''), 2500);
 
-        // Open PDF immediately with provided values
-        if (backendId) {
-          const pdfUrl = `${getApiUrl(`pdf/invoice/${backendId}`)}?` +
-            `invoice_number=${encodeURIComponent(invoiceNumber)}&` +
-            `issue_date=${encodeURIComponent(issueDate)}&` +
-            `expiration_date=${encodeURIComponent(expirationDate)}`;
-          window.open(pdfUrl, '_blank');
-        }
+        // Do not open PDF here; user will add items and click View PDF later
       } catch (e) {
         setToast(t('invoice_create_error') || 'Error creating invoice. Please try again.');
         setTimeout(() => setToast(''), 3000);
