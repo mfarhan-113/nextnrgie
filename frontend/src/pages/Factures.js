@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import axios from 'axios';
 import { useTranslation } from 'react-i18next';
 import { getApiUrl, getPdfUrl } from '../config/api';
+import InvoiceDetailsModal from '../components/InvoiceDetailsModal';
 // Material UI
 import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
@@ -331,6 +332,10 @@ const Factures = () => {
     });
   };
 
+  // State for invoice details modal
+  const [selectedInvoice, setSelectedInvoice] = useState(null);
+  const [showInvoiceDetails, setShowInvoiceDetails] = useState(false);
+
   // Generate invoice PDF (best-effort)
   const generateInvoicePDF = async (invoice) => {
     try {
@@ -340,12 +345,31 @@ const Factures = () => {
         setTimeout(() => setToast(''), 2500);
         return;
       }
-      // Open backend PDF endpoint for invoice
-      window.open(getApiUrl(`pdf/invoice/${bid}`), '_blank');
+      
+      // Show modal to collect invoice details
+      setSelectedInvoice({ ...invoice, backendId: bid });
+      setShowInvoiceDetails(true);
+      
     } catch (err) {
+      console.error('Error preparing invoice PDF:', err);
       setToast(t('pdf_error') || 'Failed to open PDF');
       setTimeout(() => setToast(''), 2500);
     }
+  };
+  
+  // Handle confirm from invoice details modal
+  const handleConfirmInvoiceDetails = (details) => {
+    const { invoiceNumber, issueDate, expirationDate } = details;
+    const url = new URL(getApiUrl(`pdf/invoice/${selectedInvoice.backendId}`));
+    
+    // Add query parameters
+    url.searchParams.append('invoice_number', invoiceNumber);
+    url.searchParams.append('issue_date', issueDate);
+    url.searchParams.append('expiration_date', expirationDate);
+    
+    // Open the PDF with the specified parameters
+    window.open(url.toString(), '_blank');
+    setShowInvoiceDetails(false);
   };
 
   // Filter invoices based on search term
@@ -1468,6 +1492,14 @@ const Factures = () => {
           </Box>
         </Box>
       )}
+
+      {/* Invoice Details Modal */}
+      <InvoiceDetailsModal
+        open={showInvoiceDetails}
+        onClose={() => setShowInvoiceDetails(false)}
+        onConfirm={handleConfirmInvoiceDetails}
+        invoice={selectedInvoice}
+      />
 
       {/* Toast Notification */}
       {toast && (

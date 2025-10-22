@@ -169,7 +169,13 @@ async def generate_devis_pdf_get(
     return await generate_devis_pdf(payload)
 
 @router.get("/invoice/{invoice_id}")
-async def generate_invoice_pdf(invoice_id: str, db: Session = Depends(get_db)):
+async def generate_invoice_pdf(
+    invoice_id: str, 
+    invoice_number: str = None,
+    issue_date: str = None,
+    expiration_date: str = None,
+    db: Session = Depends(get_db)
+):
     from reportlab.lib.utils import ImageReader
     import os
     import re
@@ -260,23 +266,45 @@ async def generate_invoice_pdf(invoice_id: str, db: Session = Depends(get_db)):
     p.setFont("Helvetica-Bold", 12)
     p.drawString(left, y, "Numéro de facture")
     p.setFont("Helvetica", 12)
-    p.drawString(left + 170, y, f"{datetime.now().strftime('%Y%m%d')}")
+    # Use provided invoice number or fallback to auto-generated
+    invoice_num = invoice_number or datetime.now().strftime('%Y%m%d')
+    p.drawString(left + 170, y, f"{invoice_num}")
     y -= line_height
     
-    # Get contract dates
-    start_date = contract.date.strftime('%d/%m/%Y') if hasattr(contract, 'date') else ''
-    end_date = contract.deadline.strftime('%d/%m/%Y') if hasattr(contract, 'deadline') else ''
+    # Get dates from parameters or fall back to contract dates
+    if issue_date:
+        try:
+            # Convert from YYYY-MM-DD to DD/MM/YYYY
+            issue_date_dt = datetime.strptime(issue_date, '%Y-%m-%d')
+            issue_date_str = issue_date_dt.strftime('%d/%m/%Y')
+        except ValueError:
+            issue_date_str = datetime.now().strftime('%d/%m/%Y')
+    else:
+        issue_date_str = contract.date.strftime('%d/%m/%Y') if hasattr(contract, 'date') else datetime.now().strftime('%d/%m/%Y')
     
+    if expiration_date:
+        try:
+            # Convert from YYYY-MM-DD to DD/MM/YYYY
+            exp_date_dt = datetime.strptime(expiration_date, '%Y-%m-%d')
+            expiration_date_str = exp_date_dt.strftime('%d/%m/%Y')
+        except ValueError:
+            # If invalid date, use 30 days from now
+            expiration_date_str = (datetime.now() + timedelta(days=30)).strftime('%d/%m/%Y')
+    else:
+        expiration_date_str = contract.deadline.strftime('%d/%m/%Y') if hasattr(contract, 'deadline') else (datetime.now() + timedelta(days=30)).strftime('%d/%m/%Y')
+    
+    # Draw issue date
     p.setFont("Helvetica-Bold", 12)
     p.drawString(left, y, "Date d'émission")
     p.setFont("Helvetica", 12)
-    p.drawString(left + 170, y, f"{start_date}")
+    p.drawString(left + 170, y, issue_date_str)
     y -= line_height
     
+    # Draw expiration date
     p.setFont("Helvetica-Bold", 12)
     p.drawString(left, y, "Date d'expiration")
     p.setFont("Helvetica", 12)
-    p.drawString(left + 170, y, f"{end_date}")
+    p.drawString(left + 170, y, expiration_date_str)
     y -= line_height
     
     # Numéro de contrat
