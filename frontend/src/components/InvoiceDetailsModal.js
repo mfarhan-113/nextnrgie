@@ -106,7 +106,7 @@ const InvoiceDetailsModal = ({ open, onClose, onConfirm, invoice }) => {
         <DialogActions sx={{ p: 2 }}>
           <Button onClick={onClose}>Cancel</Button>
           <Button type="submit" variant="contained" color="primary">
-            Generate PDF
+            Generate Invoice
           </Button>
         </DialogActions>
       </form>

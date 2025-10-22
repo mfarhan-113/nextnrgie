@@ -369,7 +369,7 @@ const Factures = () => {
   const [pendingContractId, setPendingContractId] = useState(null); // set when creating new invoice
   const [showInvoiceDetails, setShowInvoiceDetails] = useState(false);
 
-  // Generate invoice PDF (best-effort)
+  // Generate invoice PDF (existing invoice): open directly, no modal
   const generateInvoicePDF = async (invoice) => {
     try {
       const bid = invoice.backendId || await resolveBackendInvoiceId(invoice);
@@ -378,12 +378,7 @@ const Factures = () => {
         setTimeout(() => setToast(''), 2500);
         return;
       }
-      
-      // Show modal to collect invoice details for existing invoice (no DB update needed)
-      setPendingContractId(null);
-      setSelectedInvoice({ ...invoice, backendId: bid });
-      setShowInvoiceDetails(true);
-      
+      window.open(getApiUrl(`pdf/invoice/${bid}`), '_blank');
     } catch (err) {
       console.error('Error preparing invoice PDF:', err);
       setToast(t('pdf_error') || 'Failed to open PDF');

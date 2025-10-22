@@ -13,7 +13,7 @@ from app.schemas.facture import Facture as FactureSchema
 from reportlab.lib.pagesizes import letter
 from reportlab.pdfgen import canvas
 from io import BytesIO
-from datetime import datetime
+from datetime import datetime, timedelta
 import os
 
 # Helper to format quantity with a unit label like "432 unités", "1 unité", "100 m", "2 ensembles"
@@ -372,10 +372,9 @@ async def generate_invoice_pdf(
         p.drawString(right, right_col_y - 45, "")
 
     # Chantier (site/project)
-    # chantier_y = left_col_y - 100
-    # chantier = getattr(contract, 'name', '') if contract else ''
-    # p.setFont("Helvetica-Bold", 12)
-    # p.drawString(left, chantier_y, "CHANTIER Arc de seine")
+    # If you want to render a chantier/title section above the table, set its Y position here.
+    # For now, we simply anchor the table relative to the current Y position.
+    chantier_y = y
 
     # Add table header below chantier
     table_y = chantier_y - 30  # Position below chantier
