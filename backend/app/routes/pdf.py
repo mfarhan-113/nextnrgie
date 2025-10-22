@@ -1440,7 +1440,8 @@ async def generate_devis_pdf(payload: dict):
         y_offset -= 15
 
     # Chantier (site/project) - Add "CHANTIER BEIGE MONCEAU" above the table
-    # chantier_y = left_col_y - 100
+    # Position for chantier (commented out but keeping the y-position calculation)
+    chantier_y = left_col_y - 100
     # p.setFont("Helvetica-Bold", 12)
     # p.drawString(left, chantier_y, "CHANTIER BEIGE MONCEAU")
     
