@@ -1350,11 +1350,25 @@ async def generate_devis_pdf(payload: dict):
     p.drawString(left, y, title)
     y -= int(1.5 * line_height)
 
-    # Devis number
+    # Devis number - extract from name (format: "Devis 079 - Client Name")
     p.setFont("Helvetica-Bold", 12)
     p.drawString(left, y, "Numéro de devis")
     p.setFont("Helvetica", 12)
-    p.drawString(left + 170, y, f"{payload.get('devis_number', '')}")
+    
+    # Try to extract the number from the name (e.g., "079" from "Devis 079 - test 22/10/2025")
+    devis_number = ""
+    name = payload.get('name', '')
+    if 'Devis' in name and '-' in name:
+        # Extract the part between "Devis" and "-"
+        number_part = name.split('Devis')[1].split('-')[0].strip()
+        if number_part:
+            devis_number = number_part
+    
+    # If no number found in name, fall back to devis_number from payload
+    if not devis_number:
+        devis_number = payload.get('devis_number', '')
+    
+    p.drawString(left + 170, y, devis_number)
     y -= line_height
 
     # Issue date
