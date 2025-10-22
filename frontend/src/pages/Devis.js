@@ -1191,26 +1191,27 @@ const Devis = () => {
                           onClick={async () => {
                             try {
                               const client = clientsById[row.clientId] || {};
+                              const creationDate = devis.creationDate || (devis.date ? new Date(devis.date).toISOString().split('T')[0] : '');
+                              const items = (itemsByDevis[row.id] || []).map(it => ({
+                                description: it.description,
+                                qty: Number(it.qty) || 0,
+                                qty_unit: it.qty_unit || 'unite',
+                                unit_price: Number(it.unit_price) || 0,
+                                tva: Number(it.tva) || 0,
+                                total_ht: Number(it.total_ht) || ((Number(it.qty)||0)*(Number(it.unit_price)||0))
+                              }));
+
                               const payload = {
-                                name: row.name,
-                                expiration: row.expiration,
-                                devis_number: row.id,
+                                name: devis.name,
                                 client: {
-                                  name: client.client_name || (clients.find(x => String(x.value) === String(row.clientId))?.label) || 'Client',
-                                  email: client.email || '',
-                                  phone: client.phone || '',
-                                  tva: client.tva_number || '',
+                                  ...client,
                                   tsa_number: client.tsa_number || '',
                                   client_address: client.client_address || ''
                                 },
-                                items: (itemsByDevis[row.id] || []).map(it => ({
-                                  description: it.description,
-                                  qty: Number(it.qty) || 0,
-                                  qty_unit: it.qty_unit || 'unite',
-                                  unit_price: Number(it.unit_price) || 0,
-                                  tva: Number(it.tva) || 0,
-                                  total_ht: Number(it.total_ht) || ((Number(it.qty)||0)*(Number(it.unit_price)||0))
-                                }))
+                                items: items,
+                                expiration: devis.expiration || '',
+                                devis_number: devis.devis_number,
+                                creation_date: creationDate
                               };
                               // Convert payload to query parameters
                               const queryParams = new URLSearchParams();

@@ -1371,11 +1371,22 @@ async def generate_devis_pdf(payload: dict):
     p.drawString(left + 170, y, devis_number)
     y -= line_height
 
-    # Issue date
+    # Issue date - use creation_date from payload if available, otherwise use current date
     p.setFont("Helvetica-Bold", 12)
     p.drawString(left, y, "Date d'émission")
     p.setFont("Helvetica", 12)
-    p.drawString(left + 170, y, f"{datetime.now().strftime('%d/%m/%Y')}")
+    
+    # Get creation date from payload or use current date
+    creation_date = datetime.now()
+    if 'creation_date' in payload and payload['creation_date']:
+        try:
+            # Try to parse the date from the payload
+            creation_date = datetime.strptime(payload['creation_date'], '%Y-%m-%d')
+        except (ValueError, TypeError):
+            # If parsing fails, use current date
+            pass
+    
+    p.drawString(left + 170, y, creation_date.strftime('%d/%m/%Y'))
     y -= line_height
     # Expiration date (from payload.expiration)
     exp_iso = payload.get("expiration")
