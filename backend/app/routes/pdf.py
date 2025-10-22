@@ -68,6 +68,7 @@ async def generate_devis_pdf_get(
     name: str = "Devis",
     devis_number: str = None,
     expiration: str = None,
+    creation_date: str = None,
     db: Session = Depends(get_db)
 ):
     """
@@ -156,6 +157,7 @@ async def generate_devis_pdf_get(
         'name': name,
         'devis_number': devis_number,
         'expiration': expiration,
+        'creation_date': creation_date,
         'client': client,
         'items': items
     }
