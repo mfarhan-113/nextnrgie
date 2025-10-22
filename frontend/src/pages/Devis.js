@@ -1191,7 +1191,7 @@ const Devis = () => {
                           onClick={async () => {
                             try {
                               const client = clientsById[row.clientId] || {};
-                              const creationDate = devis.creationDate || (devis.date ? new Date(devis.date).toISOString().split('T')[0] : '');
+                              const creationDate = row.creationDate || (row.date ? new Date(row.date).toISOString().split('T')[0] : '');
                               const items = (itemsByDevis[row.id] || []).map(it => ({
                                 description: it.description,
                                 qty: Number(it.qty) || 0,
@@ -1202,15 +1202,15 @@ const Devis = () => {
                               }));
 
                               const payload = {
-                                name: devis.name,
+                                name: row.name,
                                 client: {
                                   ...client,
                                   tsa_number: client.tsa_number || '',
                                   client_address: client.client_address || ''
                                 },
                                 items: items,
-                                expiration: devis.expiration || '',
-                                devis_number: devis.devis_number,
+                                expiration: row.expiration || '',
+                                devis_number: row.devis_number,
                                 creation_date: creationDate
                               };
                               // Convert payload to query parameters
