@@ -1,20 +1,3 @@
-    # Update invoice number if provided
-    if 'invoice_number' in invoice_data:
-        new_number = invoice_data['invoice_number']
-        if not isinstance(new_number, str) or not new_number.strip():
-            raise HTTPException(status_code=422, detail="Invalid invoice_number")
-        db_invoice.invoice_number = new_number.strip()
-
-    # Update due_date if provided (accept 'YYYY-MM-DD')
-    if 'due_date' in invoice_data and invoice_data['due_date']:
-        try:
-            if isinstance(invoice_data['due_date'], str):
-                db_invoice.due_date = datetime.strptime(invoice_data['due_date'], '%Y-%m-%d').date()
-            else:
-                # Assume it's already a date
-                db_invoice.due_date = invoice_data['due_date']
-        except Exception:
-            raise HTTPException(status_code=422, detail="Invalid due_date format, expected YYYY-MM-DD")
 from fastapi import APIRouter, Depends, HTTPException
 from datetime import datetime
 from sqlalchemy.exc import IntegrityError
@@ -147,7 +130,24 @@ def update_invoice(
             db_invoice.status = 'partial'
         else:
             db_invoice.status = 'unpaid'
-    
+
+    # Update invoice_number if provided
+    if 'invoice_number' in invoice_data:
+        new_number = invoice_data['invoice_number']
+        if not isinstance(new_number, str) or not new_number.strip():
+            raise HTTPException(status_code=422, detail="Invalid invoice_number")
+        db_invoice.invoice_number = new_number.strip()
+
+    # Update due_date if provided (accept 'YYYY-MM-DD' string)
+    if 'due_date' in invoice_data and invoice_data['due_date']:
+        try:
+            if isinstance(invoice_data['due_date'], str):
+                db_invoice.due_date = datetime.strptime(invoice_data['due_date'], '%Y-%m-%d').date()
+            else:
+                db_invoice.due_date = invoice_data['due_date']
+        except Exception:
+            raise HTTPException(status_code=422, detail="Invalid due_date format, expected YYYY-MM-DD")
+
     print(f"Updated invoice - Status: {db_invoice.status}, Paid: {db_invoice.paid_amount}")  # Debug log
     
     # Save changes to the database
