@@ -1,8 +1,5 @@
-import logging
-from fastapi import APIRouter, Depends, HTTPException, Response, Request
-from sqlalchemy.orm import Session
-from sqlalchemy import event, select
-from sqlalchemy.engine import Engine
+from fastapi import APIRouter, Depends, HTTPException, Response
+from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.database import get_db
 from app.models.invoice import Invoice
 from app.models.contract import Contract
@@ -10,238 +7,29 @@ from app.models.client import Client
 from app.models.contract_detail import ContractDetail
 from app.models.facture import Facture
 from app.schemas.facture import Facture as FactureSchema
+from sqlalchemy.future import select
 from reportlab.lib.pagesizes import letter
 from reportlab.pdfgen import canvas
 from io import BytesIO
 from datetime import datetime
 import os
 
-# Helper to format quantity with a unit label like "432 unités", "1 unité", "100 m", "2 ensembles"
-def format_qty(qty, unit: str) -> str:
-    unit_key = (unit or "unite").lower()
-    if unit_key in ["unite", "unité", "unity", "unit"]:
-        label = "unité" if float(qty) == 1 else "unités"
-    elif unit_key in ["ensemble", "set"]:
-        label = "ensemble" if float(qty) == 1 else "ensembles"
-    else:  # meters or other
-        label = "m"
-    try:
-        # Render 1 without trailing .0, keep integers clean
-        qty_str = ("%g" % float(qty))
-    except Exception:
-        qty_str = str(qty)
-    return f"{qty_str} {label}"
-
-# Configure logging
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    handlers=[
-        logging.StreamHandler(),
-        logging.FileHandler('pdf_generation.log')
-    ]
-)
-logger = logging.getLogger(__name__)
-
-# SQL query logging
-@event.listens_for(Engine, 'before_cursor_execute')
-def receive_before_cursor_execute(conn, cursor, statement, params, context, executemany):
-    if not statement.startswith('SELECT 1'):  # Ignore connection test queries
-        logger.info(f"\n--- SQL QUERY ---\n{statement}")
-        if params:
-            logger.info(f"Parameters: {params}")
-
-@event.listens_for(Engine, 'after_cursor_execute')
-def receive_after_cursor_execute(conn, cursor, statement, params, context, executemany):
-    if not statement.startswith('SELECT 1'):
-        if cursor.rowcount >= 0:
-            logger.info(f"Rows affected: {cursor.rowcount}")
-        if cursor.description:
-            columns = [desc[0] for desc in cursor.description]
-            logger.info(f"Returned columns: {columns}")
-
 router = APIRouter(prefix="/pdf", tags=["pdf"])
 
-@router.get("/generate_devis")
-async def generate_devis_pdf_get(
-    request: Request,
-    name: str = "Devis",
-    devis_number: str = None,
-    expiration: str = None,
-    db: Session = Depends(get_db)
-):
-    """
-    Generate a Devis PDF from query parameters.
-    This endpoint is kept for backward compatibility with the frontend.
-    """
-    from urllib.parse import unquote
-    
-    # Parse query parameters
-    query_params = dict(request.query_params)
-    
-    # Log incoming request
-    logger.info(f"Received PDF generation request with params: {query_params}")
-    
-    # Debug: Print all query parameters
-    logger.info("\n=== Raw Query Parameters ===")
-    for key, value in query_params.items():
-        logger.info(f"{key}: {value}")
-        
-    # Parse client and items from query parameters
-    client = {}
-    items = []
-    
-    # Extract client info
-    client_keys = ['name', 'email', 'phone', 'tva', 'tsa_number', 'client_address']
-    for key in client_keys:
-        param_key = f'client[{key}]'
-        if param_key in query_params:
-            client[key] = query_params[param_key]
-            
-    # Extract items (handle both indexed and non-indexed items)
-    item_count = 0
-    while True:
-        item_found = False
-        item = {}
-        item_keys = ['description', 'qty', 'qty_unit', 'unit_price', 'tva', 'total_ht']
-        
-        for key in item_keys:
-            # Try indexed parameter first (items[0][description])
-            param_key = f'items[{item_count}][{key}]'
-            if param_key in query_params:
-                item[key] = query_params[param_key]
-                item_found = True
-                
-        if not item_found and item_count == 0:
-            # Try non-indexed parameters (items[description])
-            for key in item_keys:
-                param_key = f'items[{key}]'
-                if param_key in query_params:
-                    item[key] = query_params[param_key]
-                    item_found = True
-                    
-        if not item_found:
-            break
-            
-        # Convert numeric fields to appropriate types
-        if 'qty' in item:
-            try:
-                item['qty'] = float(item['qty'])
-            except (ValueError, TypeError):
-                item['qty'] = 0.0
-                
-        if 'unit_price' in item:
-            try:
-                item['unit_price'] = float(item['unit_price'])
-            except (ValueError, TypeError):
-                item['unit_price'] = 0.0
-                
-        if 'tva' in item:
-            try:
-                item['tva'] = float(item['tva'])
-            except (ValueError, TypeError):
-                item['tva'] = 0.0
-                
-        if 'total_ht' in item:
-            try:
-                item['total_ht'] = float(item['total_ht'])
-            except (ValueError, TypeError):
-                item['total_ht'] = 0.0
-            
-        items.append(item)
-        item_count += 1
-        
-    # Prepare payload for internal function
-    payload = {
-        'name': name,
-        'devis_number': devis_number,
-        'expiration': expiration,
-        'client': client,
-        'items': items
-    }
-    
-    logger.info("\n=== Final Payload ===")
-    logger.info(payload)
-    
-    # Call the internal function with the parsed payload
-    return await generate_devis_pdf(payload)
-
 @router.get("/invoice/{invoice_id}")
-async def generate_invoice_pdf(invoice_id: str, db: Session = Depends(get_db)):
+async def generate_invoice_pdf(invoice_id: int, db: AsyncSession = Depends(get_db)):
     from reportlab.lib.utils import ImageReader
     import os
-    import re
 
-    logger.info(f"\n=== Starting PDF Generation for Invoice ID: {invoice_id} ===")
-    
-    # Extract numeric ID if the input has "INV-" prefix
-    numeric_id = invoice_id
-    if isinstance(invoice_id, str) and invoice_id.startswith("INV-"):
-        numeric_id = re.sub(r'^INV-', '', invoice_id)
-    
-    try:
-        numeric_id = int(numeric_id)
-    except (ValueError, TypeError):
-        logger.error(f"Invalid invoice ID format: {invoice_id}")
-        raise HTTPException(status_code=400, detail="Invalid invoice ID format. Expected format: number or 'INV-{number}'")
-    
-    # Log the SQL query for invoice
-    logger.info("\n[1/3] Fetching invoice data...")
-    result = db.execute(select(Invoice).where(Invoice.id == numeric_id))
+    result = await db.execute(select(Invoice).where(Invoice.id == invoice_id))
     invoice = result.scalars().first()
     if not invoice:
-        logger.error(f"Invoice with ID {numeric_id} not found")
         raise HTTPException(status_code=404, detail="Invoice not found")
-        
-    logger.info(f"Found invoice: ID={invoice.id}, Contract ID={invoice.contract_id}")
-    # Fetch the related contract (needed for dates and contract details)
-    logger.info("\n[2/3] Fetching contract data...")
-    contract_result = db.execute(select(Contract).where(Contract.id == invoice.contract_id))
+    contract_result = await db.execute(select(Contract).where(Contract.id == invoice.contract_id))
     contract = contract_result.scalars().first()
-    if not contract:
-        logger.error(f"Contract with ID {invoice.contract_id} not found for invoice {invoice_id}")
-        raise HTTPException(status_code=404, detail="Contract not found for invoice")
-
-    # Log the SQL query for factures - prefer invoice-linked, fallback to contract-linked
-    logger.info("\n[3/3] Fetching factures data...")
-    factures_result = db.execute(select(Facture).where(Facture.invoice_id == invoice.id))
-    factures = factures_result.scalars().all()
-    if not factures:
-        logger.info("No factures linked by invoice_id. Falling back to contract_id factures for compatibility.")
-        factures_result = db.execute(select(Facture).where(Facture.contract_id == invoice.contract_id))
-        factures = factures_result.scalars().all()
-    logger.info(f"Found {len(factures)} facture(s) for rendering")
-    
-    # Log detailed facture information
-    logger.info("\n=== FACTURE DETAILS ===")
-    for i, facture in enumerate(factures, 1):
-        logger.info(f"Facture #{i}:")
-        logger.info(f"  ID: {facture.id}")
-        logger.info(f"  Description: {facture.description}")
-        logger.info(f"  Quantity: {facture.qty}")
-        logger.info(f"  Unit Price: {facture.unit_price} €")
-        logger.info(f"  TVA: {facture.tva}%")
-        logger.info(f"  Total HT: {facture.total_ht} €")
-        logger.info(f"  Created At: {facture.created_at}")
-    logger.info("=====================\n")
-    
-    # Get client data (from contract's client_id)
-    client_result = db.execute(select(Client).where(Client.id == contract.client_id))
-    client = client_result.scalars().first()
-    if client:
-        logger.info(f"Found client: ID={client.id}, Name={client.client_name}")
-    else:
-        logger.warning("No client found for this invoice")
 
     buffer = BytesIO()
     p = canvas.Canvas(buffer, pagesize=letter)
-
-    # Page-break helper (align with old template)
-    def ensure_space(current_y: int, min_y: int = 140) -> int:
-        if current_y < min_y:
-            p.showPage()
-            return 760
-        return current_y
 
     # Margins and layout
     left = 40
@@ -251,12 +39,12 @@ async def generate_invoice_pdf(invoice_id: str, db: Session = Depends(get_db)):
 
     # Title
     p.setFont("Helvetica-Bold", 28)
-    p.drawString(left, y, "Facture")
+    p.drawString(left, y, "Devis")
     y -= 2 * line_height
 
     # Invoice info (left col)
     p.setFont("Helvetica-Bold", 12)
-    p.drawString(left, y, "Numéro de facture")
+    p.drawString(left, y, "Numéro de devis")
     p.setFont("Helvetica", 12)
     p.drawString(left + 170, y, f"{datetime.now().strftime('%Y%m%d')}")
     y -= line_height
@@ -284,7 +72,7 @@ async def generate_invoice_pdf(invoice_id: str, db: Session = Depends(get_db)):
     logo_x = 440
     logo_width = 150
     logo_height = 55
-    # Use a relative path to the logo in the frontend public directory (as in old file)
+    # Use a relative path to the logo in the frontend public directory
     logo_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "..", "frontend", "public", "logonr.jpg")
     if os.path.exists(logo_path):
         p.drawImage(ImageReader(logo_path), logo_x, logo_y, width=logo_width, height=logo_height, mask='auto')
@@ -307,14 +95,14 @@ async def generate_invoice_pdf(invoice_id: str, db: Session = Depends(get_db)):
 
     # RIGHT: Client
     p.setFont("Helvetica-Bold", 11)
-    client_result = db.execute(select(Client).where(Client.id == contract.client_id))
+    client_result = await db.execute(select(Client).where(Client.id == contract.client_id))
     client = client_result.scalars().first()
     
     if client:
-        p.drawString(right, right_col_y, (client.client_name or ""))
+        p.drawString(right, right_col_y, client.client_name)
         p.setFont("Helvetica", 10)
-        p.drawString(right, right_col_y - 15, (client.email or ""))
-        p.drawString(right, right_col_y - 30, (client.phone or ""))
+        p.drawString(right, right_col_y - 15, client.email)
+        p.drawString(right, right_col_y - 30, client.phone)
         if client.tva_number:
             p.drawString(right, right_col_y - 45, client.tva_number)
             p.drawString(right, right_col_y - 60, f"Numéro de TVA: {client.tva_number}")
@@ -328,8 +116,8 @@ async def generate_invoice_pdf(invoice_id: str, db: Session = Depends(get_db)):
     # Chantier (site/project)
     chantier_y = left_col_y - 100
     chantier = getattr(contract, 'name', '') if contract else ''
-    p.setFont("Helvetica-Bold", 12)
-    p.drawString(left, chantier_y, "CHANTIER Arc de seine")
+    p.setFont("Helvetica", 11)
+    p.drawString(left, chantier_y, f"Chantier BEIGE MONCEAU {chantier if chantier else ''}")
 
     # Add table header below chantier
     table_y = chantier_y - 30  # Position below chantier
@@ -346,7 +134,7 @@ async def generate_invoice_pdf(invoice_id: str, db: Session = Depends(get_db)):
         {"text": "Qté", "width": 70},       
         {"text": "Prix unitaire", "width": 100},  
         {"text": "TVA (%)", "width": 60},    
-        {"text": "Total HT", "width": 60}     
+        {"text": "Total HT", "width": 70}     
     ]
     
     # Calculate total width of all headers
@@ -377,16 +165,20 @@ async def generate_invoice_pdf(invoice_id: str, db: Session = Depends(get_db)):
     current_x = header_x
     p.setStrokeColorRGB(0, 0, 0)  # Black for lines
     
+    # Fetch contract details
+    contract_details_result = await db.execute(select(ContractDetail).where(ContractDetail.contract_id == contract.id))
+    contract_details = contract_details_result.scalars().all()
+    
     # Reset fill color to black for text
     p.setFillColorRGB(0, 0, 0)
     
-    # Draw factures in the table (items for THIS invoice)
+    # Draw contract details in the table
     row_height = 20
     y_position = table_header_y - 20
     total_amount = 0
     
-    if factures:
-        for detail in factures:
+    if contract_details:
+        for detail in contract_details:
             # Check if we need a new page
             if y_position < 100:  # If too close to bottom, start a new page
                 p.showPage()
@@ -416,8 +208,8 @@ async def generate_invoice_pdf(invoice_id: str, db: Session = Depends(get_db)):
             p.drawString(current_x + 5, y_position - 15, str(detail.description)[:40])
             current_x += headers[0]["width"]
             
-            # Quantity with unit (e.g., "432 unités", "100 m")
-            qty_text = format_qty(detail.qty, getattr(detail, 'qty_unit', 'unite'))
+            # Quantity
+            qty_text = str(detail.qty)
             qty_width = p.stringWidth(qty_text, "Helvetica", 9)
             p.drawString(current_x + headers[1]["width"] - qty_width - 5, y_position - 15, qty_text)
             current_x += headers[1]["width"]
@@ -428,9 +220,8 @@ async def generate_invoice_pdf(invoice_id: str, db: Session = Depends(get_db)):
             p.drawString(current_x + headers[2]["width"] - unit_price_width - 5, y_position - 15, unit_price_text)
             current_x += headers[2]["width"]
             
-            # TVA from contract detail
-            tva_rate = detail.tva if hasattr(detail, 'tva') else 0.0
-            tva_text = f"{tva_rate:.2f}%"
+            # TVA (forced 0%)
+            tva_text = f"{0.00:.2f}%"
             tva_width = p.stringWidth(tva_text, "Helvetica", 9)
             p.drawString(current_x + headers[3]["width"] - tva_width - 5, y_position - 15, tva_text)
             current_x += headers[3]["width"]
@@ -449,7 +240,6 @@ async def generate_invoice_pdf(invoice_id: str, db: Session = Depends(get_db)):
             # Move to next row
             y_position -= row_height
     else:
-        row_height = 20  # Define row_height for the else case
         # If no details, add a placeholder row
         p.setFont("Helvetica", 9)
         p.drawString(header_x + 5, y_position - 15, "Services as per contract")
@@ -465,11 +255,8 @@ async def generate_invoice_pdf(invoice_id: str, db: Session = Depends(get_db)):
         p.drawString(current_x + headers[2]["width"] - price_width - 5, y_position - 15, price_text)
         current_x += headers[2]["width"]
         
-        # TVA (use contract TVA if available, otherwise 0%)
-        tva_rate = getattr(contract, 'tva', 0.0)
-        tva_text = f"{tva_rate:.2f}%"
-        tva_width = p.stringWidth(tva_text, "Helvetica", 9)
-        p.drawString(current_x + headers[3]["width"] - tva_width - 5, y_position - 15, tva_text)
+        # TVA (forced 0%)
+        p.drawString(current_x + headers[3]["width"] - 25, y_position - 15, "0.00%")
         current_x += headers[3]["width"]
         
         # Total HT
@@ -491,8 +278,8 @@ async def generate_invoice_pdf(invoice_id: str, db: Session = Depends(get_db)):
     # Draw bottom line
     p.line(header_x, y_position, header_x + total_width, y_position)
     
-    # Add totals section (compute TVA like old working template)
-    y_position = ensure_space(y_position - 20, 160)
+    # Add totals section
+    y_position -= 20
     p.setFont("Helvetica-Bold", 10)
     
     # Total HT
@@ -501,57 +288,21 @@ async def generate_invoice_pdf(invoice_id: str, db: Session = Depends(get_db)):
     total_width_text = p.stringWidth(total_text, "Helvetica-Bold", 10)
     p.drawString(header_x + total_width - total_width_text - 5, y_position - 15, total_text)
     
-    # Calculate total TVA from all factures
-    y_position = ensure_space(y_position - 20, 140)
-    tva_amount = sum(item.total_ht * (getattr(item, 'tva', 0.0) / 100) for item in factures) if factures else 0.0
+    # TVA (forced 0%)
+    y_position -= 20
+    tva_amount = 0.0
     p.drawString(header_x + 5, y_position - 15, "TVA:")
     tva_text = f"{tva_amount:.2f} €"
     tva_width_text = p.stringWidth(tva_text, "Helvetica-Bold", 10)
     p.drawString(header_x + total_width - tva_width_text - 5, y_position - 15, tva_text)
     
-    # Total TTC (HT + TVA)
-    y_position = ensure_space(y_position - 20, 140)
-    total_ttc = total_amount + tva_amount
+    # Total TTC
+    y_position -= 20
+    total_ttc = total_amount
     p.drawString(header_x + 5, y_position - 15, "Total TTC:")
     ttc_text = f"{total_ttc:.2f} €"
     ttc_width_text = p.stringWidth(ttc_text, "Helvetica-Bold", 10)
     p.drawString(header_x + total_width - ttc_width_text - 5, y_position - 15, ttc_text)
-    
-    # Legal notes and payment details (from old working template)
-    y_position = ensure_space(y_position - 30, 200)
-    p.setFont("Helvetica", 8)
-    p.drawString(left, y_position, "TVA non applicable - Section 283 du CGI - Autoliquidation des services")
-    y_position -= 12
-    p.drawString(left, y_position, "Type de transaction : Services")
-    y_position -= 12
-    p.drawString(left, y_position, "Pas d'escompte accordé pour paiement anticipé.")
-    y_position -= 12
-    p.drawString(left, y_position, "En cas de non-paiement à la date d'échéance, des pénalités calculées à trois fois le taux d'intérêt légal seront appliquées.")
-    y_position -= 12
-    p.drawString(left, y_position, "Tout retard de paiement entraînera une indemnité forfaitaire pour frais de recouvrement de 40€.")
-    
-    # Spacing before payment details
-    y_position -= (6 * 12)
-    
-    # Payment details
-    y_position = ensure_space(y_position - 30, 150)
-    p.setFont("Helvetica-Bold", 11)
-    p.drawString(left, y_position, "Détails du paiement")
-    y_position -= 16
-    p.setFont("Helvetica", 9)
-    label_x = left
-    value_x = left + 150
-    p.drawString(label_x, y_position, "Nom du bénéficiaire")
-    p.drawString(value_x, y_position, "NEXT NR-GIE")
-    y_position -= 14
-    p.drawString(label_x, y_position, "BIC")
-    p.drawString(value_x, y_position, "QNTOFRP1XXX")
-    y_position -= 14
-    p.drawString(label_x, y_position, "IBAN")
-    p.drawString(value_x, y_position, "FR7616958000013394623012453")
-    y_position -= 14
-    p.drawString(label_x, y_position, "Référence")
-    p.drawString(value_x, y_position, "QECVZDX")
 
     p.showPage()
     p.save()
@@ -560,16 +311,16 @@ async def generate_invoice_pdf(invoice_id: str, db: Session = Depends(get_db)):
 
 
 @router.get("/estimate/{contract_id}")
-def generate_estimate_pdf(contract_id: int, db: Session = Depends(get_db)):
+async def generate_estimate_pdf(contract_id: int, db: AsyncSession = Depends(get_db)):
     from reportlab.lib.utils import ImageReader
     import os
     
-    result = db.execute(select(Contract).where(Contract.id == contract_id))
+    result = await db.execute(select(Contract).where(Contract.id == contract_id))
     contract = result.scalars().first()
     if not contract:
         raise HTTPException(status_code=404, detail="Contract not found")
     
-    client_result = db.execute(select(Client).where(Client.id == contract.client_id))
+    client_result = await db.execute(select(Client).where(Client.id == contract.client_id))
     client = client_result.scalars().first()
     
     buffer = BytesIO()
@@ -619,7 +370,7 @@ def generate_estimate_pdf(contract_id: int, db: Session = Depends(get_db)):
     
     # Numéro de bon de commande
     p.setFont("Helvetica-Bold", 11)
-    p.drawString(left, y, "Numéro de contrat")
+    p.drawString(left, y, "Numéro de bon de commande")
     p.setFont("Helvetica", 12)
     p.drawString(left + 170, y, f"{contract.command_number}" if hasattr(contract, 'command_number') else '')
     y -= line_height
@@ -630,7 +381,7 @@ def generate_estimate_pdf(contract_id: int, db: Session = Depends(get_db)):
     logo_width = 150
     logo_height = 55
     # Use a relative path to the logo in the frontend public directory
-    logo_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "app", "static", "logonr.jpg")
+    logo_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "..", "frontend", "public", "logonr.jpg")
     if os.path.exists(logo_path):
         p.drawImage(ImageReader(logo_path), logo_x, logo_y, width=logo_width, height=logo_height, mask='auto')
     else:
@@ -651,64 +402,33 @@ def generate_estimate_pdf(contract_id: int, db: Session = Depends(get_db)):
     p.drawString(left, left_col_y - 60, "93060154700019")
     p.drawString(left, left_col_y - 75, "Numéro de TVA: FR26930601547")
     
-    # Helper function to draw multi-line text
-    def draw_multiline_text(text, x, y, line_height=15, max_width=200):
-        if not text:
-            return y
-            
-        lines = []
-        # Split by newlines first
-        paragraphs = text.split('\n')
-        
-        for para in paragraphs:
-            words = para.split(' ') if para else ['']
-            current_line = []
-            
-            for word in words:
-                test_line = ' '.join(current_line + [word])
-                if p.stringWidth(test_line, "Helvetica", 10) <= max_width or not current_line:
-                    current_line.append(word)
-                else:
-                    lines.append(' '.join(current_line))
-                    current_line = [word]
-            
-            if current_line:  # Add the last line of the paragraph
-                lines.append(' '.join(current_line))
-        
-        # Draw all lines
-        for line in lines:
-            p.drawString(x, y, line)
-            y -= line_height
-            
-        return y  # Return the final y position after drawing
-    
     # RIGHT: Client
     p.setFont("Helvetica-Bold", 11)
     if client:
-        y_pos = right_col_y
-        p.drawString(right, y_pos, (client.client_name or ""))
+        p.drawString(right, right_col_y, client.client_name)
         p.setFont("Helvetica", 10)
-        y_pos -= 15  # Move down for next line
-        
-        # SIRET directly under client name if available
+        # TSA directly under client name if available
+        line_offset = 15
         if getattr(client, 'tsa_number', None):
-            p.drawString(right, y_pos, f"SIRET: {client.tsa_number}")
-            y_pos -= 15
-            
-        # Address with multi-line support
+            p.drawString(right, right_col_y - line_offset, f"TSA: {client.tsa_number}")
+            line_offset += 15
+        # Address under TSA if available
         if getattr(client, 'client_address', None):
-            y_pos = draw_multiline_text(client.client_address, right, y_pos) - 5
-            
+            p.drawString(right, right_col_y - line_offset, client.client_address)
+            line_offset += 15
         # Phone
         if getattr(client, 'phone', None):
-            p.drawString(right, y_pos, (client.phone or ""))
-            y_pos -= 15
-            
+            p.drawString(right, right_col_y - line_offset, client.phone)
+            line_offset += 15
         # TVA number
         if getattr(client, 'tva_number', None):
-            p.drawString(right, y_pos, f"Numéro de TVA: {client.tva_number}")
+            p.drawString(right, right_col_y - line_offset, f"Numéro de TVA: {client.tva_number}")
     else:
         p.drawString(right, right_col_y, "Client")
+        p.setFont("Helvetica", 10)
+        p.drawString(right, right_col_y - 15, "")
+        p.drawString(right, right_col_y - 30, "")
+        p.drawString(right, right_col_y - 45, "")
     
     # Chantier (site/project)
     chantier_y = left_col_y - 100
@@ -758,7 +478,7 @@ def generate_estimate_pdf(contract_id: int, db: Session = Depends(get_db)):
         current_x += header["width"]
     
     # Fetch facture items
-    facture_items = db.execute(select(Facture).where(Facture.contract_id == contract.id))
+    facture_items = await db.execute(select(Facture).where(Facture.contract_id == contract.id))
     facture_items = facture_items.scalars().all()
     
     # Reset fill color to black for text
@@ -820,8 +540,8 @@ def generate_estimate_pdf(contract_id: int, db: Session = Depends(get_db)):
             
             current_x += headers[0]["width"]
             
-            # Quantity with unit (e.g., "432 unités", "100 m")
-            qty_text = format_qty(item.qty, getattr(item, 'qty_unit', 'unite'))
+            # Quantity
+            qty_text = str(item.qty)
             qty_width = p.stringWidth(qty_text, "Helvetica", 9)
             p.drawString(current_x + headers[1]["width"] - qty_width - 5, y_position - 15, qty_text)
             current_x += headers[1]["width"]
@@ -832,9 +552,8 @@ def generate_estimate_pdf(contract_id: int, db: Session = Depends(get_db)):
             p.drawString(current_x + headers[2]["width"] - unit_price_width - 5, y_position - 15, unit_price_text)
             current_x += headers[2]["width"]
             
-            # TVA from facture
-            tva_rate = item.tva if hasattr(item, 'tva') else 0.0
-            tva_text = f"{tva_rate:.2f}%"
+            # TVA (forced 0%)
+            tva_text = f"{0.00:.2f}%"
             tva_width = p.stringWidth(tva_text, "Helvetica", 9)
             p.drawString(current_x + headers[3]["width"] - tva_width - 5, y_position - 15, tva_text)
             current_x += headers[3]["width"]
@@ -855,7 +574,6 @@ def generate_estimate_pdf(contract_id: int, db: Session = Depends(get_db)):
             # Move to next row
             y_position -= row_height
     else:
-        row_height = 20  # Define row_height for the else case
         # If no details, add a placeholder row
         p.setFont("Helvetica", 9)
         p.drawString(header_x + 5, y_position - 15, "Services as per contract")
@@ -871,11 +589,8 @@ def generate_estimate_pdf(contract_id: int, db: Session = Depends(get_db)):
         p.drawString(current_x + headers[2]["width"] - price_width - 5, y_position - 15, price_text)
         current_x += headers[2]["width"]
         
-        # TVA (use contract TVA if available, otherwise 0%)
-        tva_rate = getattr(contract, 'tva', 0.0)
-        tva_text = f"{tva_rate:.2f}%"
-        tva_width = p.stringWidth(tva_text, "Helvetica", 9)
-        p.drawString(current_x + headers[3]["width"] - tva_width - 5, y_position - 15, tva_text)
+        # TVA (forced 0%)
+        p.drawString(current_x + headers[3]["width"] - 25, y_position - 15, "0.00%")
         current_x += headers[3]["width"]
         
         # Total HT
@@ -907,17 +622,17 @@ def generate_estimate_pdf(contract_id: int, db: Session = Depends(get_db)):
     total_width_text = p.stringWidth(total_text, "Helvetica-Bold", 10)
     p.drawString(header_x + total_width - total_width_text - 5, y_position - 15, total_text)
     
-    # Calculate total TVA from all factures
+    # TVA (forced 0%)
     y_position = ensure_space(y_position - 20, 140)
-    tva_amount = sum(item.total_ht * (getattr(item, 'tva', 0.0) / 100) for item in factures) if 'factures' in locals() else 0.0
+    tva_amount = 0.0
     p.drawString(header_x + 5, y_position - 15, "TVA:")
     tva_text = f"{tva_amount:.2f} €"
     tva_width_text = p.stringWidth(tva_text, "Helvetica-Bold", 10)
     p.drawString(header_x + total_width - tva_width_text - 5, y_position - 15, tva_text)
     
-    # Total TTC (HT + TVA)
+    # Total TTC
     y_position = ensure_space(y_position - 20, 140)
-    total_ttc = total_amount + tva_amount
+    total_ttc = total_amount
     p.drawString(header_x + 5, y_position - 15, "Total TTC:")
     ttc_text = f"{total_ttc:.2f} €"
     ttc_width_text = p.stringWidth(ttc_text, "Helvetica-Bold", 10)
@@ -971,97 +686,19 @@ def generate_estimate_pdf(contract_id: int, db: Session = Depends(get_db)):
     return Response(buffer.read(), media_type="application/pdf", headers={"Content-Disposition": f"inline; filename=estimate_{contract.command_number}.pdf"})
 
 @router.get("/facture/{contract_id}")
-def generate_facture_pdf_by_contract(contract_id: int, db: Session = Depends(get_db)):
+async def generate_facture_pdf_by_contract(contract_id: int, db: AsyncSession = Depends(get_db)):
     """
     Generate a PDF for facture by contract ID - this is what the frontend expects!
     """
-    logger.info(f"\n=== Generating Facture PDF for Contract ID: {contract_id} ===")
-    
-    # Get contract data
-    contract = db.execute(select(Contract).where(Contract.id == contract_id)).scalars().first()
-    if not contract:
-        logger.error(f"Contract with ID {contract_id} not found")
-        raise HTTPException(status_code=404, detail="Contract not found")
-    
-    # Get client data
-    client = db.execute(select(Client).where(Client.id == contract.client_id)).scalars().first()
-    if not client:
-        logger.error(f"Client not found for contract ID {contract_id}")
-        raise HTTPException(status_code=404, detail="Client not found")
-    
-    logger.info(f"Client: {client.client_name} (ID: {client.id})")
-    
-    # Get all factures for this contract
-    factures = db.execute(
-        select(Facture)
-        .where(Facture.contract_id == contract_id)
-        .order_by(Facture.created_at)
-    ).scalars().all()
-    
-    if not factures:
-        logger.warning(f"No factures found for contract ID {contract_id}")
-        raise HTTPException(status_code=404, detail="No factures found for this contract")
-    
-    # Log all facture details
-    logger.info(f"Found {len(factures)} factures:")
-    for i, facture in enumerate(factures, 1):
-        logger.info(f"\nFacture #{i}:")
-        logger.info(f"  ID: {facture.id}")
-        logger.info(f"  Description: {facture.description}")
-        logger.info(f"  Quantity: {facture.qty}")
-        logger.info(f"  Unit Price: {facture.unit_price} €")
-        logger.info(f"  TVA: {facture.tva}%")
-        logger.info(f"  Total HT: {facture.total_ht} €")
-        logger.info(f"  Created At: {facture.created_at}")
-    
-    # Calculate totals
-    total_ht = sum(f.total_ht for f in factures)
-    total_tva = sum(f.total_ht * (f.tva / 100) for f in factures)
-    total_ttc = total_ht + total_tva
-    
-    logger.info("\n=== TOTALS ===")
-    logger.info(f"Total HT: {total_ht:.2f} €")
-    logger.info(f"Total TVA: {total_tva:.2f} €")
-    logger.info(f"Total TTC: {total_ttc:.2f} €")
-    logger.info("================\n")
-    
-    # Generate the PDF
-    return generate_estimate_pdf(contract_id, db)
+    # This is the same as estimate but with "Facture" title instead of "Devis"
+    return await generate_estimate_pdf(contract_id, db)
 
 @router.post("/facture")
-def generate_facture_pdf(facture_data: dict, db: Session = Depends(get_db)):
+async def generate_facture_pdf(facture_data: dict, db: AsyncSession = Depends(get_db)):
     """
     Generate a PDF for a facture
     """
     from reportlab.lib.utils import ImageReader
-    
-    logger.info("\n=== Starting Facture PDF Generation ===")
-    
-    # Log detailed facture information
-    logger.info("\n=== FACTURE DATA ===")
-    logger.info(f"Facture ID: {facture_data.get('id', 'N/A')}")
-    logger.info(f"Contract ID: {facture_data.get('contract_id', 'N/A')}")
-    logger.info(f"Description: {facture_data.get('description', 'N/A')}")
-    logger.info(f"Quantity: {facture_data.get('qty', 'N/A')}")
-    logger.info(f"Unit Price: {facture_data.get('unit_price', 'N/A')} €")
-    logger.info(f"TVA: {facture_data.get('tva', 'N/A')}%")
-    logger.info(f"Total HT: {facture_data.get('total_ht', 'N/A')} €")
-    logger.info(f"Client: {facture_data.get('client_name', 'N/A')}")
-    logger.info("==================\n")
-    
-    # Log important facture data
-    facture_id = facture_data.get('id', 'N/A')
-    contract_id = facture_data.get('contract_id', 'N/A')
-    logger.info(f"Processing Facture ID: {facture_id}, Contract ID: {contract_id}")
-    
-    if 'description' in facture_data:
-        logger.info(f"Description: {facture_data['description']}")
-    if 'qty' in facture_data and 'unit_price' in facture_data:
-        logger.info(f"Qty: {facture_data['qty']}, Unit Price: {facture_data['unit_price']}")
-    if 'client_name' in facture_data:
-        logger.info(f"Client: {facture_data['client_name']}")
-    
-    logger.info("Starting PDF generation...")
     
     buffer = BytesIO()
     p = canvas.Canvas(buffer, pagesize=letter)
@@ -1096,7 +733,7 @@ def generate_facture_pdf(facture_data: dict, db: Session = Depends(get_db)):
     logo_x = 440
     logo_width = 150
     logo_height = 55
-    logo_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "app", "static", "logonr.jpg")
+    logo_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "..", "frontend", "public", "logonr.jpg")
     if os.path.exists(logo_path):
         p.drawImage(ImageReader(logo_path), logo_x, logo_y, width=logo_width, height=logo_height, mask='auto')
 
@@ -1148,9 +785,7 @@ def generate_facture_pdf(facture_data: dict, db: Session = Depends(get_db)):
     p.drawString(400, y, "Prix U. HT")
     p.drawString(500, y, "Total HT")
     y -= 15
-    # Draw horizontal line under header with right border
-    p.line(left, y, 550, y)  # Top line
-    p.line(550, y, 550, y + 15)  # Right border line
+    p.line(left, y, 550, y)
     y -= 15
 
     # Line items
@@ -1196,35 +831,28 @@ def generate_facture_pdf(facture_data: dict, db: Session = Depends(get_db)):
     p.drawString(370, first_line_y, str(facture_data.get('qty', 0)))
     p.drawString(420, first_line_y, f"{float(facture_data.get('unit_price', 0)):.2f} €")
     p.drawString(500, first_line_y, f"{total_ht:.2f} €")
-    # Draw right border for the row
-    p.line(550, first_line_y + 5, 550, first_line_y - 15)  # Right border line
     
-    # Draw remaining description lines indented with right border
+    # Draw remaining description lines indented
     for i in range(1, len(lines)):
         first_line_y -= 15
         p.drawString(left + 10, first_line_y, lines[i])
-        # Draw right border for each line of description
-        p.line(550, first_line_y + 5, 550, first_line_y - 10)
     
     y = first_line_y - 25  # Extra space after description
 
-    # Totals with right border
-    p.line(400, y, 550, y)  # Top line
-    p.line(550, y, 550, y + 20)  # Right border line
+    # Totals
+    p.line(400, y, 550, y)
     y -= 20
     p.setFont("Helvetica-Bold", 10)
     p.drawString(400, y, "Total HT:")
     p.drawString(500, y, f"{total_ht:.2f} €")
-    # Draw right border for the total line
-    p.line(550, y + 5, 550, y - 15)
     y -= 20
     
-    # Calculate TVA from facture data
-    tva_rate = float(facture_data.get('tva', 0.0))  # Get TVA rate from facture data
-    tva_amount = total_ht * (tva_rate / 100)  # Calculate TVA amount
-    total_ttc = total_ht + tva_amount
+    # TVA forced to 0%
+    tva_rate = 0.0
+    tva_amount = 0.0
+    total_ttc = total_ht
     
-    p.drawString(400, y, f"TVA ({tva_rate:.1f}%):")
+    p.drawString(400, y, f"TVA (0%):")
     p.drawString(500, y, f"{tva_amount:.2f} €")
     y -= 20
     
@@ -1285,12 +913,6 @@ def generate_facture_pdf(facture_data: dict, db: Session = Depends(get_db)):
 
     p.save()
     buffer.seek(0)
-    
-    # Log PDF generation completion
-    file_size = len(buffer.getvalue()) / 1024  # Size in KB
-    logger.info(f"PDF generation completed. File size: {file_size:.2f} KB")
-    logger.info("=== End of Facture PDF Generation ===\n")
-    
     return Response(content=buffer.getvalue(), media_type="application/pdf", headers={
         "Cache-Control": "no-store, max-age=0",
         "Pragma": "no-cache"
@@ -1378,7 +1000,7 @@ async def generate_devis_pdf(payload: dict):
     logo_x = 440
     logo_width = 150
     logo_height = 55
-    logo_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "app", "static", "logonr.jpg")
+    logo_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "..", "frontend", "public", "logonr.jpg")
     if os.path.exists(logo_path):
         p.drawImage(ImageReader(logo_path), logo_x, logo_y, width=logo_width, height=logo_height, mask='auto')
 
@@ -1397,34 +1019,12 @@ async def generate_devis_pdf(payload: dict):
 
     # Client
     p.setFont("Helvetica-Bold", 11)
-    client_name = client.get("name", "").strip()
-    p.drawString(right, right_col_y, client_name or "Client")
+    p.drawString(right, right_col_y, client.get("name") or "Client")
     p.setFont("Helvetica", 10)
-    
-    y_offset = right_col_y - 15
-    if client.get("tsa_number"): 
-        p.drawString(right, y_offset, f"TSA: {client.get('tsa_number')}")
-        y_offset -= 15
-        
-    # Handle multi-line address
-    if client.get("client_address"):
-        address = client.get("client_address")
-        # Normalize line endings and split into lines
-        address_lines = address.replace('\r\n', '\n').replace('\r', '\n').split('\n')
-        for line in address_lines:
-            if line.strip():  # Only draw non-empty lines
-                p.drawString(right, y_offset, line.strip())
-                y_offset -= 15
-    else:
-        y_offset -= 15  # Keep consistent spacing if no address
-        
-    if client.get("phone"): 
-        p.drawString(right, y_offset, client.get("phone"))
-        y_offset -= 15
-        
-    if client.get("tva"): 
-        p.drawString(right, y_offset, f"Numéro de TVA: {client.get('tva')}")
-        y_offset -= 15
+    if client.get("tsa_number"): p.drawString(right, right_col_y - 15, f"TSA: {client.get('tsa_number')}")
+    if client.get("client_address"): p.drawString(right, right_col_y - 30, client.get("client_address"))
+    if client.get("phone"): p.drawString(right, right_col_y - 45, client.get("phone"))
+    if client.get("tva"): p.drawString(right, right_col_y - 60, f"Numéro de TVA: {client.get('tva')}")
 
     # Chantier (site/project) - Add "CHANTIER BEIGE MONCEAU" above the table
     chantier_y = left_col_y - 100
@@ -1437,7 +1037,7 @@ async def generate_devis_pdf(payload: dict):
 
     headers = [
         {"text": "Description", "width": 250},
-        {"text": "Quantité", "width": 100},  # Increased width to accommodate unit
+        {"text": "Qté", "width": 70},
         {"text": "Prix unitaire", "width": 100},
         {"text": "TVA (%)", "width": 60},
         {"text": "Total HT", "width": 70},
@@ -1511,10 +1111,8 @@ async def generate_devis_pdf(payload: dict):
                     p.drawString(current_x + 5, temp_y, line[:60])
         
         current_x += headers[0]["width"]
-        # Qty with unit
-        qty = float(item.get("qty", 0))
-        qty_unit = item.get("qty_unit", "unite")
-        qty_text = format_qty(qty, qty_unit)
+        # Qte
+        qty_text = str(item.get("qty", 0))
         qty_width = p.stringWidth(qty_text, "Helvetica", 9)
         p.drawString(current_x + headers[1]["width"] - qty_width - 5, y_pos - 15, qty_text)
         current_x += headers[1]["width"]
