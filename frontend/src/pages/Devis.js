@@ -1235,6 +1235,10 @@ const Devis = () => {
                                 queryParams.append('expiration', payload.expiration);
                               }
                               
+                              if (payload.creation_date) {
+                                queryParams.append('creation_date', payload.creation_date);
+                              }
+                              
                               // Add client details
                               if (payload.client) {
                                 // Ensure all client fields are properly encoded
