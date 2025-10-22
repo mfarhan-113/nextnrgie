@@ -365,7 +365,8 @@ const Factures = () => {
   };
 
   // State for invoice details modal
-  const [selectedInvoice, setSelectedInvoice] = useState(null);
+  const [selectedInvoice, setSelectedInvoice] = useState(null); // set when viewing existing invoice
+  const [pendingContractId, setPendingContractId] = useState(null); // set when creating new invoice
   const [showInvoiceDetails, setShowInvoiceDetails] = useState(false);
 
   // Generate invoice PDF (best-effort)
@@ -378,7 +379,8 @@ const Factures = () => {
         return;
       }
       
-      // Show modal to collect invoice details
+      // Show modal to collect invoice details for existing invoice (no DB update needed)
+      setPendingContractId(null);
       setSelectedInvoice({ ...invoice, backendId: bid });
       setShowInvoiceDetails(true);
       
@@ -391,35 +393,54 @@ const Factures = () => {
   
   // Handle confirm from invoice details modal
   const handleConfirmInvoiceDetails = async (details) => {
-    try {
-      const { invoiceNumber, issueDate, expirationDate } = details;
-      
-      // First, update the invoice with the custom details
-      const updateResponse = await axios.put(
-        getApiUrl(`invoices/${selectedInvoice.id}`),
-        {
+    const { invoiceNumber, issueDate, expirationDate } = details;
+
+    // Flow A: Creating a new invoice for a selected contract
+    if (pendingContractId && !selectedInvoice) {
+      try {
+        const backendInvoice = await createBackendInvoice({
+          name: invoiceNumber,
+          contractId: pendingContractId,
+          dueDate: expirationDate
+        });
+        const backendId = backendInvoice?.id;
+
+        // Add to local list
+        const newInvoiceId = `inv-${Date.now()}`;
+        const persisted = {
+          id: newInvoiceId,
+          backendId,
+          contractId: pendingContractId,
           name: invoiceNumber,
           issue_date: issueDate,
-          expiration_date: expirationDate
-        }
-      );
-      
-      // Then generate the PDF with the updated details
+          expiration_date: expirationDate,
+          date: issueDate,
+          dueDate: expirationDate
+        };
+        setCreatedInvoices(prev => [...prev, persisted]);
+        setItemsByInvoice(prev => ({ ...prev, [newInvoiceId]: [] }));
+        setSelectedInvoiceId(newInvoiceId);
+        setToast(t('invoice_created') || 'Invoice created successfully!');
+        setTimeout(() => setToast(''), 2500);
+      } catch (e) {
+        setToast(t('invoice_create_error') || 'Error creating invoice. Please try again.');
+        setTimeout(() => setToast(''), 3000);
+      } finally {
+        setPendingContractId(null);
+        setShowInvoiceDetails(false);
+      }
+      return;
+    }
+
+    // Flow B: Existing invoice -> just open PDF with query params (no PUT)
+    if (selectedInvoice && selectedInvoice.backendId) {
       const pdfUrl = `${getApiUrl(`pdf/invoice/${selectedInvoice.backendId}`)}?` +
         `invoice_number=${encodeURIComponent(invoiceNumber)}&` +
         `issue_date=${encodeURIComponent(issueDate)}&` +
         `expiration_date=${encodeURIComponent(expirationDate)}`;
-      
-      // Open the PDF in a new tab
       window.open(pdfUrl, '_blank');
       setShowInvoiceDetails(false);
-      
-      // Refresh the invoices list to show updated details
-      fetchInvoices();
-    } catch (error) {
-      console.error('Error updating invoice details:', error);
-      setToast('Failed to update invoice details');
-      setTimeout(() => setToast(''), 3000);
+      return;
     }
   };
 
@@ -1054,8 +1075,10 @@ const Factures = () => {
               startIcon={<AddIcon />}
               onClick={() => {
                 if (selectedContractId) {
-                  createInvoiceForContract(selectedContractId);
-                  setSelectedContractId('');
+                  // Open modal first to collect details, then create
+                  setPendingContractId(selectedContractId);
+                  setSelectedInvoice(null);
+                  setShowInvoiceDetails(true);
                 } else {
                   setToast(t('please_select_contract') || 'Please select a contract first');
                   setTimeout(() => setToast(''), 2500);
