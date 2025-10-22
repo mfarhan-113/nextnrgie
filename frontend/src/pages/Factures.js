@@ -192,6 +192,38 @@ const Factures = () => {
     }
   };
 
+  // Fetch invoices from the backend
+  const fetchInvoices = async () => {
+    try {
+      setLoading(true);
+      const response = await axios.get(getApiUrl('invoices/'));
+      const invoices = Array.isArray(response.data) ? response.data : [];
+      
+      // Transform the backend data to match our frontend structure
+      const formattedInvoices = invoices.map(invoice => ({
+        id: `inv-${invoice.id}`,
+        backendId: invoice.id,
+        name: invoice.invoice_number || `INV-${invoice.id}`,
+        contractId: invoice.contract_id,
+        issue_date: invoice.issue_date,
+        expiration_date: invoice.expiration_date,
+        createdAt: invoice.created_at || new Date().toISOString()
+      }));
+      
+      setCreatedInvoices(formattedInvoices);
+      
+      // Also fetch and set the items for each invoice
+      await syncInvoicesFromBackend();
+      
+    } catch (error) {
+      console.error('Error fetching invoices:', error);
+      setToast(t('invoices_fetch_error') || 'Failed to load invoices');
+      setTimeout(() => setToast(''), 3000);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   // Calculate invoice total from local items
   const calculateInvoiceTotal = (invoiceId) => {
     const items = itemsByInvoice[invoiceId] || [];
@@ -633,9 +665,13 @@ const Factures = () => {
     }
   }), []);
 
-  // Fetch contracts on component mount
+  // Fetch data on mount
   useEffect(() => {
-    fetchContracts();
+    const fetchData = async () => {
+      await fetchContracts();
+      await fetchInvoices();
+    };
+    fetchData();
   }, []);
 
   // Sync invoices and items from backend so old invoices appear across devices
