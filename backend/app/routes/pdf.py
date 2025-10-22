@@ -511,7 +511,7 @@ async def generate_invoice_pdf(invoice_id: str, db: Session = Depends(get_db)):
     
     # Total TTC (HT + TVA)
     y_position = ensure_space(y_position - 20, 140)
-    total_ttc = total_amount + tva_amount
+    total_ttc = total_amount
     p.drawString(header_x + 5, y_position - 15, "Total TTC:")
     ttc_text = f"{total_ttc:.2f} €"
     ttc_width_text = p.stringWidth(ttc_text, "Helvetica-Bold", 10)
