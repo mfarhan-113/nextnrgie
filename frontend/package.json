@@ -14,7 +14,7 @@
     "@date-io/date-fns": "^2.16.0",
     "axios": "^1.9.0",
     "cra-template-pwa": "2.0.0",
-    "date-fns": "^4.1.0",
+    "date-fns": "^2.30.0",
     "firebase": "^10.7.1",
     "formik": "^2.4.6",
     "http-proxy-middleware": "^3.0.5",
