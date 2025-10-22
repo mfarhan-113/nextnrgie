@@ -200,15 +200,22 @@ const Factures = () => {
       const invoices = Array.isArray(response.data) ? response.data : [];
       
       // Transform the backend data to match our frontend structure
-      const formattedInvoices = invoices.map(invoice => ({
-        id: `inv-${invoice.id}`,
-        backendId: invoice.id,
-        name: invoice.invoice_number || `INV-${invoice.id}`,
-        contractId: invoice.contract_id,
-        issue_date: invoice.issue_date,
-        expiration_date: invoice.expiration_date,
-        createdAt: invoice.created_at || new Date().toISOString()
-      }));
+      const formattedInvoices = invoices.map(b => {
+        const ov = invoiceOverrides[b.id] || {};
+        const issue = ov.issue_date || (b.created_at ? b.created_at.split('T')[0] : undefined);
+        const exp = ov.expiration_date || b.due_date;
+        return {
+          id: `inv-${b.id}`,
+          backendId: b.id,
+          name: b.invoice_number || `INV-${b.id}`,
+          contractId: b.contract_id,
+          issue_date: issue,
+          expiration_date: exp,
+          date: issue,
+          dueDate: exp,
+          createdAt: b.created_at || new Date().toISOString()
+        };
+      });
       
       setCreatedInvoices(formattedInvoices);
       
@@ -369,6 +376,8 @@ const Factures = () => {
   const [pendingContractId, setPendingContractId] = useState(null); // set when creating new invoice
   const [showInvoiceDetails, setShowInvoiceDetails] = useState(false);
   const [editingInvoiceDetails, setEditingInvoiceDetails] = useState(false); // true when editing an existing invoice
+  // Manual overrides persisted per backend invoice id: { [backendId]: { issue_date, expiration_date } }
+  const [invoiceOverrides, setInvoiceOverrides] = useState({});
 
   // Generate invoice PDF (existing invoice): open directly, add known params
   const generateInvoicePDF = async (invoice) => {
@@ -416,6 +425,9 @@ const Factures = () => {
           invoice_number: invoiceNumber,
           due_date: expirationDate
         });
+
+        // Persist manual dates for this invoice
+        setInvoiceOverride(bid, { issue_date: issueDate, expiration_date: expirationDate });
 
         // Update local state: name and date fields used by PDF params
         setCreatedInvoices(prev => prev.map(inv => {
@@ -471,6 +483,9 @@ const Factures = () => {
         setSelectedInvoiceId(newInvoiceId);
         setToast(t('invoice_created') || 'Invoice created successfully!');
         setTimeout(() => setToast(''), 2500);
+
+        // Persist manual dates for this invoice so future syncs keep them
+        if (backendId) setInvoiceOverride(backendId, { issue_date: issueDate, expiration_date: expirationDate });
 
         // Do not open PDF here; user will add items and click View PDF later
       } catch (e) {
@@ -737,6 +752,27 @@ const Factures = () => {
     }
   }), []);
 
+  // Load saved overrides on mount
+  useEffect(() => {
+    try {
+      const raw = persist.get('invoice_overrides');
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (parsed && typeof parsed === 'object') setInvoiceOverrides(parsed);
+      }
+    } catch {}
+  }, []);
+
+  // Helper to save/merge an override and persist it
+  const setInvoiceOverride = (backendId, data) => {
+    if (!backendId) return;
+    setInvoiceOverrides(prev => {
+      const next = { ...prev, [backendId]: { ...(prev[backendId] || {}), ...data } };
+      try { persist.set('invoice_overrides', JSON.stringify(next)); } catch {}
+      return next;
+    });
+  };
+
   // Fetch data on mount
   useEffect(() => {
     const fetchData = async () => {
@@ -762,14 +798,21 @@ const Factures = () => {
       const backendInvoices = Array.isArray(invRes.data) ? invRes.data : [];
 
       // 2) Build local createdInvoices entries from backend
-      const mapped = backendInvoices.map(b => ({
-        id: `inv-b-${b.id}`,
-        backendId: b.id,
-        contractId: b.contract_id,
-        name: b.invoice_number,
-        date: b.created_at ? b.created_at.split('T')[0] : undefined,
-        dueDate: b.due_date
-      }));
+      const mapped = backendInvoices.map(b => {
+        const ov = invoiceOverrides[b.id] || {};
+        const issue = ov.issue_date || (b.created_at ? b.created_at.split('T')[0] : undefined);
+        const exp = ov.expiration_date || b.due_date;
+        return {
+          id: `inv-b-${b.id}`,
+          backendId: b.id,
+          contractId: b.contract_id,
+          name: b.invoice_number,
+          date: issue,
+          dueDate: exp,
+          issue_date: issue,
+          expiration_date: exp
+        };
+      });
 
       // Use ONLY backend data, no local merge to avoid ghost invoices
       setCreatedInvoices(mapped);
@@ -808,7 +851,7 @@ const Factures = () => {
         if (key.startsWith('inv-b-')) {
           const bid = parseInt(key.slice(6), 10);
           if (Number.isFinite(bid)) {
-            createdInvoices
+            mapped
               .filter(inv => parseInt(inv.backendId) === bid)
               .forEach(inv => {
                 itemsMap[inv.id] = itemsMap[key];
