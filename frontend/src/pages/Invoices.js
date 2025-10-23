@@ -1,6 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import axios from 'axios';
-import { getApiUrl } from '../config/api';
+import api, { getApiUrl } from '../config/api';
 import DeleteIcon from '@mui/icons-material/Delete';
 import VisibilityIcon from '@mui/icons-material/Visibility';
 import DownloadIcon from '@mui/icons-material/Download';
@@ -52,7 +51,7 @@ const Invoices = () => {
   const fetchInvoices = async () => {
     setLoading(true);
     try {
-      const res = await axios.get(getApiUrl('invoices/'));
+      const res = await api.get('invoices/');
       setInvoices(res.data);
     } catch {
       setInvoices([]);
@@ -62,7 +61,7 @@ const Invoices = () => {
   };
   const fetchClients = async () => {
     try {
-      const res = await axios.get(getApiUrl('clients/'));
+      const res = await api.get('clients/');
       setClients(res.data);
     } catch {
       setClients([]);
@@ -100,6 +99,7 @@ const Invoices = () => {
     setLoading(true);
     try {
       await axios.delete(getApiUrl(`invoices/${invoice.id}`));
+      await api.delete(`invoices/${invoice.id}/`);
       setToast('Invoice deleted');
       fetchInvoices();
     } catch {

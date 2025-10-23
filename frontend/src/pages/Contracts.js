@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import axios from 'axios';
+import api from '../config/api';
 import { format } from 'date-fns';
 import { getApiUrl } from '../config/api';
 
@@ -170,7 +170,7 @@ const Contracts = () => {
   const fetchContracts = async () => {
     try {
       setLoading(true);
-      const response = await axios.get(getApiUrl('contracts/'));
+      const response = await api.get('contracts/');
       setContracts(response.data);
       setError(null);
     } catch (err) {
@@ -189,7 +189,7 @@ const Contracts = () => {
   // Fetch clients from API
   const fetchClients = async () => {
     try {
-      const response = await axios.get(getApiUrl('clients/'));
+      const response = await api.get('clients/');
       setClients(response.data);
     } catch (err) {
       console.error('Error fetching clients:', err);
@@ -258,7 +258,7 @@ const handleDelete = async () => {
     
     try {
       setLoading(true);
-      await axios.delete(getApiUrl(`contracts/${deleteModal.contractId}`));
+      await api.delete(`contracts/${deleteModal.contractId}/`);
       
       setContracts(contracts.filter(c => c.id !== deleteModal.contractId));
       setToast({
@@ -381,8 +381,8 @@ const handleDelete = async () => {
         guarantee_percentage: editForm.guarantee_percentage ? parseFloat(editForm.guarantee_percentage) : null,
       };
       
-      const response = await axios.put(
-        getApiUrl(`contracts/${editModal.contract.id}`),
+      const response = await api.put(
+        `contracts/${editModal.contract.id}/`,
         contractData
       );
       
@@ -447,8 +447,8 @@ const handleDelete = async () => {
         guarantee_percentage: addForm.guarantee_percentage ? parseFloat(addForm.guarantee_percentage) : null,
       };
       
-      const response = await axios.post(
-        getApiUrl('contracts/'),
+      const response = await api.post(
+        'contracts/',
         contractData
       );
       

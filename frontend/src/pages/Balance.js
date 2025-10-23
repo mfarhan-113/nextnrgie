@@ -1,6 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import axios from 'axios';
-import { getApiUrl } from '../config/api';
+import api, { getApiUrl } from '../config/api';
 import { useTranslation } from 'react-i18next';
 import DeleteIcon from '@mui/icons-material/Delete';
 import VisibilityIcon from '@mui/icons-material/Visibility';
@@ -187,7 +186,7 @@ const Balance = () => {
     let tempPriceSet = false;
     let originalPrice;
     try {
-      const res = await axios.get(getApiUrl('contracts/'));
+      const res = await api.get('contracts/');
       setContracts(res.data || []);
     } catch {
       setContracts([]);
@@ -205,7 +204,7 @@ const Balance = () => {
     setLoading(true);
     try {
       // Fetch ONLY backend invoices (authoritative source, no localStorage)
-      const res = await axios.get(getApiUrl('invoices/'));
+      const res = await api.get('invoices/');
       const backendInvoices = Array.isArray(res.data) ? res.data : [];
       setInvoices(backendInvoices);
     } catch (err) {
@@ -218,7 +217,7 @@ const Balance = () => {
   
   const fetchClients = async () => {
     try {
-      const res = await axios.get(getApiUrl('clients/'));
+      const res = await api.get('clients/');
       setClients(res.data);
     } catch {
       setClients([]);
@@ -308,7 +307,7 @@ const Balance = () => {
       // STEP 1: First, ensure contract has enough capacity by setting price to a large value
       const TEMP_LARGE_PRICE = 999999;
       originalPrice = contract.price;
-      await axios.put(getApiUrl(`contracts/${invoice.contract_id}`), {
+      await api.put(`contracts/${invoice.contract_id}/`, {
         ...contract,
         price: TEMP_LARGE_PRICE
       });
@@ -316,9 +315,9 @@ const Balance = () => {
       
       // STEP 2: Delete ALL existing factures for this contract
       try {
-        const existingFactures = await axios.get(getApiUrl(`factures/contract/${invoice.contract_id}`));
+        const existingFactures = await api.get(getApiUrl(`factures/contract/${invoice.contract_id}`));
         for (const facture of existingFactures.data) {
-          await axios.delete(getApiUrl(`factures/${facture.id}`));
+          await api.delete(getApiUrl(`factures/${facture.id}`));
         }
       } catch (e) {
         console.log('No existing factures to delete');
@@ -326,7 +325,7 @@ const Balance = () => {
 
       // STEP 3: Add ONLY current invoice items to factures table
       for (const item of items) {
-        await axios.post(getApiUrl('factures'), {
+        await api.post(getApiUrl('factures'), {
           contract_id: parseInt(invoice.contract_id),
           description: item.description,
           qty: Number(item.qty) || 0,
@@ -338,7 +337,7 @@ const Balance = () => {
       }
 
       // STEP 4: Call GET endpoint to generate PDF
-      const res = await axios.get(
+      const res = await api.get(
         getApiUrl(`pdf/estimate/${invoice.contract_id}`),
         { responseType: 'blob' }
       );
@@ -357,7 +356,7 @@ const Balance = () => {
       // Always attempt to restore original contract price if we changed it
       try {
         if (tempPriceSet) {
-          await axios.put(getApiUrl(`contracts/${invoice.contract_id}`), {
+          await api.put(getApiUrl(`contracts/${invoice.contract_id}`), {
             ...contract,
             price: originalPrice
           });
@@ -396,7 +395,7 @@ const Balance = () => {
         setToast('Invoice deleted');
       } else {
         // Delete from backend
-        await axios.delete(getApiUrl(`invoices/${invoice.id}`));
+        await api.delete(`invoices/${invoice.id}/`);
         setToast('Invoice deleted');
         fetchInvoices();
       }
@@ -446,8 +445,8 @@ const Balance = () => {
         setToast(t(`successfully_updated_invoice_status_to_${newStatus}`) || `Status updated to ${newStatus}`);
       } else {
         // For backend invoices, make API call
-        const response = await axios.put(
-          getApiUrl(`invoices/${invoice.id}`), 
+        const response = await api.put(
+          `invoices/${invoice.id}/`, 
           {
             status: newStatus,
             paid_amount: paidAmount

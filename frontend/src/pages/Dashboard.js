@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
-import { getApiUrl } from '../config/api';
+import api, { getApiUrl } from '../config/api';
 import {
   Box, Typography, Grid, Card, CardContent, Paper, Fade, Zoom,
   useTheme, alpha, styled, CssBaseline, CircularProgress, Chip
@@ -10,7 +10,6 @@ import {
   Assessment, Timeline, Group
 } from '@mui/icons-material';
 // Router hooks removed - not used in this component
-import axios from 'axios';
 import { useAuth } from '../firebase/AuthContext';
 import Navbar from '../components/Navbar';
 import Sidebar from '../components/Sidebar';
@@ -139,7 +138,7 @@ const Dashboard = () => {
     const fetchStats = async () => {
       setLoadingStats(true);
       try {
-        const res = await axios.get(getApiUrl('dashboard/stats'));
+        const res = await api.get('dashboard/stats/');
         setStats(prevStats => prevStats.map(stat => ({
           ...stat,
           value: res.data[stat.label] || '0'
@@ -154,7 +153,7 @@ const Dashboard = () => {
     const fetchRecentActivity = async () => {
       setLoadingRecent(true);
       try {
-        const res = await axios.get(getApiUrl('dashboard/recent-activity'));
+        const res = await api.get('dashboard/recent-activity/');
         const activities = res.data.map(item => ({
           id: item.id,
           type: item.type || 'Recent',
@@ -180,7 +179,7 @@ const Dashboard = () => {
     const fetchContractGrowth = async () => {
       setLoadingGrowth(true);
       try {
-        const response = await axios.get(getApiUrl('dashboard/contract-growth'));
+        const response = await api.get('dashboard/contract-growth/');
         setContractGrowth(response.data);
       } catch (error) {
         console.error('Error fetching contract growth data:', error);

@@ -1,7 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { getApiUrl } from '../config/api';
-import axios from 'axios';
+import api from '../config/api';
 import EditIcon from '@mui/icons-material/Edit';
 import DeleteIcon from '@mui/icons-material/Delete';
 import SearchIcon from '@mui/icons-material/Search';
@@ -173,7 +172,7 @@ const Clients = () => {
   const fetchClients = async () => {
     setLoading(true);
     try {
-      const res = await axios.get(getApiUrl('/clients/'));
+      const res = await api.get('clients/');
       if (Array.isArray(res.data)) {
         setClients(res.data);
       } else {
@@ -202,7 +201,7 @@ const Clients = () => {
     setLoading(true);
     try {
       console.log('[CLIENT FORM PAYLOAD]', form);
-      await axios.post(getApiUrl('clients/'), form);
+      await api.post('clients/', form);
       setToast(t('client_added_successfully') || 'Client ajouté avec succès !');
       setForm({ 
         client_number: '', 
@@ -266,7 +265,7 @@ const Clients = () => {
     try {
       console.log('[CLIENT EDIT PAYLOAD]', editForm);
       const { id, ...payload } = editForm;
-      await axios.put(getApiUrl(`clients/${parseInt(editModal.client.id, 10)}`), payload);
+      await api.put(`clients/${parseInt(editModal.client.id, 10)}/`, payload);
       setToast(t('client_updated_successfully') || 'Client mis à jour avec succès !');
       closeEditModal();
       fetchClients();
@@ -289,7 +288,7 @@ const Clients = () => {
     if (!modal.client) return;
     setLoading(true);
     try {
-      await axios.delete(getApiUrl(`clients/${parseInt(modal.client.id, 10)}`));
+      await api.delete(`clients/${parseInt(modal.client.id, 10)}/`);
       setToast(t('client_deleted_successfully') || 'Client supprimé avec succès');
       fetchClients();
       setModal({ show: false, client: null, type: '' });
