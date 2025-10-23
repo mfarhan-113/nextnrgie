@@ -140,4 +140,31 @@ console.log('API Configuration:', {
   samplePdfUrl: getPdfUrl('pdf/some-file.pdf')
 });
 
+// Runtime safety net: upgrade any accidental http fetch/XHR to https in production
+if (isProduction) {
+  try {
+    const originalFetch = window.fetch;
+    window.fetch = function(input, init) {
+      if (typeof input === 'string' && input.startsWith('http://')) {
+        const upgraded = input.replace(/^http:\/\//, 'https://');
+        console.warn('[FETCH UPGRADE]', { from: input, to: upgraded });
+        input = upgraded;
+      }
+      return originalFetch.call(this, input, init);
+    };
+
+    const originalOpen = XMLHttpRequest.prototype.open;
+    XMLHttpRequest.prototype.open = function(method, url, async, user, password) {
+      if (typeof url === 'string' && url.startsWith('http://')) {
+        const upgraded = url.replace(/^http:\/\//, 'https://');
+        console.warn('[XHR UPGRADE]', { from: url, to: upgraded });
+        url = upgraded;
+      }
+      return originalOpen.call(this, method, url, async, user, password);
+    };
+  } catch (_) {
+    // no-op
+  }
+}
+
 export default api;
