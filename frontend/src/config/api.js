@@ -7,7 +7,7 @@ const currentHost = window.location.host;
 
 // Base URL configuration
 const API_BASE = isProduction
-  ? `https://${currentHost}/api`  // Always use HTTPS in production
+  ? `https://${currentHost}/api/`  // Always use HTTPS in production (trailing slash is critical)
   : process.env.REACT_APP_API_URL || '/api';
 
 const BASE_URL = isProduction
