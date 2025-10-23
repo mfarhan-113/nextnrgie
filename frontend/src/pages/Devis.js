@@ -566,7 +566,8 @@ const Devis = () => {
       qty_unit: editItemForm.qty_unit || 'unite',
       unit_price: parseFloat(editItemForm.unit_price) || 0,
       tva: parseFloat(editItemForm.tva) || 0,
-      total_ht: parseFloat(editItemForm.total_ht) || 0
+      total_ht: parseFloat(editItemForm.total_ht) || 0,
+      estimate_id: devis.backendId
     };
     
     try {
@@ -640,7 +641,8 @@ const Devis = () => {
         qty_unit: detailsForm.qty_unit || 'unite',
         unit_price: parseFloat(detailsForm.unit_price) || 0,
         tva: parseFloat(detailsForm.tva) || 0,
-        total_ht: parseFloat(detailsForm.total_ht) || 0
+        total_ht: parseFloat(detailsForm.total_ht) || 0,
+        estimate_id: devis.backendId
       };
       
       // Add to backend
