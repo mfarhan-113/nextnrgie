@@ -1402,7 +1402,10 @@ async def generate_devis_pdf(payload: dict):
     
     # If no number found in name, fall back to devis_number from payload
     if not devis_number:
-        devis_number = payload.get('devis_number', '')
+        # Ensure we never pass None to ReportLab
+        devis_number = payload.get('devis_number') or ""
+    # Extra safety: coerce to string
+    devis_number = str(devis_number)
     
     p.drawString(left + 170, y, devis_number)
     y -= line_height
