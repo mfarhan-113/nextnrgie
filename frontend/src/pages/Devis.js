@@ -249,73 +249,81 @@ const Devis = () => {
     load();
   }, [authHeaders, t]);
 
-  // Fetch backend estimates (Devis) with their items and map to UI entries
+  // Fetch estimates with their items from the backend
   const fetchEstimates = async () => {
     try {
       setLoading(true);
-      const [estimatesRes, clientsRes] = await Promise.all([
-        axios.get(getApiUrl('estimates/'), { headers: authHeaders }),
-        axios.get(getApiUrl('clients/'), { headers: authHeaders })
-      ]);
       
-      const estimates = Array.isArray(estimatesRes.data) ? estimatesRes.data : [];
-      const clientsMap = (clientsRes.data || []).reduce((acc, client) => {
-        acc[client.id] = client;
-        return acc;
-      }, {});
+      // Fetch all estimates
+      const estimatesRes = await axios.get(
+        getApiUrl('estimates'),
+        { headers: authHeaders }
+      );
       
-      // For each estimate, fetch its items
-      const estimatesWithItems = await Promise.all(estimates.map(async (est) => {
-        try {
-          const itemsRes = await axios.get(getApiUrl(`estimates/${est.id}/items`), { headers: authHeaders });
-          return {
-            ...est,
-            items: Array.isArray(itemsRes.data) ? itemsRes.data : []
-          };
-        } catch (err) {
-          console.error(`Failed to fetch items for estimate ${est.id}:`, err);
-          return { ...est, items: [] };
-        }
-      }));
-
-      // Map to UI format
-      const mapped = estimatesWithItems.map(est => {
-        const dateStr = est.creation_date || '';
-        const client = clientsMap[est.client_id] || {};
-        return {
-          id: `devis-b-${est.id}`,
-          backendId: est.id,
-          name: est.estimate_number,
-          clientId: est.client_id,
-          clientName: client.client_name || `Client #${est.client_id}`,
-          date: dateStr,
-          creationDate: dateStr,
-          expiration: est.expiration_date || '',
-          items: (est.items || []).map(item => ({
-            id: `item-${item.id}`,
-            description: item.description || '',
-            qty: parseFloat(item.qty) || 1,
-            qty_unit: item.qty_unit || 'unite',
-            unit_price: parseFloat(item.unit_price) || 0,
-            tva: parseFloat(item.tva) || 0,
-            total_ht: parseFloat(item.total_ht) || 0
-          }))
-        };
-      });
+      // Map estimates to the expected format and fetch items for each
+      const estimatesWithItems = await Promise.all(
+        estimatesRes.data.map(async (estimate) => {
+          try {
+            // Fetch items for this estimate
+            const itemsRes = await axios.get(
+              getApiUrl(`estimates/${estimate.id}/items`),
+              { headers: authHeaders }
+            );
+            
+            const items = Array.isArray(itemsRes.data) 
+              ? itemsRes.data.map(item => ({
+                  ...item,
+                  id: `item-${item.id}`,
+                  qty: parseFloat(item.qty) || 0,
+                  unit_price: parseFloat(item.unit_price) || 0,
+                  tva: parseFloat(item.tva) || 0,
+                  total_ht: parseFloat(item.total_ht) || 0
+                }))
+              : [];
+            
+            return {
+              id: `devis-${estimate.id}`,
+              backendId: estimate.id,
+              name: estimate.estimate_number || `Devis-${estimate.id}`,
+              clientId: estimate.client_id ? String(estimate.client_id) : '',
+              date: estimate.creation_date || new Date().toISOString().split('T')[0],
+              expiration: estimate.expiration_date || '',
+              status: estimate.status || 'draft',
+              amount: parseFloat(estimate.amount) || 0,
+              createdAt: estimate.created_at,
+              items: items
+            };
+          } catch (error) {
+            console.error(`Error fetching items for estimate ${estimate.id}:`, error);
+            return {
+              id: `devis-${estimate.id}`,
+              backendId: estimate.id,
+              name: estimate.estimate_number || `Devis-${estimate.id}`,
+              clientId: estimate.client_id ? String(estimate.client_id) : '',
+              date: estimate.creation_date || new Date().toISOString().split('T')[0],
+              expiration: estimate.expiration_date || '',
+              status: estimate.status || 'draft',
+              amount: parseFloat(estimate.amount) || 0,
+              createdAt: estimate.created_at,
+              items: []
+            };
+          }
+        })
+      );
       
-      setCreatedDevis(mapped);
+      // Update estimates in state
+      setCreatedDevis(estimatesWithItems);
       
-      // Update itemsByDevis state
+      // Create itemsByDevis mapping
       const itemsMap = {};
-      mapped.forEach(devis => {
-        if (devis.items && devis.items.length > 0) {
-          itemsMap[devis.id] = devis.items;
-        }
+      estimatesWithItems.forEach(estimate => {
+        itemsMap[estimate.id] = estimate.items || [];
       });
-      setItemsByDevis(prev => ({ ...prev, ...itemsMap }));
       
-    } catch (err) {
-      console.error('Failed to fetch estimates:', err);
+      setItemsByDevis(itemsMap);
+      
+    } catch (error) {
+      console.error('Error fetching estimates:', error);
       setError(t('error_loading_estimates') || 'Failed to load estimates');
     } finally {
       setLoading(false);
@@ -439,89 +447,6 @@ const Devis = () => {
     fetchDetails();
   }, [authHeaders, selectedContractId, t]);
 
-  // Fetch estimates with their items from the backend
-  const fetchEstimates = async () => {
-    try {
-      setLoading(true);
-      
-      // Fetch all estimates
-      const estimatesRes = await axios.get(
-        getApiUrl('estimates'),
-        { headers: authHeaders }
-      );
-      
-      // Map estimates to the expected format and fetch items for each
-      const estimatesWithItems = await Promise.all(
-        estimatesRes.data.map(async (estimate) => {
-          try {
-            // Fetch items for this estimate
-            const itemsRes = await axios.get(
-              getApiUrl(`estimates/${estimate.id}/items`),
-              { headers: authHeaders }
-            );
-            
-            const items = Array.isArray(itemsRes.data) 
-              ? itemsRes.data.map(item => ({
-                  ...item,
-                  id: `item-${item.id}`,
-                  qty: parseFloat(item.qty) || 0,
-                  unit_price: parseFloat(item.unit_price) || 0,
-                  tva: parseFloat(item.tva) || 0,
-                  total_ht: parseFloat(item.total_ht) || 0
-                }))
-              : [];
-            
-            return {
-              id: `devis-${estimate.id}`,
-              backendId: estimate.id,
-              name: estimate.estimate_number || `Devis-${estimate.id}`,
-              clientId: estimate.client_id ? String(estimate.client_id) : '',
-              date: estimate.creation_date || new Date().toISOString().split('T')[0],
-              expiration: estimate.expiration_date || '',
-              status: estimate.status || 'draft',
-              amount: parseFloat(estimate.amount) || 0,
-              createdAt: estimate.created_at
-            };
-          } catch (error) {
-            console.error(`Error fetching items for estimate ${estimate.id}:`, error);
-            return {
-              id: `devis-${estimate.id}`,
-              backendId: estimate.id,
-              name: estimate.estimate_number || `Devis-${estimate.id}`,
-              clientId: estimate.client_id ? String(estimate.client_id) : '',
-              date: estimate.creation_date || new Date().toISOString().split('T')[0],
-              expiration: estimate.expiration_date || '',
-              status: estimate.status || 'draft',
-              amount: parseFloat(estimate.amount) || 0,
-              createdAt: estimate.created_at
-            };
-          }
-        })
-      );
-      
-      // Update estimates and items in state
-      setCreatedDevis(estimatesWithItems);
-      
-      // Create itemsByDevis mapping
-      const itemsMap = {};
-      estimatesWithItems.forEach(estimate => {
-        const estimateId = estimate.id;
-        const backendId = estimate.backendId;
-        // Find items for this estimate
-        const items = estimatesWithItems
-          .find(e => e.id === estimateId)?.items || [];
-        itemsMap[estimateId] = items;
-      });
-      
-      setItemsByDevis(itemsMap);
-      
-    } catch (error) {
-      console.error('Error fetching estimates:', error);
-      setError(t('error_loading_estimates') || 'Failed to load estimates');
-    } finally {
-      setLoading(false);
-    }
-  };
   
   // Fetch estimates after clients/contracts load
   useEffect(() => {
