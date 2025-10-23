@@ -70,8 +70,25 @@ const api = axios.create({
 
 api.interceptors.request.use((config) => {
   if (isProduction) {
-    if (config.baseURL) config.baseURL = ensureHttps(config.baseURL);
-    if (typeof config.url === 'string') config.url = ensureHttps(config.url);
+    // Always force baseURL to our HTTPS API_BASE in production
+    config.baseURL = ensureHttps(API_BASE);
+    // Upgrade any accidental absolute http URLs
+    if (typeof config.url === 'string') {
+      config.url = ensureHttps(config.url);
+    }
+    try {
+      // Compute final URL for logging
+      const finalUrl = new URL(
+        typeof config.url === 'string' ? config.url : '',
+        config.baseURL || API_BASE
+      ).toString();
+      console.log('[API REQUEST]', {
+        method: (config.method || 'get').toUpperCase(),
+        finalUrl
+      });
+    } catch (_) {
+      // no-op
+    }
   }
   return config;
 });
