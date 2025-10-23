@@ -11,11 +11,14 @@ class ContractDetailBase(BaseModel):
     total_ht: float
 
 class ContractDetailCreate(ContractDetailBase):
-    contract_id: int
+    # Optional to allow creating items for estimates without a contract
+    contract_id: Optional[int] = None
+    estimate_id: Optional[int] = None
 
 class ContractDetailOut(ContractDetailBase):
     id: int
-    contract_id: int
+    contract_id: Optional[int] = None
+    estimate_id: Optional[int] = None
     
     class Config:
-        orm_mode = True
+        from_attributes = True
