@@ -248,7 +248,7 @@ const Devis = () => {
     load();
   }, [authHeaders, t]);
 
-  // Fetch estimates with their items from the backend
+  // Fetch estimates list from the backend (items loaded lazily on expand)
   const fetchEstimates = async () => {
     try {
       setLoading(true);
@@ -256,73 +256,50 @@ const Devis = () => {
       // Fetch all estimates using the configured axios instance (trailing slash to avoid redirects)
       const estimatesRes = await api.get('estimates/', { headers: authHeaders });
       
-      // Map estimates to the expected format and fetch items for each
-      const estimatesWithItems = await Promise.all(
-        estimatesRes.data.map(async (estimate) => {
-          try {
-            // Fetch items for this estimate using the configured axios instance
-            const itemsRes = await api.get(
-              getApiUrl(`estimates/${estimate.id}/items/`),
-              { headers: authHeaders }
-            );
-            
-            const items = Array.isArray(itemsRes.data) 
-              ? itemsRes.data.map(item => ({
-                  ...item,
-                  id: `item-${item.id}`,
-                  qty: parseFloat(item.qty) || 0,
-                  unit_price: parseFloat(item.unit_price) || 0,
-                  tva: parseFloat(item.tva) || 0,
-                  total_ht: parseFloat(item.total_ht) || 0
-                }))
-              : [];
-            
-            return {
-              id: `devis-${estimate.id}`,
-              backendId: estimate.id,
-              name: estimate.estimate_number || `Devis-${estimate.id}`,
-              clientId: estimate.client_id ? String(estimate.client_id) : '',
-              date: estimate.creation_date || new Date().toISOString().split('T')[0],
-              expiration: estimate.expiration_date || '',
-              status: estimate.status || 'draft',
-              amount: parseFloat(estimate.amount) || 0,
-              createdAt: estimate.created_at,
-              items: items
-            };
-          } catch (error) {
-            console.error(`Error fetching items for estimate ${estimate.id}:`, error);
-            return {
-              id: `devis-${estimate.id}`,
-              backendId: estimate.id,
-              name: estimate.estimate_number || `Devis-${estimate.id}`,
-              clientId: estimate.client_id ? String(estimate.client_id) : '',
-              date: estimate.creation_date || new Date().toISOString().split('T')[0],
-              expiration: estimate.expiration_date || '',
-              status: estimate.status || 'draft',
-              amount: parseFloat(estimate.amount) || 0,
-              createdAt: estimate.created_at,
-              items: []
-            };
-          }
-        })
-      );
-      
+      // Map estimates to the expected format; items will be fetched on demand
+      const estimatesMapped = estimatesRes.data.map((estimate) => ({
+        id: `devis-${estimate.id}`,
+        backendId: estimate.id,
+        name: estimate.estimate_number || `Devis-${estimate.id}`,
+        clientId: estimate.client_id ? String(estimate.client_id) : '',
+        date: estimate.creation_date || new Date().toISOString().split('T')[0],
+        expiration: estimate.expiration_date || '',
+        status: estimate.status || 'draft',
+        amount: parseFloat(estimate.amount) || 0,
+        createdAt: estimate.created_at
+      }));
+
       // Update estimates in state
-      setCreatedDevis(estimatesWithItems);
-      
-      // Create itemsByDevis mapping
-      const itemsMap = {};
-      estimatesWithItems.forEach(estimate => {
-        itemsMap[estimate.id] = estimate.items || [];
-      });
-      
-      setItemsByDevis(itemsMap);
-      
+      setCreatedDevis(estimatesMapped);
+
     } catch (error) {
       console.error('Error fetching estimates:', error);
       setError(t('error_loading_estimates') || 'Failed to load estimates');
     } finally {
       setLoading(false);
+    }
+  };
+
+  // Helper: fetch items for a specific devis on demand
+  const fetchItemsForDevis = async (devis) => {
+    if (!devis?.backendId) return [];
+    try {
+      const res = await api.get(
+        getApiUrl(`estimates/${devis.backendId}/items/`),
+        { headers: authHeaders }
+      );
+      const items = Array.isArray(res.data) ? res.data : [];
+      return items.map(item => ({
+        ...item,
+        id: `item-${item.id}`,
+        qty: parseFloat(item.qty) || 0,
+        unit_price: parseFloat(item.unit_price) || 0,
+        tva: parseFloat(item.tva) || 0,
+        total_ht: parseFloat(item.total_ht) || 0
+      }));
+    } catch (e) {
+      console.warn(`Failed to load items for devis ${devis.backendId}`);
+      return [];
     }
   };
 
@@ -484,11 +461,19 @@ const Devis = () => {
   const closeModal = () => setDetailsModalOpen(false);
 
   // Toggle items visibility for a specific devis
-  const toggleItemsVisibility = (devisId) => {
-    setExpandedItems(prev => ({
-      ...prev,
-      [devisId]: !prev[devisId]
-    }));
+  const toggleItemsVisibility = async (devisId) => {
+    const willExpand = !expandedItems[devisId];
+    setExpandedItems(prev => ({ ...prev, [devisId]: willExpand }));
+    if (willExpand) {
+      const current = itemsByDevis[devisId];
+      if (!current || current.length === 0) {
+        const devis = createdDevis.find(d => d.id === devisId);
+        if (devis) {
+          const loaded = await fetchItemsForDevis(devis);
+          setItemsByDevis(prev => ({ ...prev, [devisId]: loaded }));
+        }
+      }
+    }
   };
 
   // Delete an item from a devis

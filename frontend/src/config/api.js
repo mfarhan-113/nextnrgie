@@ -118,10 +118,19 @@ api.interceptors.response.use(
     if (isProduction) {
       try {
         const responseURL = error?.request?.responseURL || '';
+        const status = error?.response?.status;
+        let dataPreview = undefined;
+        try {
+          const raw = error?.response?.data;
+          const txt = typeof raw === 'string' ? raw : JSON.stringify(raw);
+          dataPreview = txt?.slice(0, 300);
+        } catch {}
         console.warn('[API ERROR]', {
           message: error?.message,
           code: error?.code,
-          responseURL
+          status,
+          responseURL,
+          dataPreview
         });
       } catch (_) {}
     }
