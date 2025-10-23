@@ -692,12 +692,12 @@ const Devis = () => {
             getApiUrl('contract-details/'),
             {
               contract_id: parseInt(selectedContractId),
-              description: item.description,
-              qty: parseInt(item.qty) || 0,
-              qty_unit: item.qty_unit || 'unite',
-              unit_price: parseFloat(item.unit_price) || 0,
-              tva: parseFloat(item.tva) || 0,
-              total_ht: parseFloat(item.total_ht) || 0,
+              description: addedItem.description,
+              qty: parseInt(addedItem.qty) || 0,
+              qty_unit: addedItem.qty_unit || 'unite',
+              unit_price: parseFloat(addedItem.unit_price) || 0,
+              tva: parseFloat(addedItem.tva) || 0,
+              total_ht: parseFloat(addedItem.total_ht) || 0,
             },
             { headers: { ...authHeaders, 'Content-Type': 'application/json' } }
           );
