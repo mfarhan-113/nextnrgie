@@ -17,4 +17,4 @@ class ContractDetail(Base):
     
     # Relationships
     contract = relationship("Contract", back_populates="contract_details")
-    estimate = relationship("Estimate", back_populates="contract_details")
+    estimate = relationship("Estimate", back_populates="items")
