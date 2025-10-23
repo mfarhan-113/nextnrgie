@@ -1,3 +1,4 @@
+import axios from 'axios';
 // frontend/src/config/api.js
 // Force HTTPS in production
 const isProduction = process.env.NODE_ENV === 'production';
@@ -12,6 +13,11 @@ const API_BASE = isProduction
 const BASE_URL = isProduction
   ? `https://${currentHost}`  // Always use HTTPS in production
   : process.env.REACT_APP_BASE_URL || window.location.origin;
+
+const ensureHttps = (url) => {
+  if (!isProduction || !url) return url;
+  return url.replace(/^http:/, 'https:');
+};
 
 // Helper function to construct API URLs
 const createUrl = (base, endpoint) => {
@@ -55,6 +61,21 @@ export const getPdfUrl = (endpoint) => {
   return url;
 };
 
+const api = axios.create({
+  baseURL: API_BASE,
+  headers: {
+    'Content-Type': 'application/json',
+  },
+});
+
+api.interceptors.request.use((config) => {
+  if (isProduction) {
+    if (config.baseURL) config.baseURL = ensureHttps(config.baseURL);
+    if (typeof config.url === 'string') config.url = ensureHttps(config.url);
+  }
+  return config;
+});
+
 // Log the API configuration for debugging
 console.log('API Configuration:', {
   isProduction,
@@ -65,3 +86,5 @@ console.log('API Configuration:', {
   sampleApiUrl: getApiUrl('clients/'),
   samplePdfUrl: getPdfUrl('pdf/some-file.pdf')
 });
+
+export default api;

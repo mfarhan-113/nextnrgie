@@ -253,8 +253,8 @@ const Devis = () => {
     try {
       setLoading(true);
       
-      // Fetch all estimates using the configured axios instance
-      const estimatesRes = await api.get('estimates', { headers: authHeaders });
+      // Fetch all estimates using the configured axios instance (trailing slash to avoid redirects)
+      const estimatesRes = await api.get('estimates/', { headers: authHeaders });
       
       // Map estimates to the expected format and fetch items for each
       const estimatesWithItems = await Promise.all(
@@ -262,7 +262,7 @@ const Devis = () => {
           try {
             // Fetch items for this estimate using the configured axios instance
             const itemsRes = await api.get(
-              `estimates/${estimate.id}/items`,
+              `estimates/${estimate.id}/items/`,
               { headers: authHeaders }
             );
             
