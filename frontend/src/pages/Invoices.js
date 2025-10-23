@@ -98,7 +98,6 @@ const Invoices = () => {
     if (!window.confirm('Delete this invoice?')) return;
     setLoading(true);
     try {
-      await axios.delete(getApiUrl(`invoices/${invoice.id}`));
       await api.delete(`invoices/${invoice.id}/`);
       setToast('Invoice deleted');
       fetchInvoices();

@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
-import axios from 'axios';
-import { getApiUrl } from '../config/api';
+import api, { getApiUrl } from '../config/api';
 import {
   Box, Typography, IconButton, Tooltip, CircularProgress, CssBaseline,
   Paper, Table, TableBody, TableCell, TableContainer, TableHead, 
@@ -120,7 +119,7 @@ const Salary = () => {
   const fetchSalaries = async () => {
     try {
       setLoading(true);
-      const res = await axios.get(getApiUrl('salaries/'));
+      const res = await api.get('salaries/');
       setSalaries(Array.isArray(res.data) ? res.data : []);
     } catch (err) {
       console.error('Error fetching salaries:', err);
@@ -251,8 +250,8 @@ const Salary = () => {
         total_salary: parseFloat(addForm.total_salary) || 0,
       };
       
-      const response = await axios.post(
-        getApiUrl('salaries/'),
+      const response = await api.post(
+        'salaries/',
         salaryData
       );
       
@@ -307,8 +306,8 @@ const Salary = () => {
         total_salary: parseFloat(editForm.total_salary) || 0,
       };
       
-      const response = await axios.put(
-        getApiUrl(`salaries/${editModal.salary.id}`),
+      const response = await api.put(
+        `salaries/${editModal.salary.id}/`,
         salaryData
       );
       
@@ -338,7 +337,7 @@ const Salary = () => {
     if (!deleteModal.salaryId) return;
     try {
       setLoading(true);
-      await axios.delete(getApiUrl(`salaries/${deleteModal.salaryId}`));
+      await api.delete(`salaries/${deleteModal.salaryId}/`);
       setSalaries(salaries.filter(s => s.id !== deleteModal.salaryId));
       setToast({
         open: true,

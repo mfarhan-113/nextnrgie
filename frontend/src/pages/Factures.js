@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import axios from 'axios';
+import api from '../config/api';
 import { useTranslation } from 'react-i18next';
 import { getApiUrl, getPdfUrl } from '../config/api';
 import InvoiceDetailsModal from '../components/InvoiceDetailsModal';
@@ -178,7 +178,7 @@ const Factures = () => {
   const fetchContracts = async () => {
     try {
       setLoading(true);
-      const res = await axios.get(getApiUrl('contracts/'));
+      const res = await api.get('contracts/');
       const data = Array.isArray(res.data) ? res.data : [];
       setContracts(data);
       const map = {};
@@ -199,7 +199,7 @@ const Factures = () => {
   const fetchInvoices = async () => {
     try {
       setLoading(true);
-      const response = await axios.get(getApiUrl('invoices/'));
+      const response = await api.get('invoices/');
       const invoices = Array.isArray(response.data) ? response.data : [];
       
       // Transform using ONLY backend fields
@@ -308,7 +308,7 @@ const Factures = () => {
       const total_ht_calc = subtotal * (1 + tvaNum / 100);
 
       if (backendId) {
-        await axios.put(getApiUrl(`factures/${backendId}`), {
+        await api.put(getApiUrl(`factures/${backendId}`), {
           description: editItemForm.description,
           qty: qtyNum,
           qty_unit: editItemForm.qty_unit || 'unite',
@@ -341,7 +341,7 @@ const Factures = () => {
       const item = (itemsByInvoice[invoiceId] || [])[itemIndex];
       const backendId = item && item.backendFactureId;
       if (backendId) {
-        await axios.delete(getApiUrl(`factures/${backendId}`));
+        await api.delete(getApiUrl(`factures/${backendId}`));
         await syncInvoicesFromBackend();
         await fetchContracts();
         setToast(t('item_deleted') || 'Item deleted successfully!');
@@ -423,7 +423,7 @@ const Factures = () => {
           setTimeout(() => setToast(''), 2500);
           return;
         }
-        await axios.put(getApiUrl(`invoices/${bid}`), {
+        await api.put(`invoices/${bid}/`, {
           invoice_number: invoiceNumber,
           due_date: expirationDate,
           issue_date: issueDate
@@ -490,7 +490,7 @@ const Factures = () => {
         // Persist manual dates for this invoice so future syncs keep them (both backend and local override)
         if (backendId) {
           try {
-            await axios.put(getApiUrl(`invoices/${backendId}`), {
+            await api.put(`invoices/${backendId}/`, {
               invoice_number: invoiceNumber,
               due_date: expirationDate,
               issue_date: issueDate
@@ -549,7 +549,7 @@ const Factures = () => {
 
   const createBackendInvoice = async (invoiceData) => {
   try {
-    const response = await axios.post(getApiUrl('invoices/'), {
+    const response = await api.post('invoices/', {
       invoice_number: invoiceData.name,
       contract_id: parseInt(invoiceData.contractId, 10), // Ensure it's an integer
       amount: 0, // Required by schema
@@ -567,7 +567,7 @@ const Factures = () => {
   const resolveBackendInvoiceId = async (invoice) => {
     if (invoice.backendId) return invoice.backendId;
     try {
-      const allInvRes = await axios.get(getApiUrl('invoices/'));
+      const allInvRes = await api.get('invoices/');
       const match = (Array.isArray(allInvRes.data) ? allInvRes.data : []).find(
         (row) => String(row.contract_id) === String(invoice.contractId) && String(row.invoice_number) === String(invoice.name)
       );
@@ -593,7 +593,7 @@ const Factures = () => {
     // Determine next sequence for this contract/year based on BOTH local and backend invoices
     let seq = 1;
     try {
-      const allInvRes = await axios.get(getApiUrl('invoices/'));
+      const allInvRes = await api.get('invoices/');
       const backendMatches = (Array.isArray(allInvRes.data) ? allInvRes.data : []).filter(
         (row) => String(row.contract_id) === String(contractId) && typeof row.invoice_number === 'string' && row.invoice_number.startsWith(baseNumber)
       );
@@ -657,7 +657,7 @@ const Factures = () => {
       const detail = e?.response?.data?.detail || '';
       if (String(detail).toLowerCase().includes('already exists')) {
         try {
-          const allInvRes = await axios.get(getApiUrl('invoices/'));
+          const allInvRes = await api.get('invoices/');
           const match = (Array.isArray(allInvRes.data) ? allInvRes.data : []).find(
             (row) => String(row.contract_id) === String(contractId) && String(row.invoice_number) === String(candidateName)
           );
@@ -690,7 +690,7 @@ const Factures = () => {
       // Delete in backend first if we can resolve an id
       const backendId = invoice ? (invoice.backendId || await resolveBackendInvoiceId(invoice)) : null;
       if (backendId) {
-        await axios.delete(getApiUrl(`invoices/${backendId}`));
+        await api.delete(`invoices/${backendId}/`);
       }
     } catch (err) {
       console.error('Failed to delete backend invoice', err);
@@ -810,7 +810,7 @@ const Factures = () => {
   const syncInvoicesFromBackend = async () => {
     try {
       // 1) Fetch all backend invoices
-      const invRes = await axios.get(getApiUrl('invoices/'));
+      const invRes = await api.get('invoices/');
       const backendInvoices = Array.isArray(invRes.data) ? invRes.data : [];
 
       // 2) Build local createdInvoices entries from backend
@@ -837,7 +837,7 @@ const Factures = () => {
       const itemsMap = {};
       for (const cid of contractIds) {
         try {
-          const fRes = await axios.get(getApiUrl(`factures/contract/${cid}`));
+          const fRes = await api.get(`factures/contract/${cid}/`);
           const list = Array.isArray(fRes.data) ? fRes.data : [];
           // Group by invoice_id
           const byInvoice = list.reduce((acc, f) => {
@@ -943,7 +943,7 @@ const Factures = () => {
               }
             } catch (errCreate) {
               // If duplicate, resolve instead
-              const allInvRes = await axios.get(getApiUrl('invoices/'));
+              const allInvRes = await api.get('invoices/');
               const match = (Array.isArray(allInvRes.data) ? allInvRes.data : []).find(
                 (row) => String(row.contract_id) === String(invoice.contractId) && String(row.invoice_number) === String(invoice.name)
               );
@@ -961,7 +961,7 @@ const Factures = () => {
           const subtotal = qtyNum * unitPriceNum;
           const total_ht_calc = subtotal * (1 + tvaNum / 100);
 
-          await axios.post(getApiUrl('factures/'), {
+          await api.post('factures/', {
             contract_id: invoice ? parseInt(invoice.contractId) : undefined,
             invoice_id: backendInvoiceId ? parseInt(backendInvoiceId) : undefined,
             description: newItem.description,

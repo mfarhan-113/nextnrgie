@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
-import axios from 'axios';
-import { getApiUrl } from '../config/api';
+import api, { getApiUrl } from '../config/api';
 import {
   Box, Typography, IconButton, Tooltip, CircularProgress, CssBaseline,
   Paper, Table, TableBody, TableCell, TableContainer, TableHead, 
@@ -119,7 +118,7 @@ const Miscellaneous = () => {
   const fetchExpenses = async () => {
     try {
       setLoading(true);
-      const res = await axios.get(getApiUrl('misc/'));
+      const res = await api.get('misc/');
       setExpenses(res.data);
     } catch (err) {
       console.error('Error fetching expenses:', err);
@@ -240,8 +239,8 @@ const Miscellaneous = () => {
         total: parseFloat(addForm.total) || 0,
       };
       
-      const response = await axios.post(
-        getApiUrl('misc/'),
+      const response = await api.post(
+        'misc/',
         expenseData
       );
       
@@ -295,8 +294,8 @@ const Miscellaneous = () => {
         total: parseFloat(editForm.total) || 0,
       };
       
-      const response = await axios.put(
-        getApiUrl(`misc/${editModal.expense?.id}`),
+      const response = await api.put(
+        `misc/${editModal.expense?.id}/`,
         expenseData
       );
       
@@ -327,7 +326,7 @@ const Miscellaneous = () => {
     
     try {
       setLoading(true);
-      await axios.delete(getApiUrl(`misc/${deleteModal.expenseId || ''}`));
+      await api.delete(`misc/${deleteModal.expenseId || ''}/`);
       
       setExpenses(expenses.filter(e => e.id !== deleteModal.expenseId));
       setToast({
