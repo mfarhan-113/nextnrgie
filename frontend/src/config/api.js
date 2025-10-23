@@ -15,13 +15,21 @@ const BASE_URL = isProduction
 
 // Helper function to construct API URLs
 const createUrl = (base, endpoint) => {
+  // Ensure base URL is clean and uses HTTPS in production
   let cleanBase = base.replace(/\/+$/, '');
-  // Ensure HTTPS in production
   if (isProduction && cleanBase.startsWith('http://')) {
     cleanBase = 'https' + cleanBase.substring(4);
   }
+  
+  // Handle endpoint formatting
   const cleanPath = (endpoint || '').replace(/^\/+/, '');
-  const finalUrl = cleanPath ? `${cleanBase}/${cleanPath}` : cleanBase;
+  let finalUrl = cleanPath ? `${cleanBase}/${cleanPath}` : `${cleanBase}/`;
+  
+  // Ensure the final URL has a trailing slash for API endpoints
+  if (isProduction && !finalUrl.endsWith('/') && 
+      (finalUrl.includes('/api/') || finalUrl.endsWith('/api'))) {
+    finalUrl += '/';
+  }
   
   // Log URL generation for debugging
   if (isProduction) {
