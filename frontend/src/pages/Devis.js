@@ -1310,14 +1310,32 @@ const Devis = () => {
                                 responseType: 'blob',
                                 headers: { 
                                   'Accept': 'application/pdf',
-                                  'Cache-Control': 'no-cache',
-                                  'Pragma': 'no-cache'
-                                }
+                                  'Cache-Control': 'no-cache, no-store, must-revalidate',
+                                  'Pragma': 'no-cache',
+                                  'Expires': '0'
+                                },
+                                timeout: 30000 // 30 seconds timeout
                               });
-                              const blob = new Blob([res.data], { type: 'application/pdf' });
-                              const url = window.URL.createObjectURL(blob);
-                              window.open(url, '_blank');
-                              setTimeout(() => window.URL.revokeObjectURL(url), 60_000);
+                              
+                              if (res.status === 200 && res.data.size > 0) {
+                                const blob = new Blob([res.data], { type: 'application/pdf' });
+                                const url = window.URL.createObjectURL(blob);
+                                
+                                // Create a temporary anchor element to trigger download
+                                const a = document.createElement('a');
+                                a.href = url;
+                                a.download = `devis_${payload.devis_number || payload.name.replace(/\s+/g, '_')}.pdf`;
+                                document.body.appendChild(a);
+                                a.click();
+                                
+                                // Cleanup
+                                setTimeout(() => {
+                                  window.URL.revokeObjectURL(url);
+                                  document.body.removeChild(a);
+                                }, 100);
+                              } else {
+                                throw new Error('Received empty or invalid PDF data');
+                              }
                             } catch (err) {
                               console.error('Failed to generate PDF', err);
                               setError(t('error_generating_pdf') || 'Échec de la génération du PDF');
