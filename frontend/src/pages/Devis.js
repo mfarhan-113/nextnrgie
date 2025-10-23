@@ -1,7 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import axios from 'axios';
 import { useTranslation } from 'react-i18next';
-import { getApiUrl, getPdfUrl } from '../config/api';
+import api, { getApiUrl, getPdfUrl } from '../config/api';
 
 // Material UI
 import Box from '@mui/material/Box';
@@ -254,19 +253,16 @@ const Devis = () => {
     try {
       setLoading(true);
       
-      // Fetch all estimates
-      const estimatesRes = await axios.get(
-        getApiUrl('estimates'),
-        { headers: authHeaders }
-      );
+      // Fetch all estimates using the configured axios instance
+      const estimatesRes = await api.get('estimates', { headers: authHeaders });
       
       // Map estimates to the expected format and fetch items for each
       const estimatesWithItems = await Promise.all(
         estimatesRes.data.map(async (estimate) => {
           try {
-            // Fetch items for this estimate
-            const itemsRes = await axios.get(
-              getApiUrl(`estimates/${estimate.id}/items`),
+            // Fetch items for this estimate using the configured axios instance
+            const itemsRes = await api.get(
+              `estimates/${estimate.id}/items`,
               { headers: authHeaders }
             );
             
