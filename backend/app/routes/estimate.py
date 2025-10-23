@@ -8,7 +8,7 @@ from app.models.estimate import Estimate
 from app.models.client import Client
 from app.models.contract_detail import ContractDetail
 from app.schemas.estimate import EstimateCreate, EstimateOut, EstimateUpdate
-from app.schemas.contract_detail import ContractDetail as ContractDetailSchema, ContractDetailCreate
+from app.schemas.contract_detail import ContractDetailOut as ContractDetailSchema, ContractDetailCreate
 
 router = APIRouter(prefix="/estimates", tags=["estimates"])
 
