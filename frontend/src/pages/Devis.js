@@ -1314,17 +1314,32 @@ const Devis = () => {
                                   'Pragma': 'no-cache',
                                   'Expires': '0'
                                 },
-                                timeout: 30000 // 30 seconds timeout
+                                timeout: 60000 // 60 seconds timeout
                               });
-                              
-                              if (res.status === 200 && res.data.size > 0) {
+
+                              if (res.status === 200 && res.data) {
+                                // Extract filename from content-disposition header or use a default one
+                                let filename = 'invoice.pdf';
+                                const contentDisposition = res.headers['content-disposition'];
+                                if (contentDisposition) {
+                                  const filenameMatch = contentDisposition.match(/filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/);
+                                  if (filenameMatch && filenameMatch[1]) {
+                                    filename = filenameMatch[1].replace(/['"]/g, '');
+                                  }
+                                } else {
+                                  // Fallback to using the invoice number if available
+                                  const invoiceNumber = payload.devis_number || new URLSearchParams(window.location.search).get('invoice_number');
+                                  filename = `invoice_${invoiceNumber || new Date().toISOString().split('T')[0]}.pdf`;
+                                }
+
+                                // Create a blob URL for the PDF
                                 const blob = new Blob([res.data], { type: 'application/pdf' });
                                 const url = window.URL.createObjectURL(blob);
                                 
                                 // Create a temporary anchor element to trigger download
                                 const a = document.createElement('a');
                                 a.href = url;
-                                a.download = `devis_${payload.devis_number || payload.name.replace(/\s+/g, '_')}.pdf`;
+                                a.download = filename;
                                 document.body.appendChild(a);
                                 a.click();
                                 
@@ -1334,7 +1349,8 @@ const Devis = () => {
                                   document.body.removeChild(a);
                                 }, 100);
                               } else {
-                                throw new Error('Received empty or invalid PDF data');
+                                console.error('Invalid response:', res);
+                                throw new Error('Failed to generate PDF: Invalid response from server');
                               }
                             } catch (err) {
                               console.error('Failed to generate PDF', err);
