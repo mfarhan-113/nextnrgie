@@ -954,13 +954,22 @@ const Devis = () => {
                               };
                               return toInputDate(row.expiration);
                             })()}
-                            onChange={(e) => {
+                            onChange={async (e) => {
                               const newVal = e.target.value || '';
                               setCreatedDevis(prev => {
                                 const next = prev.map(d => d.id === row.id ? { ...d, expiration: newVal } : d);
                                 try { persist.set('createdDevis', JSON.stringify(next)); } catch {}
                                 return next;
                               });
+                              // Persist to backend estimates so it survives refresh
+                              try {
+                                const backendId = row.backendId || (row.id?.startsWith('devis-b-') ? parseInt(row.id.slice(8), 10) : null);
+                                if (backendId) {
+                                  await axios.put(getApiUrl(`estimates/${backendId}`), { expiration_date: newVal }, { headers: authHeaders });
+                                }
+                              } catch (err) {
+                                console.warn('Failed to persist expiration_date', err);
+                              }
                             }}
                             style={{ 
                               padding: '0.5rem', 
@@ -1226,7 +1235,7 @@ const Devis = () => {
                                 },
                                 items: items,
                                 expiration: row.expiration || '',
-                                devis_number: row.devis_number,
+                                devis_number: row.devis_number || row.name,
                                 creation_date: creationDate
                               };
                               // Convert payload to query parameters
@@ -1253,6 +1262,10 @@ const Devis = () => {
                               
                               if (payload.creation_date) {
                                 queryParams.append('creation_date', payload.creation_date);
+                              }
+                              // Add contract_id to allow backend to fetch contract_details when items are empty
+                              if (selectedContractId) {
+                                queryParams.append('contract_id', selectedContractId);
                               }
                               
                               // Add client details

@@ -69,6 +69,7 @@ async def generate_devis_pdf_get(
     devis_number: str = None,
     expiration: str = None,
     creation_date: str = None,
+    contract_id: int | None = None,
     db: Session = Depends(get_db)
 ):
     """
@@ -92,12 +93,19 @@ async def generate_devis_pdf_get(
     client = {}
     items = []
     
-    # Extract client info
+    # Extract client info (support alternate keys from UI)
     client_keys = ['name', 'email', 'phone', 'tva', 'tsa_number', 'client_address']
     for key in client_keys:
         param_key = f'client[{key}]'
         if param_key in query_params:
             client[key] = query_params[param_key]
+    # Alternate names coming from UI: client_name -> name, tva_number -> tva
+    alt_name = query_params.get('client[client_name]')
+    if alt_name and not client.get('name'):
+        client['name'] = alt_name
+    alt_tva = query_params.get('client[tva_number]')
+    if alt_tva and not client.get('tva'):
+        client['tva'] = alt_tva
             
     # Extract items (handle both indexed and non-indexed items)
     item_count = 0
@@ -152,6 +160,22 @@ async def generate_devis_pdf_get(
         items.append(item)
         item_count += 1
         
+    # If no items provided but a contract_id is available, load from ContractDetail
+    if (not items) and contract_id:
+        try:
+            details = db.execute(select(ContractDetail).where(ContractDetail.contract_id == contract_id)).scalars().all()
+            for d in details:
+                items.append({
+                    'description': getattr(d, 'description', '') or '',
+                    'qty': float(getattr(d, 'qty', 0) or 0),
+                    'qty_unit': getattr(d, 'qty_unit', 'unite') or 'unite',
+                    'unit_price': float(getattr(d, 'unit_price', 0) or 0),
+                    'tva': float(getattr(d, 'tva', 0) or 0),
+                    'total_ht': float(getattr(d, 'total_ht', 0) or 0),
+                })
+        except Exception as e:
+            logger.warning(f"Failed to load ContractDetail for contract_id={contract_id}: {e}")
+
     # Prepare payload for internal function
     payload = {
         'name': name,
@@ -159,7 +183,8 @@ async def generate_devis_pdf_get(
         'expiration': expiration,
         'creation_date': creation_date,
         'client': client,
-        'items': items
+        'items': items,
+        'contract_id': contract_id
     }
     
     logger.info("\n=== Final Payload ===")
@@ -1400,10 +1425,11 @@ async def generate_devis_pdf(payload: dict):
         if number_part:
             devis_number = number_part
     
-    # If no number found in name, fall back to devis_number from payload
+    # If no number found in name, fall back to devis_number from payload,
+    # else use the whole name as a last resort to show something
     if not devis_number:
         # Ensure we never pass None to ReportLab
-        devis_number = payload.get('devis_number') or ""
+        devis_number = payload.get('devis_number') or payload.get('name') or ""
     # Extra safety: coerce to string
     devis_number = str(devis_number)
     
