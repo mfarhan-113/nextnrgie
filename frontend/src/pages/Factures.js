@@ -192,26 +192,8 @@ const Factures = () => {
     }
   };
 
-  // Helper to synchronously read latest overrides (avoids race on first render)
-  const getInvoiceOverrides = () => {
-    // Try localStorage first
-    try {
-      const raw = localStorage.getItem('invoice_overrides');
-      if (raw) {
-        const parsed = JSON.parse(raw);
-        if (parsed && typeof parsed === 'object') return parsed;
-      }
-    } catch {}
-    // Fallback to cookies
-    try {
-      const match = document.cookie.match(/(?:^|; )invoice_overrides=([^;]*)/);
-      if (match) {
-        const parsed = JSON.parse(decodeURIComponent(match[1]));
-        if (parsed && typeof parsed === 'object') return parsed;
-      }
-    } catch {}
-    return invoiceOverrides;
-  };
+  // Do not use local overrides; always rely on backend values for cross-device consistency
+  const getInvoiceOverrides = () => ({})
 
   // Fetch invoices from the backend
   const fetchInvoices = async () => {
@@ -220,17 +202,15 @@ const Factures = () => {
       const response = await axios.get(getApiUrl('invoices/'));
       const invoices = Array.isArray(response.data) ? response.data : [];
       
-      // Transform the backend data to match our frontend structure
+      // Transform using ONLY backend fields
       const formattedInvoices = invoices.map(b => {
-        const overrides = getInvoiceOverrides();
-        const ov = overrides[b.id] || {};
-        const issue = ov.issue_date || (b.created_at ? b.created_at.split('T')[0] : undefined);
-        const exp = ov.expiration_date || b.due_date;
+        const issue = b.created_at ? String(b.created_at).split('T')[0] : undefined;
+        const exp = b.due_date || undefined;
         return {
           id: `inv-${b.id}`,
           backendId: b.id,
-          name: b.invoice_number || `INV-${b.id}`,
           contractId: b.contract_id,
+          name: b.invoice_number || `INV-${b.id}`,
           issue_date: issue,
           expiration_date: exp,
           date: issue,
@@ -835,10 +815,8 @@ const Factures = () => {
 
       // 2) Build local createdInvoices entries from backend
       const mapped = backendInvoices.map(b => {
-        const overrides = getInvoiceOverrides();
-        const ov = overrides[b.id] || {};
-        const issue = ov.issue_date || (b.created_at ? b.created_at.split('T')[0] : undefined);
-        const exp = ov.expiration_date || b.due_date;
+        const issue = b.created_at ? String(b.created_at).split('T')[0] : undefined;
+        const exp = b.due_date || undefined;
         return {
           id: `inv-b-${b.id}`,
           backendId: b.id,

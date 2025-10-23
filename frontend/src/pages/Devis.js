@@ -958,7 +958,6 @@ const Devis = () => {
                               const newVal = e.target.value || '';
                               setCreatedDevis(prev => {
                                 const next = prev.map(d => d.id === row.id ? { ...d, expiration: newVal } : d);
-                                try { persist.set('createdDevis', JSON.stringify(next)); } catch {}
                                 return next;
                               });
                               // Persist to backend estimates so it survives refresh
@@ -1380,20 +1379,27 @@ const Devis = () => {
                           variant="outlined"
                           color="error"
                           size="small"
-                          onClick={() => {
-                            if (window.confirm(t('confirm_delete') || 'Êtes-vous sûr de vouloir supprimer ce devis ?')) {
-                              setCreatedDevis(prev => {
-                                const next = prev.filter(d => d.id !== row.id);
-                                try { persist.set('createdDevis', JSON.stringify(next)); } catch {}
-                                return next;
-                              });
-                              setItemsByDevis(prev => {
-                                const copy = { ...prev };
-                                delete copy[row.id];
-                                try { persist.set('itemsByDevis', JSON.stringify(copy)); } catch {}
-                                return copy;
-                              });
+                          onClick={async () => {
+                            if (!window.confirm(t('confirm_delete') || 'Êtes-vous sûr de vouloir supprimer ce devis ?')) return;
+                            // Delete from backend if possible
+                            try {
+                              const backendId = row.backendId || (row.id?.startsWith('devis-b-') ? parseInt(row.id.slice(8), 10) : null);
+                              if (backendId) {
+                                await axios.delete(getApiUrl(`estimates/${backendId}`), { headers: authHeaders });
+                              }
+                            } catch (err) {
+                              console.warn('Failed to delete backend estimate', err);
                             }
+                            // Update local state
+                            setCreatedDevis(prev => prev.filter(d => d.id !== row.id));
+                            setItemsByDevis(prev => {
+                              const copy = { ...prev };
+                              delete copy[row.id];
+                              try { persist.set('itemsByDevis', JSON.stringify(copy)); } catch {}
+                              return copy;
+                            });
+                            // Optionally refresh list from backend to ensure sync
+                            try { await fetchEstimates(); } catch {}
                           }}
                           sx={{ 
                             borderRadius: '12px',
