@@ -5,6 +5,7 @@ from sqlalchemy import pool
 
 from alembic import context
 import os
+import sys
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.
@@ -19,6 +20,11 @@ if config.config_file_name is not None:
 database_url = os.environ.get("DATABASE_URL")
 if database_url:
     config.set_main_option("sqlalchemy.url", database_url)
+
+# Ensure project root is on sys.path so `import app...` works when running alembic
+project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
+if project_root not in sys.path:
+    sys.path.insert(0, project_root)
 
 # add your model's MetaData object here
 # for 'autogenerate' support
