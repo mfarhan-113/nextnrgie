@@ -138,7 +138,7 @@ const Dashboard = () => {
     const fetchStats = async () => {
       setLoadingStats(true);
       try {
-        const res = await api.get('dashboard/stats/');
+        const res = await api.get(getApiUrl('dashboard/stats/'));
         setStats(prevStats => prevStats.map(stat => ({
           ...stat,
           value: res.data[stat.label] || '0'
@@ -153,7 +153,7 @@ const Dashboard = () => {
     const fetchRecentActivity = async () => {
       setLoadingRecent(true);
       try {
-        const res = await api.get('dashboard/recent-activity/');
+        const res = await api.get(getApiUrl('dashboard/recent-activity/'));
         const activities = res.data.map(item => ({
           id: item.id,
           type: item.type || 'Recent',
@@ -179,7 +179,7 @@ const Dashboard = () => {
     const fetchContractGrowth = async () => {
       setLoadingGrowth(true);
       try {
-        const response = await api.get('dashboard/contract-growth/');
+        const response = await api.get(getApiUrl('dashboard/contract-growth/'));
         setContractGrowth(response.data);
       } catch (error) {
         console.error('Error fetching contract growth data:', error);

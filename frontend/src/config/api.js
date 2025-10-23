@@ -61,11 +61,17 @@ export const getPdfUrl = (endpoint) => {
   return url;
 };
 
+const defaultHeaders = {
+  'Content-Type': 'application/json',
+};
+if (isProduction) {
+  defaultHeaders['X-Forwarded-Proto'] = 'https';
+  defaultHeaders['X-Forwarded-Host'] = currentHost;
+}
+
 const api = axios.create({
   baseURL: API_BASE,
-  headers: {
-    'Content-Type': 'application/json',
-  },
+  headers: defaultHeaders,
 });
 
 api.interceptors.request.use((config) => {
@@ -92,6 +98,36 @@ api.interceptors.request.use((config) => {
   }
   return config;
 });
+
+api.interceptors.response.use(
+  (response) => {
+    if (isProduction) {
+      try {
+        const responseURL = response?.request?.responseURL || '';
+        if (responseURL) {
+          console.log('[API RESPONSE]', {
+            status: response.status,
+            responseURL
+          });
+        }
+      } catch (_) {}
+    }
+    return response;
+  },
+  (error) => {
+    if (isProduction) {
+      try {
+        const responseURL = error?.request?.responseURL || '';
+        console.warn('[API ERROR]', {
+          message: error?.message,
+          code: error?.code,
+          responseURL
+        });
+      } catch (_) {}
+    }
+    return Promise.reject(error);
+  }
+);
 
 // Log the API configuration for debugging
 console.log('API Configuration:', {
