@@ -27,6 +27,22 @@ def upgrade() -> None:
     # Check if table exists before dropping
     if 'contract_items' in inspector.get_table_names():
         op.drop_table('contract_items')
+        
+    # Create contract_details table if it doesn't exist
+    if 'contract_details' not in inspector.get_table_names():
+        op.create_table(
+            'contract_details',
+            sa.Column('id', sa.Integer(), nullable=False, primary_key=True),
+            sa.Column('contract_id', sa.Integer(), sa.ForeignKey('contracts.id'), nullable=False),
+            sa.Column('description', sa.String(255), nullable=False),
+            sa.Column('qty', sa.Integer(), nullable=False),
+            sa.Column('qty_unit', sa.String(20), server_default='unite'),
+            sa.Column('unit_price', sa.Float(), nullable=False),
+            sa.Column('tva', sa.Float(), nullable=False),
+            sa.Column('total_ht', sa.Float(), nullable=False),
+            sa.Column('created_at', sa.DateTime(), server_default=sa.text('CURRENT_TIMESTAMP')),
+            sa.Column('updated_at', sa.DateTime(), server_default=sa.text('CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP'))
+        )
 
 
 def downgrade() -> None:
