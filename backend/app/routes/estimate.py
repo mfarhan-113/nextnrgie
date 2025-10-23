@@ -143,9 +143,16 @@ def add_estimate_item(
         raise HTTPException(status_code=404, detail="Estimate not found")
     
     # Create new item linked to this estimate
+    # Ignore any client-provided estimate_id to prevent duplication and enforce path binding
     db_item = ContractDetail(
-        **item.dict(),
-        estimate_id=estimate_id
+        description=item.description,
+        qty=item.qty,
+        qty_unit=item.qty_unit,
+        unit_price=item.unit_price,
+        tva=item.tva,
+        total_ht=item.total_ht,
+        contract_id=item.contract_id,
+        estimate_id=estimate_id,
     )
     db.add(db_item)
     db.commit()
