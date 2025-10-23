@@ -262,7 +262,7 @@ const Devis = () => {
           try {
             // Fetch items for this estimate using the configured axios instance
             const itemsRes = await api.get(
-              `estimates/${estimate.id}/items/`,
+              getApiUrl(`estimates/${estimate.id}/items/`),
               { headers: authHeaders }
             );
             
@@ -509,7 +509,7 @@ const Devis = () => {
     try {
       // Delete from backend
       await api.delete(
-        `estimates/${devis.backendId}/items/${itemId}/`,
+        getApiUrl(`estimates/${devis.backendId}/items/${itemId}/`),
         { headers: authHeaders }
       );
 
@@ -587,7 +587,7 @@ const Devis = () => {
     try {
       // Update in backend
       await api.put(
-        `estimates/${devis.backendId}/items/${itemId}/`,
+        getApiUrl(`estimates/${devis.backendId}/items/${itemId}/`),
         updatedItem,
         { headers: authHeaders }
       );
@@ -660,7 +660,7 @@ const Devis = () => {
       
       // Add to backend
       const response = await api.post(
-        `estimates/${devis.backendId}/items/`,
+        getApiUrl(`estimates/${devis.backendId}/items/`),
         newItem,
         { headers: authHeaders }
       );
