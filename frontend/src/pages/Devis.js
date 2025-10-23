@@ -227,8 +227,8 @@ const Devis = () => {
     const load = async () => {
       try {
         const [clientsRes, contractsRes] = await Promise.all([
-          axios.get(getApiUrl('clients/'), { headers: authHeaders }),
-          axios.get(getApiUrl('contracts/'), { headers: authHeaders })
+          api.get('clients/', { headers: authHeaders }),
+          api.get('contracts/', { headers: authHeaders })
         ]);
 
         const formattedClients = (clientsRes.data || []).map(c => ({
@@ -392,10 +392,10 @@ const Devis = () => {
       
       try {
         // Try the main endpoint first
-        const url = getApiUrl(`contract-details/contracts/${selectedContractId}`);
+        const url = getApiUrl(`contract-details/contracts/${selectedContractId}/`);
         console.log(`Fetching from: ${url}`);
         
-        const res = await axios.get(url, { 
+        const res = await api.get(url, { 
           headers: { 
             ...authHeaders,
             'Content-Type': 'application/json'
@@ -418,8 +418,8 @@ const Devis = () => {
         if (e.response?.status === 404) {
           try {
             console.log('Trying alternative endpoint...');
-            const altUrl = getApiUrl(`contracts/${selectedContractId}/details`);
-            const altRes = await axios.get(altUrl, { 
+            const altUrl = getApiUrl(`contracts/${selectedContractId}/details/`);
+            const altRes = await api.get(altUrl, { 
               headers: { 
                 ...authHeaders,
                 'Content-Type': 'application/json'
@@ -508,8 +508,8 @@ const Devis = () => {
 
     try {
       // Delete from backend
-      await axios.delete(
-        getApiUrl(`estimates/${devis.backendId}/items/${itemId}`),
+      await api.delete(
+        `estimates/${devis.backendId}/items/${itemId}/`,
         { headers: authHeaders }
       );
 
@@ -586,8 +586,8 @@ const Devis = () => {
     
     try {
       // Update in backend
-      await axios.put(
-        getApiUrl(`estimates/${devis.backendId}/items/${itemId}`),
+      await api.put(
+        `estimates/${devis.backendId}/items/${itemId}/`,
         updatedItem,
         { headers: authHeaders }
       );
@@ -622,8 +622,8 @@ const Devis = () => {
   const refreshList = async () => {
     if (!selectedContractId) return;
     try {
-      const res = await axios.get(
-        getApiUrl(`contract-details/contract/${selectedContractId}`),
+      const res = await api.get(
+        getApiUrl(`contract-details/contract/${selectedContractId}/`),
         { headers: authHeaders }
       );
       setDetails(res.data || []);
@@ -659,8 +659,8 @@ const Devis = () => {
       };
       
       // Add to backend
-      const response = await axios.post(
-        getApiUrl(`estimates/${devis.backendId}/items`),
+      const response = await api.post(
+        `estimates/${devis.backendId}/items/`,
         newItem,
         { headers: authHeaders }
       );
@@ -684,7 +684,7 @@ const Devis = () => {
       // Persist to backend so Devis PDF (which reads contract_details) includes qty_unit
       try {
         if (selectedContractId) {
-          await axios.post(
+          await api.post(
             getApiUrl('contract-details/'),
             {
               contract_id: parseInt(selectedContractId),
@@ -729,7 +729,7 @@ const Devis = () => {
   const handleCreateDevis = async () => {
     if (!selectedClientId || !newDevisNumber) return;
     try {
-      const res = await axios.post(getApiUrl('estimates/'), {
+      const res = await api.post('estimates/', {
         estimate_number: newDevisNumber,
         client_id: parseInt(selectedClientId, 10),
         amount: 0,
@@ -763,7 +763,7 @@ const Devis = () => {
     const backendId = row?.backendId || (row?.id?.startsWith('devis-b-') ? parseInt(row.id.slice(8), 10) : null);
     if (backendId) {
       try {
-        await axios.put(getApiUrl(`estimates/${backendId}`), { creation_date: newDate }, { headers: authHeaders });
+        await api.put(`estimates/${backendId}/`, { creation_date: newDate }, { headers: authHeaders });
       } catch (err) {
         console.warn('Failed to persist devis date', err);
       }
@@ -1094,7 +1094,7 @@ const Devis = () => {
                               try {
                                 const backendId = row.backendId || (row.id?.startsWith('devis-b-') ? parseInt(row.id.slice(8), 10) : null);
                                 if (backendId) {
-                                  await axios.put(getApiUrl(`estimates/${backendId}`), { expiration_date: newVal }, { headers: authHeaders });
+                                  await api.put(`estimates/${backendId}/`, { expiration_date: newVal }, { headers: authHeaders });
                                 }
                               } catch (err) {
                                 console.warn('Failed to persist expiration_date', err);
@@ -1117,7 +1117,7 @@ const Devis = () => {
                             mb: 2 
                           }}>
                             <Typography variant="body2" sx={{ color: '#9c27b0', fontWeight: 'bold' }}>
-{t('total_value') || 'Valeur Totale'}: {totalValue.toFixed(2)} €
+                              {t('total_value') || 'Valeur Totale'}: {totalValue.toFixed(2)} €
                             </Typography>
                           </Box>
                         )}
@@ -1255,7 +1255,7 @@ const Devis = () => {
                                             onClick={cancelEditItem}
                                             sx={{ color: '#666', borderColor: '#666' }}
                                           >
-{t('cancel') || 'Annuler'}
+                                            {t('cancel') || 'Annuler'}
                                           </Button>
                                           <Button
                                             variant="contained"
@@ -1263,7 +1263,7 @@ const Devis = () => {
                                             onClick={saveEditedItem}
                                             sx={{ backgroundColor: '#1976d2' }}
                                           >
-{t('save') || 'Enregistrer'}
+                                            {t('save') || 'Enregistrer'}
                                           </Button>
                                         </Box>
                                       </Box>
@@ -1333,7 +1333,7 @@ const Devis = () => {
                             textAlign: 'center'
                           }}>
                             <Typography variant="body2" sx={{ color: '#856404' }}>
-{t('no_items_added_yet') || 'Aucun article ajouté pour le moment. Utilisez le bouton + pour ajouter des articles à ce devis.'}
+                              {t('no_items_added_yet') || 'Aucun article ajouté pour le moment. Utilisez le bouton + pour ajouter des articles à ce devis.'}
                             </Typography>
                           </Box>
                         )}
@@ -1440,7 +1440,7 @@ const Devis = () => {
                               
                               // Log the payload and URL for debugging
                               console.log('Full Payload:', JSON.stringify(payload, null, 2));
-                              const pdfUrl = `${getApiUrl('pdf/generate_devis')}?${queryParams.toString()}`;
+                              const pdfUrl = `${getApiUrl('pdf/generate_devis/')}?${queryParams.toString()}`;
                               console.log('PDF Generation URL:', pdfUrl);
                               console.log('Query Parameters:');
                               queryParams.forEach((value, key) => {
@@ -1448,7 +1448,7 @@ const Devis = () => {
                               });
                               
                               // Make GET request with query parameters
-                              const res = await axios.get(pdfUrl, { 
+                              const res = await api.get(pdfUrl, { 
                                 responseType: 'blob',
                                 headers: { 
                                   'Accept': 'application/pdf',
@@ -1515,7 +1515,7 @@ const Devis = () => {
                             try {
                               const backendId = row.backendId || (row.id?.startsWith('devis-b-') ? parseInt(row.id.slice(8), 10) : null);
                               if (backendId) {
-                                await axios.delete(getApiUrl(`estimates/${backendId}`), { headers: authHeaders });
+                                await api.delete(`estimates/${backendId}/`, { headers: authHeaders });
                               }
                             } catch (err) {
                               console.warn('Failed to delete backend estimate', err);
