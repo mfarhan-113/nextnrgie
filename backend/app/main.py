@@ -2,7 +2,7 @@ from fastapi import FastAPI, APIRouter
 from fastapi.middleware.cors import CORSMiddleware
 from app.routes import (
     auth_router, client_router, contract_router, contract_detail_router,
-    dashboard_router, facture_router, invoice_router, misc_router,
+    dashboard_router, facture_router, invoice_router, estimate_router, misc_router,
     pdf_router, salary_router
 )
 
@@ -52,7 +52,8 @@ routers = [
     auth_router,
     pdf_router,
     misc_router,
-    invoice_router
+    invoice_router,
+    estimate_router
 ]
 
 # Include all routers with proper prefixing

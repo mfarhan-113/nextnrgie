@@ -5,6 +5,7 @@ from .contract_detail import router as contract_detail_router
 from .dashboard import router as dashboard_router
 from .facture import router as facture_router
 from .invoice import router as invoice_router
+from .estimate import router as estimate_router
 from .misc import router as misc_router
 from .pdf import router as pdf_router
 from .salary import router as salary_router
@@ -18,6 +19,7 @@ __all__ = [
     'dashboard_router',
     'facture_router',
     'invoice_router',
+    'estimate_router',
     'misc_router',
     'pdf_router',
     'salary_router'

@@ -153,7 +153,7 @@ const Devis = () => {
   const [error, setError] = useState('');
   const [toast, setToast] = useState('');
   // In-memory created devis rows (UI only for now)
-  const [createdDevis, setCreatedDevis] = useState([]); // { id, name, clientId, date, expiration }
+  const [createdDevis, setCreatedDevis] = useState([]); // { id, backendId, name, clientId, date, expiration }
   // Items per created devis (UI only)
   const [itemsByDevis, setItemsByDevis] = useState({}); // { [devisId]: [{description, qty, unit_price, tva, total_ht}] }
   const [selectedDevisId, setSelectedDevisId] = useState('');
@@ -249,35 +249,35 @@ const Devis = () => {
     load();
   }, [authHeaders, t]);
 
-  // Hydrate UI-only devis and items from storage on first mount
+  // Fetch backend estimates (Devis) and map to UI entries
+  const fetchEstimates = async () => {
+    try {
+      const res = await axios.get(getApiUrl('estimates/'), { headers: authHeaders });
+      const list = Array.isArray(res.data) ? res.data : [];
+      const mapped = list.map(e => {
+        const dateStr = e.creation_date || '';
+        return {
+          id: `devis-b-${e.id}`,
+          backendId: e.id,
+          name: e.estimate_number,
+          clientId: e.client_id,
+          date: dateStr, // 'YYYY-MM-DD'
+          creationDate: dateStr,
+          expiration: e.expiration_date || ''
+        };
+      });
+      setCreatedDevis(mapped);
+    } catch (err) {
+      console.warn('Failed to fetch estimates', err);
+    }
+  };
+
+  // Hydrate UI-only devis and items from storage on first mount (items only). Devis now come from backend.
   useEffect(() => {
     try {
-      const savedDevis = persist.get('createdDevis');
+      const savedDevis = null; // stop hydrating local devis list to avoid conflicts
       const savedItems = persist.get('itemsByDevis');
-      if (savedDevis) {
-        const parsed = JSON.parse(savedDevis);
-        // Normalize expiration to 'YYYY-MM-DD'
-        const normalized = Array.isArray(parsed) ? parsed.map(d => {
-          const exp = d.expiration;
-          let out = '';
-          if (typeof exp === 'string' && exp.length > 0) {
-            if (/^\d{4}-\d{2}-\d{2}$/.test(exp)) {
-              out = exp;
-            } else {
-              const dt = new Date(exp);
-              if (!isNaN(dt)) {
-                const yyyy = dt.getFullYear();
-                const mm = String(dt.getMonth() + 1).padStart(2, '0');
-                const dd = String(dt.getDate()).padStart(2, '0');
-                out = `${yyyy}-${mm}-${dd}`;
-              }
-            }
-          }
-          return { ...d, expiration: out };
-        }) : parsed;
-        setCreatedDevis(normalized);
-        try { persist.set('createdDevis', JSON.stringify(normalized)); } catch {}
-      }
+      // Devis list is fetched from backend instead
       if (savedItems) setItemsByDevis(JSON.parse(savedItems));
     } catch (e) {
       console.warn('Failed to parse saved devis/items from localStorage');
@@ -286,16 +286,15 @@ const Devis = () => {
     setTimeout(() => setHydrationDone(true), 0);
   }, []);
 
-  // Persist UI-only devis and items to localStorage whenever they change
+  // Persist items to localStorage whenever they change (devis list comes from backend)
   useEffect(() => {
     if (!hydrationDone) return; // avoid overwriting storage with initial empty state
     try {
-      persist.set('createdDevis', JSON.stringify(createdDevis));
       persist.set('itemsByDevis', JSON.stringify(itemsByDevis));
     } catch (e) {
       console.warn('Failed to save devis/items to localStorage');
     }
-  }, [createdDevis, itemsByDevis, hydrationDone]);
+  }, [itemsByDevis, hydrationDone]);
 
   const contractsForClient = useMemo(() => {
     if (!selectedClientId) return [];
@@ -389,6 +388,11 @@ const Devis = () => {
     
     fetchDetails();
   }, [authHeaders, selectedContractId, t]);
+
+  // Fetch estimates after clients/contracts load
+  useEffect(() => {
+    fetchEstimates();
+  }, [clients.length]);
 
   // Auto-calc total_ht with TVA
   const handleDetailsChange = (e) => {
@@ -592,37 +596,49 @@ const Devis = () => {
   };
 
   // Create new devis
-  const handleCreateDevis = () => {
+  const handleCreateDevis = async () => {
     if (!selectedClientId || !newDevisNumber) return;
-    
-    const client = clients.find(c => String(c.value) === String(selectedClientId));
-    if (!client) return;
-    
-    const dateObj = new Date(newDevisDate);
-    const dateStr = dateObj.toLocaleDateString('fr-FR');
-    const newDevis = {
-      id: `devis-${Date.now()}`,
-      name: `Devis ${newDevisNumber} - ${client.label} ${dateStr}`,
-      clientId: selectedClientId,
-      date: dateObj.toISOString(),
-      creationDate: newDevisDate, // Store the creation date separately for editing
-      expiration: ''
-    };
-    
-    setCreatedDevis(prev => [...prev, newDevis]);
-    setItemsByDevis(prev => ({ ...prev, [newDevis.id]: [] }));
-    setIsCreateDevisModalOpen(false);
+    try {
+      const res = await axios.post(getApiUrl('estimates/'), {
+        estimate_number: newDevisNumber,
+        client_id: parseInt(selectedClientId, 10),
+        amount: 0,
+        creation_date: newDevisDate,
+        expiration_date: null,
+        status: 'draft'
+      }, { headers: authHeaders });
+      const e = res.data;
+      const mapped = {
+        id: `devis-b-${e.id}`,
+        backendId: e.id,
+        name: e.estimate_number,
+        clientId: e.client_id,
+        date: e.creation_date,
+        creationDate: e.creation_date,
+        expiration: e.expiration_date || ''
+      };
+      setCreatedDevis(prev => [...prev, mapped]);
+      setItemsByDevis(prev => ({ ...prev, [mapped.id]: [] }));
+      setIsCreateDevisModalOpen(false);
+    } catch (err) {
+      console.error('Failed to create estimate', err);
+      setError(t('error_saving_data'));
+    }
   };
 
   // Update devis date
-  const updateDevisDate = (devisId, newDate) => {
-    setCreatedDevis(prev => 
-      prev.map(devis => 
-        devis.id === devisId 
-          ? { ...devis, creationDate: newDate, date: new Date(newDate).toISOString() } 
-          : devis
-      )
-    );
+  const updateDevisDate = async (devisId, newDate) => {
+    // Update backend if possible
+    const row = createdDevis.find(d => d.id === devisId);
+    const backendId = row?.backendId || (row?.id?.startsWith('devis-b-') ? parseInt(row.id.slice(8), 10) : null);
+    if (backendId) {
+      try {
+        await axios.put(getApiUrl(`estimates/${backendId}`), { creation_date: newDate }, { headers: authHeaders });
+      } catch (err) {
+        console.warn('Failed to persist devis date', err);
+      }
+    }
+    setCreatedDevis(prev => prev.map(devis => devis.id === devisId ? { ...devis, creationDate: newDate, date: newDate } : devis));
   };
 
   return (

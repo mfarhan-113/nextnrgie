@@ -4,6 +4,7 @@ from sqlalchemy import engine_from_config
 from sqlalchemy import pool
 
 from alembic import context
+import os
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.
@@ -14,6 +15,11 @@ config = context.config
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)
 
+# Allow DATABASE_URL to override alembic.ini sqlalchemy.url
+database_url = os.environ.get("DATABASE_URL")
+if database_url:
+    config.set_main_option("sqlalchemy.url", database_url)
+
 # add your model's MetaData object here
 # for 'autogenerate' support
 from app.models.base import Base
@@ -23,6 +29,7 @@ from app.models.contract import Contract
 from app.models.invoice import Invoice
 from app.models.salary import Salary
 from app.models.misc import Misc
+from app.models.estimate import Estimate
 target_metadata = Base.metadata
 
 # other values from the config, defined by the needs of env.py,

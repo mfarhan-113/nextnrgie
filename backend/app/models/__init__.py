@@ -8,6 +8,7 @@ from .facture import Facture
 from .salary import Salary
 from .invoice import Invoice
 from .misc import Misc  # Changed from Miscellaneous to Misc
+from .estimate import Estimate
 
 # This makes the models available when importing from app.models
 __all__ = [
@@ -20,5 +21,6 @@ __all__ = [
     'Facture',
     'Salary',
     'Invoice',
-    'Misc'  # Changed from 'Miscellaneous' to 'Misc'
+    'Misc',  # Changed from 'Miscellaneous' to 'Misc'
+    'Estimate'
 ]
