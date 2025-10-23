@@ -20,3 +20,4 @@ class Estimate(Base):
 
     # Relationships
     client = relationship("Client")
+    items = relationship("ContractDetail", back_populates="estimate", cascade="all, delete-orphan")

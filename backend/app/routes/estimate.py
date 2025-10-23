@@ -1,12 +1,14 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
-from typing import List
+from typing import List, Optional
 from datetime import datetime
 
 from app.core.database import get_db
 from app.models.estimate import Estimate
 from app.models.client import Client
+from app.models.contract_detail import ContractDetail
 from app.schemas.estimate import EstimateCreate, EstimateOut, EstimateUpdate
+from app.schemas.contract_detail import ContractDetail as ContractDetailSchema, ContractDetailCreate
 
 router = APIRouter(prefix="/estimates", tags=["estimates"])
 
@@ -104,11 +106,74 @@ def update_estimate(estimate_id: int, payload: EstimateUpdate, db: Session = Dep
         client_name=(client.client_name if client else None)
     )
 
-@router.delete("/{estimate_id}", status_code=204)
+@router.delete("/{estimate_id}")
 def delete_estimate(estimate_id: int, db: Session = Depends(get_db)):
-    est = db.query(Estimate).filter(Estimate.id == estimate_id).first()
+    est = db.query(Estimate).get(estimate_id)
     if not est:
         raise HTTPException(status_code=404, detail="Estimate not found")
+    
+    # The CASCADE delete will handle related contract_details
     db.delete(est)
     db.commit()
-    return None
+    return {"status": "success", "message": "Estimate and its items deleted successfully"}
+
+# Items endpoints
+@router.get("/{estimate_id}/items", response_model=List[ContractDetailSchema])
+def get_estimate_items(estimate_id: int, db: Session = Depends(get_db)):
+    # Verify estimate exists
+    estimate = db.query(Estimate).filter(Estimate.id == estimate_id).first()
+    if not estimate:
+        raise HTTPException(status_code=404, detail="Estimate not found")
+        
+    # Get items for this estimate
+    items = db.query(ContractDetail)\
+             .filter(ContractDetail.estimate_id == estimate_id)\
+             .all()
+    return items
+
+@router.post("/{estimate_id}/items", response_model=ContractDetailSchema)
+def add_estimate_item(
+    estimate_id: int, 
+    item: ContractDetailCreate, 
+    db: Session = Depends(get_db)
+):
+    # Verify estimate exists
+    estimate = db.query(Estimate).filter(Estimate.id == estimate_id).first()
+    if not estimate:
+        raise HTTPException(status_code=404, detail="Estimate not found")
+    
+    # Create new item linked to this estimate
+    db_item = ContractDetail(
+        **item.dict(),
+        estimate_id=estimate_id
+    )
+    db.add(db_item)
+    db.commit()
+    db.refresh(db_item)
+    return db_item
+
+@router.delete("/{estimate_id}/items/{item_id}")
+def delete_estimate_item(
+    estimate_id: int, 
+    item_id: int, 
+    db: Session = Depends(get_db)
+):
+    # Verify estimate exists
+    estimate = db.query(Estimate).filter(Estimate.id == estimate_id).first()
+    if not estimate:
+        raise HTTPException(status_code=404, detail="Estimate not found")
+    
+    # Find and delete the item
+    item = db.query(ContractDetail)\
+             .filter(
+                 ContractDetail.id == item_id,
+                 ContractDetail.estimate_id == estimate_id
+             )\
+             .first()
+    
+    if not item:
+        raise HTTPException(status_code=404, detail="Item not found in this estimate")
+    
+    db.delete(item)
+    db.commit()
+    return {"status": "success", "message": "Item deleted successfully"}

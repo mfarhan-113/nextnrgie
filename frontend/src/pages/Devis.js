@@ -249,26 +249,76 @@ const Devis = () => {
     load();
   }, [authHeaders, t]);
 
-  // Fetch backend estimates (Devis) and map to UI entries
+  // Fetch backend estimates (Devis) with their items and map to UI entries
   const fetchEstimates = async () => {
     try {
-      const res = await axios.get(getApiUrl('estimates/'), { headers: authHeaders });
-      const list = Array.isArray(res.data) ? res.data : [];
-      const mapped = list.map(e => {
-        const dateStr = e.creation_date || '';
+      setLoading(true);
+      const [estimatesRes, clientsRes] = await Promise.all([
+        axios.get(getApiUrl('estimates/'), { headers: authHeaders }),
+        axios.get(getApiUrl('clients/'), { headers: authHeaders })
+      ]);
+      
+      const estimates = Array.isArray(estimatesRes.data) ? estimatesRes.data : [];
+      const clientsMap = (clientsRes.data || []).reduce((acc, client) => {
+        acc[client.id] = client;
+        return acc;
+      }, {});
+      
+      // For each estimate, fetch its items
+      const estimatesWithItems = await Promise.all(estimates.map(async (est) => {
+        try {
+          const itemsRes = await axios.get(getApiUrl(`estimates/${est.id}/items`), { headers: authHeaders });
+          return {
+            ...est,
+            items: Array.isArray(itemsRes.data) ? itemsRes.data : []
+          };
+        } catch (err) {
+          console.error(`Failed to fetch items for estimate ${est.id}:`, err);
+          return { ...est, items: [] };
+        }
+      }));
+
+      // Map to UI format
+      const mapped = estimatesWithItems.map(est => {
+        const dateStr = est.creation_date || '';
+        const client = clientsMap[est.client_id] || {};
         return {
-          id: `devis-b-${e.id}`,
-          backendId: e.id,
-          name: e.estimate_number,
-          clientId: e.client_id,
-          date: dateStr, // 'YYYY-MM-DD'
+          id: `devis-b-${est.id}`,
+          backendId: est.id,
+          name: est.estimate_number,
+          clientId: est.client_id,
+          clientName: client.client_name || `Client #${est.client_id}`,
+          date: dateStr,
           creationDate: dateStr,
-          expiration: e.expiration_date || ''
+          expiration: est.expiration_date || '',
+          items: (est.items || []).map(item => ({
+            id: `item-${item.id}`,
+            description: item.description || '',
+            qty: parseFloat(item.qty) || 1,
+            qty_unit: item.qty_unit || 'unite',
+            unit_price: parseFloat(item.unit_price) || 0,
+            tva: parseFloat(item.tva) || 0,
+            total_ht: parseFloat(item.total_ht) || 0
+          }))
         };
       });
+      
       setCreatedDevis(mapped);
+      
+      // Update itemsByDevis state
+      const itemsMap = {};
+      mapped.forEach(devis => {
+        if (devis.items && devis.items.length > 0) {
+          itemsMap[devis.id] = devis.items;
+        }
+      });
+      setItemsByDevis(prev => ({ ...prev, ...itemsMap }));
+      
     } catch (err) {
-      console.warn('Failed to fetch estimates', err);
+      console.error('Failed to fetch estimates:', err);
+      setError(t('error_loading_estimates') || 'Failed to load estimates');
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -389,6 +439,90 @@ const Devis = () => {
     fetchDetails();
   }, [authHeaders, selectedContractId, t]);
 
+  // Fetch estimates with their items from the backend
+  const fetchEstimates = async () => {
+    try {
+      setLoading(true);
+      
+      // Fetch all estimates
+      const estimatesRes = await axios.get(
+        getApiUrl('estimates'),
+        { headers: authHeaders }
+      );
+      
+      // Map estimates to the expected format and fetch items for each
+      const estimatesWithItems = await Promise.all(
+        estimatesRes.data.map(async (estimate) => {
+          try {
+            // Fetch items for this estimate
+            const itemsRes = await axios.get(
+              getApiUrl(`estimates/${estimate.id}/items`),
+              { headers: authHeaders }
+            );
+            
+            const items = Array.isArray(itemsRes.data) 
+              ? itemsRes.data.map(item => ({
+                  ...item,
+                  id: `item-${item.id}`,
+                  qty: parseFloat(item.qty) || 0,
+                  unit_price: parseFloat(item.unit_price) || 0,
+                  tva: parseFloat(item.tva) || 0,
+                  total_ht: parseFloat(item.total_ht) || 0
+                }))
+              : [];
+            
+            return {
+              id: `devis-${estimate.id}`,
+              backendId: estimate.id,
+              name: estimate.estimate_number || `Devis-${estimate.id}`,
+              clientId: estimate.client_id ? String(estimate.client_id) : '',
+              date: estimate.creation_date || new Date().toISOString().split('T')[0],
+              expiration: estimate.expiration_date || '',
+              status: estimate.status || 'draft',
+              amount: parseFloat(estimate.amount) || 0,
+              createdAt: estimate.created_at
+            };
+          } catch (error) {
+            console.error(`Error fetching items for estimate ${estimate.id}:`, error);
+            return {
+              id: `devis-${estimate.id}`,
+              backendId: estimate.id,
+              name: estimate.estimate_number || `Devis-${estimate.id}`,
+              clientId: estimate.client_id ? String(estimate.client_id) : '',
+              date: estimate.creation_date || new Date().toISOString().split('T')[0],
+              expiration: estimate.expiration_date || '',
+              status: estimate.status || 'draft',
+              amount: parseFloat(estimate.amount) || 0,
+              createdAt: estimate.created_at
+            };
+          }
+        })
+      );
+      
+      // Update estimates and items in state
+      setCreatedDevis(estimatesWithItems);
+      
+      // Create itemsByDevis mapping
+      const itemsMap = {};
+      estimatesWithItems.forEach(estimate => {
+        const estimateId = estimate.id;
+        const backendId = estimate.backendId;
+        // Find items for this estimate
+        const items = estimatesWithItems
+          .find(e => e.id === estimateId)?.items || [];
+        itemsMap[estimateId] = items;
+      });
+      
+      setItemsByDevis(itemsMap);
+      
+    } catch (error) {
+      console.error('Error fetching estimates:', error);
+      setError(t('error_loading_estimates') || 'Failed to load estimates');
+    } finally {
+      setLoading(false);
+    }
+  };
+  
   // Fetch estimates after clients/contracts load
   useEffect(() => {
     fetchEstimates();
@@ -437,16 +571,41 @@ const Devis = () => {
   };
 
   // Delete an item from a devis
-  const deleteItem = (devisId, itemIndex) => {
-    if (window.confirm(t('confirm_delete_item') || 'Êtes-vous sûr de vouloir supprimer cet article ?')) {
+  const deleteItem = async (devisId, itemIndex) => {
+    if (!window.confirm(t('confirm_delete_item') || 'Êtes-vous sûr de vouloir supprimer cet article ?')) {
+      return;
+    }
+
+    const devis = createdDevis.find(d => d.id === devisId);
+    if (!devis || !devis.backendId) return;
+
+    const item = itemsByDevis[devisId]?.[itemIndex];
+    if (!item) return;
+
+    const itemId = item.id?.replace('item-', '');
+    if (!itemId) return;
+
+    try {
+      // Delete from backend
+      await axios.delete(
+        getApiUrl(`estimates/${devis.backendId}/items/${itemId}`),
+        { headers: authHeaders }
+      );
+
+      // Update local state
       setItemsByDevis(prev => {
         const newItems = { ...prev };
-        newItems[devisId] = newItems[devisId].filter((_, idx) => idx !== itemIndex);
-        try { persist.set('itemsByDevis', JSON.stringify(newItems)); } catch {}
+        if (newItems[devisId]) {
+          newItems[devisId] = newItems[devisId].filter((_, idx) => idx !== itemIndex);
+        }
         return newItems;
       });
+
       setToast(t('item_deleted_successfully') || 'Article supprimé avec succès !');
       setTimeout(() => setToast(''), 2500);
+    } catch (error) {
+      console.error('Error deleting item:', error);
+      setError(t('error_deleting_item') || 'Failed to delete item');
     }
   };
 
@@ -483,27 +642,54 @@ const Devis = () => {
   };
 
   // Save edited item
-  const saveEditedItem = () => {
+  const saveEditedItem = async () => {
     if (!editingItem) return;
     
-    setItemsByDevis(prev => {
-      const newItems = { ...prev };
-      newItems[editingItem.devisId][editingItem.itemIndex] = {
-        description: editItemForm.description,
-        qty: parseFloat(editItemForm.qty) || 0,
-        qty_unit: editItemForm.qty_unit || 'unite',
-        unit_price: parseFloat(editItemForm.unit_price) || 0,
-        tva: parseFloat(editItemForm.tva) || 0,
-        total_ht: parseFloat(editItemForm.total_ht) || 0
-      };
-      try { persist.set('itemsByDevis', JSON.stringify(newItems)); } catch {}
-      return newItems;
-    });
+    const devis = createdDevis.find(d => d.id === editingItem.devisId);
+    if (!devis || !devis.backendId) return;
     
-    setEditingItem(null);
-    setEditItemForm({ description: '', qty: '', unit_price: '', tva: '', total_ht: '' });
-    setToast(t('item_updated_successfully') || 'Article mis à jour avec succès !');
-    setTimeout(() => setToast(''), 2500);
+    const item = itemsByDevis[editingItem.devisId]?.[editingItem.itemIndex];
+    if (!item) return;
+    
+    const itemId = item.id?.replace('item-', '');
+    if (!itemId) return;
+    
+    const updatedItem = {
+      description: editItemForm.description,
+      qty: parseFloat(editItemForm.qty) || 0,
+      qty_unit: editItemForm.qty_unit || 'unite',
+      unit_price: parseFloat(editItemForm.unit_price) || 0,
+      tva: parseFloat(editItemForm.tva) || 0,
+      total_ht: parseFloat(editItemForm.total_ht) || 0
+    };
+    
+    try {
+      // Update in backend
+      await axios.put(
+        getApiUrl(`estimates/${devis.backendId}/items/${itemId}`),
+        updatedItem,
+        { headers: authHeaders }
+      );
+      
+      // Update local state
+      setItemsByDevis(prev => {
+        const newItems = { ...prev };
+        newItems[editingItem.devisId][editingItem.itemIndex] = {
+          ...updatedItem,
+          id: item.id // Preserve the ID
+        };
+        return newItems;
+      });
+      
+      setEditingItem(null);
+      setEditItemForm({ description: '', qty: '', unit_price: '', tva: '', total_ht: '' });
+      setToast(t('item_updated_successfully') || 'Article mis à jour avec succès !');
+      setTimeout(() => setToast(''), 2500);
+      
+    } catch (error) {
+      console.error('Error updating item:', error);
+      setError(t('error_updating_item') || 'Failed to update item');
+    }
   };
 
   // Cancel editing
@@ -531,11 +717,18 @@ const Devis = () => {
       setError(t('select_devis_first') || 'Please select a Devis first.');
       return;
     }
+    
+    const devis = createdDevis.find(d => d.id === selectedDevisId);
+    if (!devis || !devis.backendId) {
+      setError('Invalid Devis selected');
+      return;
+    }
+    
     setLoading(true);
     setError('');
 
     try {
-      const item = {
+      const newItem = {
         description: detailsForm.description,
         qty: parseInt(detailsForm.qty) || 0,
         qty_unit: detailsForm.qty_unit || 'unite',
@@ -543,12 +736,28 @@ const Devis = () => {
         tva: parseFloat(detailsForm.tva) || 0,
         total_ht: parseFloat(detailsForm.total_ht) || 0
       };
+      
+      // Add to backend
+      const response = await axios.post(
+        getApiUrl(`estimates/${devis.backendId}/items`),
+        newItem,
+        { headers: authHeaders }
+      );
+      
+      // Update local state
+      const addedItem = {
+        ...response.data,
+        id: `item-${response.data.id}`,
+        qty: parseFloat(response.data.qty) || 0,
+        unit_price: parseFloat(response.data.unit_price) || 0,
+        tva: parseFloat(response.data.tva) || 0,
+        total_ht: parseFloat(response.data.total_ht) || 0
+      };
+      
       setItemsByDevis(prev => {
         const list = prev[selectedDevisId] ? [...prev[selectedDevisId]] : [];
-        list.push(item);
-        const next = { ...prev, [selectedDevisId]: list };
-        try { persist.set('itemsByDevis', JSON.stringify(next)); } catch {}
-        return next;
+        list.push(addedItem);
+        return { ...prev, [selectedDevisId]: list };
       });
 
       // Persist to backend so Devis PDF (which reads contract_details) includes qty_unit
