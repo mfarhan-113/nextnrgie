@@ -15,6 +15,18 @@ class ContractDetailCreate(ContractDetailBase):
     contract_id: Optional[int] = None
     estimate_id: Optional[int] = None
 
+class ContractDetailUpdate(BaseModel):
+    description: Optional[str] = None
+    qty: Optional[int] = None
+    # unite | ensemble | m
+    qty_unit: Optional[str] = None
+    unit_price: Optional[float] = None
+    tva: Optional[float] = None
+    total_ht: Optional[float] = None
+    contract_id: Optional[int] = None
+    # estimate_id is path-bound; ignore if provided
+    estimate_id: Optional[int] = None
+
 class ContractDetailOut(ContractDetailBase):
     id: int
     contract_id: Optional[int] = None

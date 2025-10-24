@@ -927,7 +927,7 @@ const Devis = () => {
               <label htmlFor="client_select">{t('client_name')}</label>
             </div>
 
-            <Box sx={{ display: 'flex', justifyContent: 'flex-end', mb: 3 }}>
+            <Box sx={{ display: 'flex', justifyContent: 'flex-end', mb: '1rem' }}>
               <ActionButton
                 variant="create"
                 onClick={openCreateDevisModal}

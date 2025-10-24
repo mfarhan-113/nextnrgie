@@ -1,6 +1,6 @@
 from pydantic import BaseModel
 from typing import Optional
-from datetime import date
+from datetime import date, datetime
 
 class InvoiceBase(BaseModel):
     invoice_number: str
@@ -19,6 +19,8 @@ class InvoiceOut(InvoiceBase):
     contract_id: int
     contract_number: Optional[str] = None
     paid_amount: Optional[float] = 0.0
+    # Include created_at so frontend can use it as issue_date after reload
+    created_at: Optional[datetime] = None
     
     class Config:
         orm_mode = True

@@ -8,7 +8,7 @@ from app.models.estimate import Estimate
 from app.models.client import Client
 from app.models.contract_detail import ContractDetail
 from app.schemas.estimate import EstimateCreate, EstimateOut, EstimateUpdate
-from app.schemas.contract_detail import ContractDetailOut as ContractDetailSchema, ContractDetailCreate
+from app.schemas.contract_detail import ContractDetailOut as ContractDetailSchema, ContractDetailCreate, ContractDetailUpdate
 
 router = APIRouter(prefix="/estimates", tags=["estimates"])
 
@@ -184,3 +184,47 @@ def delete_estimate_item(
     db.delete(item)
     db.commit()
     return {"status": "success", "message": "Item deleted successfully"}
+
+# Update a specific item of an estimate
+@router.put("/{estimate_id}/items/{item_id}", response_model=ContractDetailSchema)
+def update_estimate_item(
+    estimate_id: int,
+    item_id: int,
+    payload: ContractDetailUpdate,
+    db: Session = Depends(get_db)
+):
+    # Verify estimate exists
+    estimate = db.query(Estimate).filter(Estimate.id == estimate_id).first()
+    if not estimate:
+        raise HTTPException(status_code=404, detail="Estimate not found")
+
+    # Find the item within this estimate
+    item = db.query(ContractDetail)\
+        .filter(
+            ContractDetail.id == item_id,
+            ContractDetail.estimate_id == estimate_id
+        )\
+        .first()
+    if not item:
+        raise HTTPException(status_code=404, detail="Item not found in this estimate")
+
+    # Apply updates if provided
+    if payload.description is not None:
+        item.description = payload.description
+    if payload.qty is not None:
+        item.qty = payload.qty
+    if payload.qty_unit is not None:
+        item.qty_unit = payload.qty_unit
+    if payload.unit_price is not None:
+        item.unit_price = payload.unit_price
+    if payload.tva is not None:
+        item.tva = payload.tva
+    if payload.total_ht is not None:
+        item.total_ht = payload.total_ht
+    if payload.contract_id is not None:
+        item.contract_id = payload.contract_id
+
+    db.add(item)
+    db.commit()
+    db.refresh(item)
+    return item
