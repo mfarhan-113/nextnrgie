@@ -5,13 +5,13 @@ const isProduction = process.env.NODE_ENV === 'production';
 const currentProtocol = window.location.protocol;
 const currentHost = window.location.host;
 
-// Base URL configuration
+// Base URL configuration - Use environment variable or fallback to current host
 const API_BASE = isProduction
-  ? `https://${currentHost}/api/`  // Always use HTTPS in production (trailing slash is critical)
+  ? `https://${process.env.REACT_APP_API_HOST || currentHost}/api/`  // Use REACT_APP_API_HOST if set, otherwise current host
   : process.env.REACT_APP_API_URL || '/api';
 
 const BASE_URL = isProduction
-  ? `https://${currentHost}`  // Always use HTTPS in production
+  ? `https://${process.env.REACT_APP_API_HOST || currentHost}`  // Use REACT_APP_API_HOST if set, otherwise current host
   : process.env.REACT_APP_BASE_URL || window.location.origin;
 
 const ensureHttps = (url) => {
