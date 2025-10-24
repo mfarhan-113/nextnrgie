@@ -282,13 +282,20 @@ const Devis = () => {
 
   // Helper: fetch items for a specific devis on demand
   const fetchItemsForDevis = async (devis) => {
-    if (!devis?.backendId) return [];
+    console.log('Fetching items for devis:', devis);
+    if (!devis?.backendId) {
+      console.warn('No backendId found for devis:', devis);
+      return [];
+    }
     try {
-      const res = await api.get(
-        getApiUrl(`estimates/${devis.backendId}/items/`),
-        { headers: authHeaders }
-      );
+      const url = getApiUrl(`estimates/${devis.backendId}/items/`);
+      console.log('Fetching items from URL:', url);
+      const res = await api.get(url, { headers: authHeaders });
+      console.log('API response for items:', res.data);
+      
       const items = Array.isArray(res.data) ? res.data : [];
+      console.log('Processed items:', items);
+      
       return items.map(item => ({
         ...item,
         id: `item-${item.id}`,
@@ -298,6 +305,7 @@ const Devis = () => {
         total_ht: parseFloat(item.total_ht) || 0
       }));
     } catch (e) {
+      console.error('Error fetching items for devis:', e);
       console.warn(`Failed to load items for devis ${devis.backendId}`);
       return [];
     }
@@ -464,14 +472,31 @@ const Devis = () => {
   const toggleItemsVisibility = async (devisId) => {
     const willExpand = !expandedItems[devisId];
     setExpandedItems(prev => ({ ...prev, [devisId]: willExpand }));
+    
     if (willExpand) {
+      console.log('Expanding devis:', devisId);
       const current = itemsByDevis[devisId];
-      if (!current || current.length === 0) {
+      console.log('Current items in state:', current);
+      
+      // Always try to fetch fresh items when expanding, regardless of what's in state
+      try {
         const devis = createdDevis.find(d => d.id === devisId);
+        console.log('Found devis in createdDevis:', devis);
+        
         if (devis) {
+          console.log('Fetching fresh items for devis:', devis);
           const loaded = await fetchItemsForDevis(devis);
-          setItemsByDevis(prev => ({ ...prev, [devisId]: loaded }));
+          console.log('Loaded items:', loaded);
+          
+          setItemsByDevis(prev => {
+            console.log('Updating items in state for devis:', devisId);
+            return { ...prev, [devisId]: loaded };
+          });
+        } else {
+          console.warn('Devis not found in createdDevis:', devisId);
         }
+      } catch (error) {
+        console.error('Error loading items:', error);
       }
     }
   };
