@@ -272,6 +272,28 @@ const Devis = () => {
       // Update estimates in state
       setCreatedDevis(estimatesMapped);
 
+      // Background prefetch: load items for each estimate so counts/lists appear across devices
+      // Do not block UI; errors are swallowed and logged by fetchItemsForDevis
+      ;(async () => {
+        try {
+          const loads = await Promise.all(
+            (estimatesMapped || []).map(async (e) => {
+              const items = await fetchItemsForDevis(e);
+              return [e.id, items];
+            })
+          );
+          setItemsByDevis((prev) => {
+            const next = { ...prev };
+            loads.forEach(([id, items]) => {
+              next[id] = items;
+            });
+            return next;
+          });
+        } catch (_) {
+          // no-op; per-estimate errors are already logged
+        }
+      })();
+
     } catch (error) {
       console.error('Error fetching estimates:', error);
       setError(t('error_loading_estimates') || 'Failed to load estimates');
