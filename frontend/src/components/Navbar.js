@@ -209,7 +209,7 @@ const Navbar = ({ handleDrawerToggle, avatarSrc = '/avatar.png', logoSrc = '/log
   };
 
   return (
-    <AppBar position="fixed" sx={{ width: '100%', right: 0, left: 'auto', zIndex: (theme) => theme.zIndex.drawer + 1, background: '#01293e', color: '#fff', boxShadow: '0 2px 8px 0 rgba(30,40,60,0.14)', borderRadius: 0 }}>
+    <AppBar position="fixed" sx={{ width: '100%', right: 0, left: 'auto', zIndex: (theme) => theme.zIndex.appBar, background: '#01293e', color: '#fff', boxShadow: '0 2px 8px 0 rgba(30,40,60,0.14)', borderRadius: 0 }}>
       <Toolbar sx={{ display: 'flex', justifyContent: 'space-between', minHeight: 48, px: { xs: 1, sm: 2, md: 4 } }}>
         <Box sx={{ display: 'flex', alignItems: 'center' }}>
           <Avatar src={logoSrc} sx={{ bgcolor: '#1976d2', width: 36, height: 36, mr: 1 }} />
