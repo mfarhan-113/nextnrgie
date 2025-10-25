@@ -134,31 +134,26 @@ const Salary = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Handle search input change
   const handleSearchChange = (event) => {
     setSearchTerm(event.target.value);
     setPage(0);
   };
 
-  // Handle sort request
   const handleRequestSort = (property) => {
     const isAsc = orderBy === property && order === 'asc';
     setOrder(isAsc ? 'desc' : 'asc');
     setOrderBy(property);
   };
 
-  // Handle change page
   const handleChangePage = (event, newPage) => {
     setPage(newPage);
   };
 
-  // Handle change rows per page
   const handleChangeRowsPerPage = (event) => {
     setRowsPerPage(parseInt(event.target.value, 10));
     setPage(0);
   };
 
-  // Handle add new salary
   const handleAddNew = () => {
     setAddForm({
       employee_name: '',
@@ -170,7 +165,6 @@ const Salary = () => {
     setAddModal({ open: true });
   };
 
-  // Handle edit salary
   const handleEdit = (salary) => {
     setEditForm({
       employee_name: salary.employee_name || '',
@@ -182,12 +176,10 @@ const Salary = () => {
     setEditModal({ open: true, salary });
   };
 
-  // Open delete confirmation
   const handleDeleteClick = (salaryId) => {
     setDeleteModal({ open: true, salaryId });
   };
 
-  // Handle form changes with auto-calculation
   const handleAddFormChange = (event) => {
     const { name, value } = event.target;
     let updatedForm = { ...addForm, [name]: value };
@@ -220,7 +212,6 @@ const Salary = () => {
     setEditForm(updatedForm);
   };
 
-  // Handle add form submit
   const handleAddSubmit = async (event) => {
     event.preventDefault();
     
@@ -274,7 +265,6 @@ const Salary = () => {
     }
   };
 
-  // Handle edit form submit
   const handleEditSubmit = async (event) => {
     event.preventDefault();
     
@@ -379,10 +369,12 @@ const Salary = () => {
 
   // Pagination
   const paginatedSalaries = useMemo(() => {
-    return filteredSalaries.slice(
-      page * rowsPerPage,
-    );
-    
+    const startIndex = page * rowsPerPage;
+    return filteredSalaries.slice(startIndex, startIndex + rowsPerPage);
+  }, [filteredSalaries, page, rowsPerPage]);
+
+  // Handle add salary success
+  const handleAddSuccess = (response) => {
     // Add the new salary to the local state
     setSalaries(prev => [...prev, response.data]);
     
@@ -393,7 +385,10 @@ const Salary = () => {
     });
     
     setAddModal({ open: false });
-  } catch (err) {
+  };
+
+  // Handle add salary error
+  const handleAddError = (err) => {
     console.error('Error adding salary:', err);
     const errorMessage = err.response?.data?.detail || err.message || (t('failed_to_add_salary') || 'Échec de l\'ajout du salaire');
     setToast({
@@ -401,71 +396,24 @@ const Salary = () => {
       message: errorMessage,
       severity: 'error'
     });
-  } finally {
-    setLoading(false);
-  }
-};
+  };
 
-// Handle edit form submit
-const handleEditSubmit = async (event) => {
-  event.preventDefault();
-  
-  if (!editModal.salary) return;
-  
-  // Basic validation
-  if (!editForm.employee_name || !editForm.working_days || !editForm.salary_per_day) {
-    setToast({
-      open: true,
-      message: t('please_fill_required_fields') || 'Veuillez remplir tous les champs obligatoires',
-      severity: 'error'
-    });
-    return;
-  }
-  
-  try {
-    setLoading(true);
-    
-    // Convert form data to proper types for API
-    const salaryData = {
-      ...editForm,
-      working_days: parseInt(editForm.working_days) || 0,
-      leaves: parseInt(editForm.leaves) || 0,
-      salary_per_day: parseFloat(editForm.salary_per_day) || 0,
-      total_salary: parseFloat(editForm.total_salary) || 0,
-    };
-    
-    const response = await api.put(
-      `salaries/${editModal.salary.id}/`,
-      salaryData
-    );
-    
-    // Update the salary in the local state
-    setSalaries(prev => 
-      prev.map(salary => 
-        salary.id === editModal.salary.id ? response.data : salary
-      )
-    );
-    
-    setToast({
-      open: true,
-      message: t('salary_updated_successfully') || 'Salaire mis à jour avec succès',
-      severity: 'success'
-    });
-    setEditModal({ open: false, salary: null });
-  } catch (err) {
-    console.error('Error updating salary:', err);
-    const errorMessage = err.response?.data?.detail || err.message || (t('failed_to_update_salary') || 'Échec de la mise à jour du salaire');
-    setToast({ open: true, message: errorMessage, severity: 'error' });
-  } finally {
+  // Handle add salary finally
+  const handleAddFinally = () => {
     setLoading(false);
-  }
-};
+  };
+
+  // Handle edit form submit
+  const handleEditSubmit = async (event) => {
+    event.preventDefault();
           </Typography>
           <Typography variant="body1" color="text.secondary">
-            {t('manage_salaries_description') || 'Gérez les salaires des employés et suivez les paiements'}
+            {t('manage_salaries_description') || 'Gérez les salaires des employés'}
           </Typography>
         </Box>
 
+        {/* Your existing JSX content here */}
+        
         {/* Stats Cards */}
         <Grid container spacing={3} sx={{ mb: 4 }}>
           <Grid item xs={12} sm={6} md={3}>

@@ -669,6 +669,16 @@ const handleDelete = async () => {
             </Box>
           </TableCell>
         </StyledTableRow>
+      );
+    });
+  };
+
+  return (
+    <Layout>
+      <Box sx={{ p: 3 }}>
+        <Box sx={{ mb: 4 }}>
+          <Typography variant="h4" component="h1" gutterBottom>
+            {t('contracts') || 'Contrats'}
           </Typography>
           <Typography variant="body1" color="text.secondary">
             {t('manage_contracts_description') || 'Gérez et suivez tous vos contrats en un seul endroit'}
