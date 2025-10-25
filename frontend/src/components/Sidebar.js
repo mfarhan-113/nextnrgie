@@ -1,13 +1,12 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { 
   Box, 
   Drawer, 
   Divider, 
   Typography, 
   IconButton,
-  styled,
   useTheme,
-  alpha
+  useMediaQuery
 } from '@mui/material';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
@@ -19,40 +18,51 @@ import {
   AttachMoney as SalaryIcon, 
   MoreHoriz as MiscIcon, 
   Dashboard as DashboardIcon,
-  Close as CloseIcon
+  Close as CloseIcon,
+  ChevronLeft as ChevronLeftIcon,
+  ChevronRight as ChevronRightIcon
 } from '@mui/icons-material';
-import { styled as muiStyled } from '@mui/material/styles';
+import { styled } from '@mui/material/styles';
 
-const StyledDrawer = muiStyled(Drawer)(({ theme }) => ({
-  '& .MuiDrawer-paper': {
-    width: '280px',
-    backgroundColor: theme.palette.background.paper,
-    color: theme.palette.text.primary,
-    boxShadow: theme.shadows[16],
-    borderRight: 'none',
-    [theme.breakpoints.up('md')]: {
-      backgroundColor: theme.palette.primary.main,
-      color: theme.palette.primary.contrastText,
-      '& .MuiDivider-root': {
-        borderColor: 'rgba(255, 255, 255, 0.12)',
-      },
-      '& .menu-item': {
-        color: 'rgba(255, 255, 255, 0.7)',
-        '&:hover': {
-          backgroundColor: 'rgba(255, 255, 255, 0.08)',
-          color: '#fff',
-        },
-        '&.active': {
-          backgroundColor: 'rgba(255, 255, 255, 0.15)',
-          color: '#fff',
-          borderLeft: `4px solid ${theme.palette.secondary.main}`,
-        },
-      },
-    },
-  },
+const DrawerHeader = styled('div')(({ theme }) => ({
+  display: 'flex',
+  alignItems: 'center',
+  padding: theme.spacing(0, 1),
+  ...theme.mixins.toolbar,
+  justifyContent: 'flex-end',
 }));
 
-const MenuHeader = muiStyled(Box)(({ theme }) => ({
+const StyledDrawer = styled(Drawer, {
+  shouldForwardProp: (prop) => prop !== 'open',
+})(({ theme, open }) => ({
+  width: drawerWidth,
+  flexShrink: 0,
+  whiteSpace: 'nowrap',
+  boxSizing: 'border-box',
+  '& .MuiDrawer-paper': {
+    width: drawerWidth,
+    backgroundColor: theme.palette.primary.main,
+    color: theme.palette.primary.contrastText,
+    '& .MuiDivider-root': {
+      borderColor: 'rgba(255, 255, 255, 0.12)',
+    },
+  },
+  ...(!open && {
+    '& .MuiDrawer-paper': {
+      width: theme.spacing(7) + 1,
+      [theme.breakpoints.up('sm')]: {
+        width: theme.spacing(9) + 1,
+      },
+      overflowX: 'hidden',
+      transition: theme.transitions.create('width', {
+        easing: theme.transitions.easing.sharp,
+        duration: theme.transitions.duration.enteringScreen,
+      }),
+    },
+  }),
+}));
+
+const MenuHeader = styled(Box)(({ theme }) => ({
   display: 'flex',
   alignItems: 'center',
   justifyContent: 'space-between',
@@ -61,62 +71,81 @@ const MenuHeader = muiStyled(Box)(({ theme }) => ({
   [theme.breakpoints.up('md')]: {
     display: 'none',
   },
+  '& .MuiTypography-root': {
+    color: 'white',
+  },
 }));
 
-const MenuContainer = muiStyled('div')({
+const MenuContainer = styled('div')({
   display: 'flex',
   flexDirection: 'column',
   height: '100%',
   overflowY: 'auto',
+  padding: '16px 0',
 });
 
-const MenuItem = muiStyled('div')(({ theme }) => ({
+const MenuItem = styled('div')(({ theme, open }) => ({
   display: 'flex',
   alignItems: 'center',
-  padding: theme.spacing(1.5, 3),
-  margin: theme.spacing(0.5, 1.5),
+  padding: theme.spacing(1.5, 2),
+  margin: theme.spacing(0.5, 1),
   borderRadius: theme.shape.borderRadius,
   cursor: 'pointer',
   transition: 'all 0.2s ease-in-out',
+  color: 'rgba(255, 255, 255, 0.7)',
   '&:hover': {
-    backgroundColor: theme.palette.action.hover,
+    backgroundColor: 'rgba(255, 255, 255, 0.08)',
+    color: '#fff',
   },
   '&.active': {
-    backgroundColor: theme.palette.primary.main,
-    color: theme.palette.primary.contrastText,
+    backgroundColor: 'rgba(255, 255, 255, 0.15)',
+    color: '#fff',
     '& .MuiSvgIcon-root': {
       color: theme.palette.secondary.main,
     },
   },
   '& .MuiSvgIcon-root': {
-    marginRight: theme.spacing(2),
-    fontSize: '1.5rem',
-    color: theme.palette.text.secondary,
+    minWidth: '24px',
+    marginRight: theme.spacing(open ? 2 : 'auto'),
+    color: 'rgba(255, 255, 255, 0.7)',
+    transition: theme.transitions.create(['margin', 'color'], {
+      easing: theme.transitions.easing.sharp,
+      duration: theme.transitions.duration.enteringScreen,
+    }),
   },
   '&.active .MuiSvgIcon-root': {
     color: theme.palette.secondary.main,
   },
+  ...(!open && {
+    justifyContent: 'center',
+    padding: theme.spacing(1.5, 2),
+  }),
 }));
 
-const MenuText = muiStyled(Typography)({
+const MenuText = styled(Typography)(({ open }) => ({
   fontWeight: 500,
   fontSize: '0.875rem',
   lineHeight: 1.5,
   letterSpacing: '0.01em',
-});
+  opacity: 1,
+  transition: theme => theme.transitions.create('opacity', {
+    easing: theme.transitions.easing.sharp,
+    duration: theme.transitions.duration.enteringScreen,
+  }),
+  ...(!open && {
+    opacity: 0,
+    width: 0,
+    overflow: 'hidden',
+  }),
+}));
 
-const MenuFooter = muiStyled(Box)(({ theme }) => ({
+const MenuFooter = styled(Box)(({ theme }) => ({
   marginTop: 'auto',
   padding: theme.spacing(2),
   textAlign: 'center',
   '& .MuiTypography-root': {
-    color: theme.palette.text.secondary,
+    color: 'rgba(255, 255, 255, 0.7)',
     fontSize: '0.75rem',
-  },
-  [theme.breakpoints.up('md')]: {
-    '& .MuiTypography-root': {
-      color: 'rgba(255, 255, 255, 0.5)',
-    },
   },
 }));
 
@@ -137,109 +166,103 @@ const Sidebar = ({ mobileOpen, onDrawerToggle }) => {
   const location = useLocation();
   const navigate = useNavigate();
   const { t } = useTranslation();
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down('md'));
+  const [open, setOpen] = useState(true);
 
-    const theme = useTheme();
-  const isMobile = window.innerWidth < 900; // Adjust breakpoint as needed
+  useEffect(() => {
+    // Close the sidebar by default on mobile
+    if (isMobile) {
+      setOpen(false);
+    } else {
+      setOpen(true);
+    }
+  }, [isMobile]);
+
+  const handleDrawerToggle = () => {
+    if (isMobile) {
+      onDrawerToggle();
+    } else {
+      setOpen(!open);
+    }
+  };
 
   const menuContent = (
     <MenuContainer>
       {/* Mobile Header */}
       {isMobile && (
-        <>
-          <MenuHeader>
-            <Typography variant="h6" component="div" sx={{ fontWeight: 600 }}>
-              Menu
-            </Typography>
-            <IconButton
-              onClick={onDrawerToggle}
-              size="small"
-              sx={{
-                color: 'text.primary',
-                '&:hover': {
-                  backgroundColor: 'rgba(0, 0, 0, 0.04)',
-                },
-              }}
-            >
-              <CloseIcon />
-            </IconButton>
-          </MenuHeader>
-          <Divider />
-        </>
+        <MenuHeader>
+          <Typography variant="h6" component="div" sx={{ fontWeight: 600, color: 'text.primary' }}>
+            Menu
+          </Typography>
+          <IconButton onClick={handleDrawerToggle}>
+            <CloseIcon sx={{ color: 'text.primary' }} />
+          </IconButton>
+        </MenuHeader>
+        <Divider />
       )}
 
       {/* Menu Items */}
-      <Box sx={{ p: 2, flex: 1 }}>
-        {menuItems.map((item) => {
-          const IconComponent = item.icon.type;
-          return (
-            <MenuItem
-              key={item.key}
-              className={location.pathname === item.path ? 'active' : ''}
-              onClick={() => {
-                navigate(item.path);
-                if (isMobile) onDrawerToggle();
-              }}
-            >
-              {React.cloneElement(item.icon, {
-                sx: { fontSize: '1.5rem', mr: 2 }
-              })}
-              <MenuText>{t(item.key)}</MenuText>
-            </MenuItem>
-          );
-        })}
+      <Box sx={{ flex: 1, mt: 1 }}>
+        {!isMobile && (
+          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', p: 1 }}>
+            <IconButton onClick={() => setOpen(!open)}>
+              {open ? <ChevronLeftIcon sx={{ color: 'common.white' }} /> : <ChevronRightIcon sx={{ color: 'common.white' }} />}
+            </IconButton>
+          </Box>
+        )}
+        
+        {menuItems.map((item) => (
+          <MenuItem
+            key={item.key}
+            className={location.pathname === item.path ? 'active' : ''}
+            onClick={() => {
+              navigate(item.path);
+              if (isMobile) onDrawerToggle();
+            }}
+            open={open}
+          >
+            {React.cloneElement(item.icon, { sx: { fontSize: '1.5rem' } })}
+            <MenuText open={open}>{t(item.key)}</MenuText>
+          </MenuItem>
+        ))}
       </Box>
 
       {/* Footer */}
-      <MenuFooter>
-        <Divider sx={{ mb: 2 }} />
-        <Typography variant="caption">
-          © {new Date().getFullYear()} NR-GIE
+      <Box sx={{ p: 2, textAlign: 'center' }}>
+        <Divider sx={{ mb: 2, borderColor: 'rgba(255, 255, 255, 0.12)' }} />
+        <Typography variant="caption" sx={{ color: 'rgba(255, 255, 255, 0.7)' }}>
+          {new Date().getFullYear()} NR-GIE
         </Typography>
-      </MenuFooter>
+      </Box>
     </MenuContainer>
   );
 
-  return (
-    <Box component="nav" sx={{ width: { md: 280 }, flexShrink: { md: 0 } }}>
-      {/* Mobile Drawer */}
-      <StyledDrawer
+  if (isMobile) {
+    return (
+      <Drawer
         variant="temporary"
         open={mobileOpen}
-        onClose={onDrawerToggle}
-        ModalProps={{
-          keepMounted: true, // Better open performance on mobile
-          BackdropProps: {
-            sx: {
-              backgroundColor: 'rgba(0, 0, 0, 0.5)',
-              backdropFilter: 'blur(4px)',
-            },
-          },
-        }}
+        onClose={handleDrawerToggle}
+        ModalProps={{ keepMounted: true }}
         sx={{
           display: { xs: 'block', md: 'none' },
-          '& .MuiDrawer-paper': {
-            boxSizing: 'border-box',
-            width: 280,
-            borderRight: 'none',
+          '& .MuiDrawer-paper': { 
+            boxSizing: 'border-box', 
+            width: drawerWidth,
+            backgroundColor: theme.palette.primary.main,
+            color: 'white',
           },
         }}
       >
         {menuContent}
-      </StyledDrawer>
+      </Drawer>
+    );
+  }
 
-      {/* Desktop Drawer */}
-      <StyledDrawer
-        variant="permanent"
-        sx={{
-          display: { xs: 'none', md: 'block' },
-          '& .MuiDrawer-paper': {
-            boxSizing: 'border-box',
-            width: 280,
-            borderRight: 'none',
-          },
-        }}
-        open
-      >
+  return (
+    <Box sx={{ display: { xs: 'none', md: 'block' } }}>
+      <StyledDrawer variant="permanent" open={open}>
         {menuContent}
       </StyledDrawer>
     </Box>
