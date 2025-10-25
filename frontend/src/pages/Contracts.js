@@ -1228,6 +1228,7 @@ const handleDelete = async () => {
             {toast.message}
           </Alert>
         </Snackbar>
+      </Box>
     </Layout>
   );
 };
