@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next';
 import api, { getApiUrl } from '../config/api';
 import {
   Box, Typography, Grid, Card, CardContent, Paper, Fade, Zoom,
-  useTheme, alpha, styled, CssBaseline, CircularProgress, Chip
+  useTheme, alpha, styled, CircularProgress, Chip
 } from '@mui/material';
 import {
   People, Description, Assignment, Analytics,
@@ -11,8 +11,7 @@ import {
 } from '@mui/icons-material';
 // Router hooks removed - not used in this component
 import { useAuth } from '../firebase/AuthContext';
-import Navbar from '../components/Navbar';
-import Sidebar from '../components/Sidebar';
+import Layout from '../components/Layout';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid, ResponsiveContainer, PieChart, Pie, Cell, Legend } from 'recharts';
 
 // Styled Components
@@ -94,9 +93,6 @@ const Dashboard = () => {
   const { currentUser } = useAuth();
   
   // UI state
-  const [mobileOpen, setMobileOpen] = useState(false);
-  
-  const handleDrawerToggle = () => setMobileOpen(!mobileOpen);
 
   // Dashboard stats
   const [stats, setStats] = useState([
@@ -204,13 +200,7 @@ const Dashboard = () => {
 
 
   return (
-    <Box sx={{ display: 'flex', minHeight: '100vh' }}>
-      <CssBaseline />
-      <Navbar />
-      <Sidebar />
-      
-      {/* Main Content */}
-      <Box component="main" sx={{ flexGrow: 1, p: 3, pt: 10, backgroundColor: '#f8fafc' }}>
+    <Layout>
         {/* Welcome Section */}
         <WelcomeCard elevation={0}>
           <Box sx={{ position: 'relative', zIndex: 1 }}>
@@ -386,8 +376,6 @@ const Dashboard = () => {
             </Fade>
           </Grid>
         </Grid>
-      </Box>
-    </Box>
   );
 };
 

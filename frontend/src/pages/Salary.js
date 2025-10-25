@@ -25,8 +25,7 @@ import {
   BeachAccess as LeaveIcon
 } from '@mui/icons-material';
 
-import Sidebar from '../components/Sidebar';
-import Navbar from '../components/Navbar';
+import Layout from '../components/Layout';
 
 // Styled Components
 const StyledTableRow = styled(TableRow)(({ theme }) => ({
@@ -111,10 +110,7 @@ const Salary = () => {
   });
   
   // UI state
-  const [mobileOpen, setMobileOpen] = useState(false);
   const [toast, setToast] = useState({ open: false, message: '', severity: 'success' });
-
-  const handleDrawerToggle = () => setMobileOpen(!mobileOpen);
 
   const fetchSalaries = async () => {
     try {
@@ -385,22 +381,85 @@ const Salary = () => {
   const paginatedSalaries = useMemo(() => {
     return filteredSalaries.slice(
       page * rowsPerPage,
-      page * rowsPerPage + rowsPerPage
     );
-  }, [filteredSalaries, page, rowsPerPage]);
+    
+    // Add the new salary to the local state
+    setSalaries(prev => [...prev, response.data]);
+    
+    setToast({
+      open: true,
+      message: t('salary_added_successfully') || 'Salaire ajouté avec succès',
+      severity: 'success'
+    });
+    
+    setAddModal({ open: false });
+  } catch (err) {
+    console.error('Error adding salary:', err);
+    const errorMessage = err.response?.data?.detail || err.message || (t('failed_to_add_salary') || 'Échec de l\'ajout du salaire');
+    setToast({
+      open: true,
+      message: errorMessage,
+      severity: 'error'
+    });
+  } finally {
+    setLoading(false);
+  }
+};
 
-  return (
-    <Box sx={{ display: 'flex', minHeight: '100vh' }}>
-      <CssBaseline />
-      <Navbar />
-      <Sidebar />
-      
-      {/* Main Content */}
-      <Box component="main" sx={{ flexGrow: 1, p: 3, pt: 10, backgroundColor: '#f8fafc' }}>
-        {/* Header */}
-        <Box sx={{ mb: 4 }}>
-          <Typography variant="h4" fontWeight={700} color="text.primary" gutterBottom>
-            {t('salaries') || 'Gestion des Salaires'}
+// Handle edit form submit
+const handleEditSubmit = async (event) => {
+  event.preventDefault();
+  
+  if (!editModal.salary) return;
+  
+  // Basic validation
+  if (!editForm.employee_name || !editForm.working_days || !editForm.salary_per_day) {
+    setToast({
+      open: true,
+      message: t('please_fill_required_fields') || 'Veuillez remplir tous les champs obligatoires',
+      severity: 'error'
+    });
+    return;
+  }
+  
+  try {
+    setLoading(true);
+    
+    // Convert form data to proper types for API
+    const salaryData = {
+      ...editForm,
+      working_days: parseInt(editForm.working_days) || 0,
+      leaves: parseInt(editForm.leaves) || 0,
+      salary_per_day: parseFloat(editForm.salary_per_day) || 0,
+      total_salary: parseFloat(editForm.total_salary) || 0,
+    };
+    
+    const response = await api.put(
+      `salaries/${editModal.salary.id}/`,
+      salaryData
+    );
+    
+    // Update the salary in the local state
+    setSalaries(prev => 
+      prev.map(salary => 
+        salary.id === editModal.salary.id ? response.data : salary
+      )
+    );
+    
+    setToast({
+      open: true,
+      message: t('salary_updated_successfully') || 'Salaire mis à jour avec succès',
+      severity: 'success'
+    });
+    setEditModal({ open: false, salary: null });
+  } catch (err) {
+    console.error('Error updating salary:', err);
+    const errorMessage = err.response?.data?.detail || err.message || (t('failed_to_update_salary') || 'Échec de la mise à jour du salaire');
+    setToast({ open: true, message: errorMessage, severity: 'error' });
+  } finally {
+    setLoading(false);
+  }
+};
           </Typography>
           <Typography variant="body1" color="text.secondary">
             {t('manage_salaries_description') || 'Gérez les salaires des employés et suivez les paiements'}
@@ -896,7 +955,7 @@ const Salary = () => {
           </Alert>
         </Snackbar>
       </Box>
-    </Box>
+    </Layout>
   );
 };
 

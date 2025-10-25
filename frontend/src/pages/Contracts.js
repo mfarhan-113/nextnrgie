@@ -35,8 +35,7 @@ import {
 } from '@mui/icons-material';
 
 // Components
-import Sidebar from '../components/Sidebar';
-import Navbar from '../components/Navbar';
+import Layout from '../components/Layout';
 
 // Styled Components
 const StyledTableRow = styled(TableRow)(({ theme }) => ({
@@ -670,22 +669,6 @@ const handleDelete = async () => {
             </Box>
           </TableCell>
         </StyledTableRow>
-      );
-    });
-  };
-
-  return (
-    <Box sx={{ display: 'flex', minHeight: '100vh' }}>
-      <CssBaseline />
-      <Navbar />
-      <Sidebar />
-      
-      {/* Main Content */}
-      <Box component="main" sx={{ flexGrow: 1, p: 3, pt: 10, backgroundColor: '#f8fafc' }}>
-        {/* Header */}
-        <Box sx={{ mb: 4 }}>
-          <Typography variant="h4" fontWeight={700} color="text.primary" gutterBottom>
-            {t('contracts') || 'Contrats'}
           </Typography>
           <Typography variant="body1" color="text.secondary">
             {t('manage_contracts_description') || 'Gérez et suivez tous vos contrats en un seul endroit'}
@@ -1235,8 +1218,7 @@ const handleDelete = async () => {
             {toast.message}
           </Alert>
         </Snackbar>
-      </Box>
-    </Box>
+    </Layout>
   );
 };
 
