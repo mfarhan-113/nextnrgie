@@ -403,72 +403,57 @@ async def generate_invoice_pdf(
     client = client_result.scalars().first()
     
     if client:
-        # Get all client details with fallbacks
-        client_name = getattr(client, 'client_name', getattr(client, 'name', '')).strip()
-        client_email = getattr(client, 'email', '')
-        client_tva = getattr(client, 'tva_number', getattr(client, 'tva', ''))
-        client_siret = getattr(client, 'siret', getattr(client, 'tsa_number', ''))
-        client_address = getattr(client, 'address', getattr(client, 'client_address', ''))
-        
-        # Ensure client name is not empty
-        if not client_name:
-            client_name = "Client"
-            
-        # Draw client name with proper line wrapping
-        max_chars_per_line = 30
-        y_offset = right_col_y
-        
-        if len(client_name) > max_chars_per_line:
-            # Split into words and build lines that don't exceed max_chars_per_line
-            words = client_name.split()
+        # Draw client name with word wrapping
+        y_pos = right_col_y
+        name_text = (client.client_name or "").strip()
+        p.setFont("Helvetica-Bold", 11)
+        if name_text:
+            max_width = 200
+            words = name_text.split()
+            line = ""
             lines = []
-            current_line = []
-            for word in words:
-                if len(' '.join(current_line + [word])) <= max_chars_per_line:
-                    current_line.append(word)
+            for w in words:
+                test = (line + (" " if line else "") + w)
+                if p.stringWidth(test, "Helvetica-Bold", 11) <= max_width:
+                    line = test
                 else:
-                    lines.append(' '.join(current_line))
-                    current_line = [word]
-            if current_line:
-                lines.append(' '.join(current_line))
-            
-            # Draw each line of the client name
-            for line in lines:
-                p.drawString(right, y_offset, line)
-                y_offset -= 15
+                    if line:
+                        lines.append(line)
+                    line = w
+            if line:
+                lines.append(line)
+            for ln in lines:
+                p.drawString(right, y_pos, ln)
+                y_pos -= 15
         else:
-            p.drawString(right, y_offset, client_name)
-            y_offset -= 15
-            
+            p.drawString(right, y_pos, "Client")
+            y_pos -= 15
+        
+        # Details
         p.setFont("Helvetica", 10)
         
-        # Add email if available
-        if client_email:
-            p.drawString(right, y_offset, client_email)
-            y_offset -= 15
+        # Address (multi-line)
+        addr = getattr(client, 'client_address', None)
+        if addr:
+            for line_txt in str(addr).replace('\r\n','\n').replace('\r','\n').split('\n'):
+                if line_txt.strip():
+                    p.drawString(right, y_pos, line_txt.strip())
+                    y_pos -= 15
         
-        # Add SIRET number if available
-        if client_siret:
-            p.drawString(right, y_offset, f"SIRET: {client_siret}")
-            y_offset -= 15
-            
-        # Add client address if available
-        if client_address:
-            address_lines = str(client_address).replace('\r\n', '\n').replace('\r', '\n').split('\n')
-            for line in address_lines:
-                if line.strip():
-                    p.drawString(right, y_offset, line.strip())
-                    y_offset -= 15
+        # Email (keep if available)
+        if getattr(client, 'email', None):
+            p.drawString(right, y_pos, client.email)
+            y_pos -= 15
         
-        # Add TVA number if available
-        if client_tva:
-            p.drawString(right, y_offset, f"Numéro de TVA: {client_tva}")
-            y_offset -= 15
+        # TVA number
+        if getattr(client, 'tva_number', None):
+            p.drawString(right, y_pos, f"Numéro de TVA: {client.tva_number}")
     else:
         p.drawString(right, right_col_y, "Client")
         p.setFont("Helvetica", 10)
         p.drawString(right, right_col_y - 15, "")
         p.drawString(right, right_col_y - 30, "")
+        p.drawString(right, right_col_y - 45, "")
 
     # Chantier (site/project)
     # Anchor the table safely below the address blocks to prevent overlap
@@ -1553,68 +1538,52 @@ async def generate_devis_pdf(payload: dict):
 
     # Client
     p.setFont("Helvetica-Bold", 11)
+    client_name = (client.get("name") or client.get("client_name") or "").strip()
     
-    # Get client details with fallbacks
-    client_name = client.get("name", client.get("client_name", "")).strip()
-    client_email = client.get("email", "")
-    client_tva = client.get("tva_number", client.get("tva", ""))
-    client_siret = client.get("tsa_number", client.get("siret", ""))
-    client_address = client.get("client_address", client.get("address", ""))
-    
-    # Draw client name (ensure it's not empty)
-    if not client_name:
-        client_name = "Client"
-        
-    # Handle long client names by splitting into multiple lines if needed
-    max_chars_per_line = 30
+    # Word-wrap client name
     y_offset = right_col_y
-    
-    if len(client_name) > max_chars_per_line:
-        # Split into words and build lines that don't exceed max_chars_per_line
+    if client_name:
+        max_width = 200
         words = client_name.split()
+        line = ""
         lines = []
-        current_line = []
-        for word in words:
-            if len(' '.join(current_line + [word])) <= max_chars_per_line:
-                current_line.append(word)
+        for w in words:
+            test = (line + (" " if line else "") + w)
+            if p.stringWidth(test, "Helvetica-Bold", 11) <= max_width:
+                line = test
             else:
-                lines.append(' '.join(current_line))
-                current_line = [word]
-        if current_line:
-            lines.append(' '.join(current_line))
-        
-        # Draw each line of the client name
-        for line in lines:
-            p.drawString(right, y_offset, line)
+                if line:
+                    lines.append(line)
+                line = w
+        if line:
+            lines.append(line)
+        for ln in lines:
+            p.drawString(right, y_offset, ln)
             y_offset -= 15
     else:
-        p.drawString(right, y_offset, client_name)
+        p.drawString(right, y_offset, "Client")
         y_offset -= 15
     
     p.setFont("Helvetica", 10)
     
-    # Add email if available
-    if client_email:
-        p.drawString(right, y_offset, client_email)
-        y_offset -= 15
-    
-    # Add SIRET number if available
-    if client_siret: 
-        p.drawString(right, y_offset, f"SIRET: {client_siret}")
+    # SIRET
+    siret = client.get("tsa_number") or client.get("siret")
+    if siret:
+        p.drawString(right, y_offset, f"SIRET: {siret}")
         y_offset -= 15
         
-    # Handle multi-line address
-    if client_address:
-        # Normalize line endings and split into lines
-        address_lines = client_address.replace('\r\n', '\n').replace('\r', '\n').split('\n')
-        for line in address_lines:
-            if line.strip():  # Only draw non-empty lines
+    # Address (multi-line)
+    addr = client.get("client_address") or client.get("address")
+    if addr:
+        for line in str(addr).replace('\r\n','\n').replace('\r','\n').split('\n'):
+            if line.strip():
                 p.drawString(right, y_offset, line.strip())
                 y_offset -= 15
     
-    # Add TVA number if available
-    if client_tva: 
-        p.drawString(right, y_offset, f"Numéro de TVA: {client_tva}")
+    # TVA number
+    tva_num = client.get("tva") or client.get("tva_number")
+    if tva_num:
+        p.drawString(right, y_offset, f"Numéro de TVA: {tva_num}")
         y_offset -= 15
 
     # Chantier (site/project) - Add "CHANTIER BEIGE MONCEAU" above the table
