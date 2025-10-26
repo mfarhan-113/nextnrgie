@@ -623,11 +623,22 @@ async def generate_invoice_pdf(
     y_position = table_header_y - 20
     total_ht_sum = 0.0
     tva_sum = 0.0
+    # Track per-page vertical border extents
+    page_top = table_header_y
     
     if factures:
         for detail in factures:
             # Check if we need a new page
-            if y_position < 100:  # If too close to bottom, start a new page
+            if y_position < 100:  # If too close to bottom, close borders and start a new page
+                # Close current page table borders up to the last drawn row
+                p.setLineWidth(0.7)
+                cx = header_x
+                for header in headers[:-1]:
+                    p.line(cx, page_top, cx, y_position)
+                    cx += header["width"]
+                p.line(cx, page_top, cx, y_position)
+                p.line(header_x, y_position, header_x + total_width, y_position)
+
                 p.showPage()
                 p.setFont("Helvetica", 10)
                 y_position = 750  # Reset y position for new page
@@ -646,6 +657,8 @@ async def generate_invoice_pdf(
                         p.drawString(current_x + 5, y_position - 15, header["text"])
                     current_x += header["width"]
                 y_position -= 20
+                # Reset page_top for the new page
+                page_top = y_position + 20
                 p.setFillColorRGB(0, 0, 0)  # Reset to black for content
             
             # Draw row data
@@ -702,17 +715,15 @@ async def generate_invoice_pdf(
         total_ht_sum = 0.0
         tva_sum = 0.0
     
-    # Draw vertical lines for all columns
+    # Draw vertical lines for the final page and the bottom line
     p.setLineWidth(0.7)
     current_x = header_x
     for header in headers[:-1]:  # Draw lines for all but last column
-        p.line(current_x, table_header_y, current_x, y_position)
+        p.line(current_x, page_top, current_x, y_position)
         current_x += header["width"]
     # Draw rightmost line at the end of the last column
-    p.line(current_x, table_header_y, current_x, y_position)
-    
+    p.line(current_x, page_top, current_x, y_position)
     # Draw bottom line
-    p.setLineWidth(0.7)
     p.line(header_x, y_position, header_x + total_width, y_position)
     
     # Add totals section
@@ -1520,7 +1531,8 @@ async def generate_devis_pdf(payload: dict):
     from reportlab.lib.utils import ImageReader
 
     buffer = BytesIO()
-    p = canvas.Canvas(buffer, pagesize=letter)
+    footer_left_text = "NEXT NR-GIE, SAS avec un capital de 5 000,00 € • 930 601 547 Evry B"
+    p = NumberedCanvas(buffer, pagesize=letter, footer_left=footer_left_text, doc_number="")
 
     # Page-break helper
     def ensure_space(current_y: int, min_y: int = 140) -> int:
@@ -1568,7 +1580,6 @@ async def generate_devis_pdf(payload: dict):
     devis_number = str(devis_number)
     
     p.drawString(left + 170, y, devis_number)
-    # Update footer doc number (right side)
     try:
         p._doc_number = str(devis_number)
     except Exception:
