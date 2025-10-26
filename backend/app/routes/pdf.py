@@ -72,19 +72,20 @@ class NumberedCanvas(canvas.Canvas):
         self._doc_number = doc_number
 
     def showPage(self):
+        # Save the current page state but do NOT finalize the page yet with showPage
         self._saved_page_states.append(dict(self.__dict__))
-        super().showPage()
+        # Start a new page without emitting one to the output yet
+        self._startPage()
 
     def save(self):
-        total_pages = len(self._saved_page_states) + 1  # include current page
-        # Draw on all previous pages
+        # Include the current (last) page state
+        self._saved_page_states.append(dict(self.__dict__))
+        total_pages = len(self._saved_page_states)
         for state in self._saved_page_states:
             self.__dict__.update(state)
             self._draw_footer(total_pages)
-            super().showPage()
-        # Draw on last page
-        self._draw_footer(total_pages)
-        super().save()
+            canvas.Canvas.showPage(self)
+        canvas.Canvas.save(self)
 
     def _draw_footer(self, total_pages: int):
         # Footer styling
@@ -702,6 +703,7 @@ async def generate_invoice_pdf(
         tva_sum = 0.0
     
     # Draw vertical lines for all columns
+    p.setLineWidth(0.7)
     current_x = header_x
     for header in headers[:-1]:  # Draw lines for all but last column
         p.line(current_x, table_header_y, current_x, y_position)
@@ -710,6 +712,7 @@ async def generate_invoice_pdf(
     p.line(current_x, table_header_y, current_x, y_position)
     
     # Draw bottom line
+    p.setLineWidth(0.7)
     p.line(header_x, y_position, header_x + total_width, y_position)
     
     # Add totals section
@@ -1803,11 +1806,13 @@ async def generate_devis_pdf(payload: dict):
         y_pos -= row_height
 
     # Column lines
+    p.setLineWidth(0.7)
     current_x = header_x
     for h in headers[:-1]:
         p.line(current_x, table_header_y, current_x, y_pos)
         current_x += h["width"]
     p.line(current_x, table_header_y, current_x, y_pos)
+    p.setLineWidth(0.7)
     p.line(header_x, y_pos, header_x + total_width, y_pos)
 
     # Totals
