@@ -615,12 +615,24 @@ async def generate_invoice_pdf(
             p.drawString(current_x + 5, table_header_y - 15, header["text"])
         current_x += header["width"]
     
-    # Draw column lines
-    current_x = header_x
-    p.setStrokeColorRGB(0, 0, 0)  # Black for lines
-    
-    # Reset fill color to black for text
+    # Prepare for dynamic per-page borders
+    # Column X positions (including left and right boundaries)
+    col_x = [header_x]
+    for h in headers:
+        col_x.append(col_x[-1] + h["width"])
+    # Track top Y of the table area on the current page
+    page_top = table_header_y
+    # Stroke/text colors
+    p.setStrokeColorRGB(0, 0, 0)
     p.setFillColorRGB(0, 0, 0)
+
+    # Helper: close current page table borders
+    def close_table_borders(top_y: float, bottom_y: float):
+        p.setLineWidth(0.7)
+        for x in col_x:  # draw all verticals including rightmost
+            p.line(x, top_y, x, bottom_y)
+        # bottom line
+        p.line(header_x, bottom_y, header_x + total_width, bottom_y)
     
     # Draw factures in the table (items for THIS invoice)
     row_height = 20
@@ -631,7 +643,8 @@ async def generate_invoice_pdf(
     if factures:
         for detail in factures:
             # Check if we need a new page
-            if y_position < 100:  # If too close to bottom, start a new page
+            if y_position < 100:  # If too close to bottom, close borders and start a new page
+                close_table_borders(page_top, y_position)
                 p.showPage()
                 p.setFont("Helvetica", 10)
                 y_position = 750  # Reset y position for new page
@@ -650,6 +663,8 @@ async def generate_invoice_pdf(
                         p.drawString(current_x + 5, y_position - 15, header["text"])
                     current_x += header["width"]
                 y_position -= 20
+                # Reset page_top for the new page
+                page_top = y_position + 20
                 p.setFillColorRGB(0, 0, 0)  # Reset to black for content
             
             # Draw row data
@@ -706,18 +721,8 @@ async def generate_invoice_pdf(
         total_ht_sum = 0.0
         tva_sum = 0.0
     
-    # Draw vertical lines for all columns
-    p.setLineWidth(0.7)
-    current_x = header_x
-    for header in headers[:-1]:  # Draw lines for all but last column
-        p.line(current_x, table_header_y, current_x, y_position)
-        current_x += header["width"]
-    # Draw rightmost line at the end of the last column
-    p.line(current_x, table_header_y, current_x, y_position)
-    
-    # Draw bottom line
-    p.setLineWidth(0.7)
-    p.line(header_x, y_position, header_x + total_width, y_position)
+    # Close borders for the final page section
+    close_table_borders(page_top, y_position)
     
     # Add totals section
     y_position = ensure_space(y_position - 20, 160)

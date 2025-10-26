@@ -23,7 +23,6 @@ const Layout = ({ children }) => {
           flexGrow: 1, 
           p: { xs: 2, sm: 3 },
           width: { md: `calc(100% - 280px)` },
-          marginLeft: { md: '280px' },
           marginTop: '64px',
           backgroundColor: '#f5f7fa',
           minHeight: 'calc(100vh - 64px)'
