@@ -1357,6 +1357,7 @@ def generate_facture_pdf(facture_data: dict, db: Session = Depends(get_db)):
     
     client_email = facture_data.get('client_email')
     client_phone = facture_data.get('client_phone')
+    client_tsa = facture_data.get('tsa_number')
     client_tva = facture_data.get('client_tva')
     
     y_offset = left_col_y - 15
@@ -1367,6 +1368,9 @@ def generate_facture_pdf(facture_data: dict, db: Session = Depends(get_db)):
     if client_phone and client_phone != 'N/A':
         y_offset -= 15
         p.drawString(right, y_offset, f"Tél: {client_phone}")
+    if client_tsa and client_tsa != 'N/A':
+        y_offset -= 15
+        p.drawString(right, y_offset, f"SIRET: {client_tsa}")
     
     if client_tva and client_tva != 'N/A':
         y_offset -= 15
