@@ -593,6 +593,7 @@ async def generate_invoice_pdf(
     header_x = (page_width - total_width) / 2 + 40  # Centered position
     
     # Draw black background for entire header area
+    p.setLineWidth(0.7)
     p.setFillColorRGB(0, 0, 0)  # Black
     p.rect(header_x, table_header_y - 20, total_width, 20, fill=1)
     
@@ -631,6 +632,7 @@ async def generate_invoice_pdf(
                 y_position = 750  # Reset y position for new page
                 
                 # Redraw header on new page
+                p.setLineWidth(0.7)
                 p.setFillColorRGB(0, 0, 0)  # Black
                 p.rect(header_x, y_position, total_width, 20, fill=1)
                 p.setFillColorRGB(1, 1, 1)  # White
@@ -772,7 +774,6 @@ async def generate_invoice_pdf(
     # p.drawString(label_x, y_position, "Référence")
     # p.drawString(value_x, y_position, "QECVZDX")
 
-    p.showPage()
     p.save()
     buffer.seek(0)
     return Response(buffer.read(), media_type="application/pdf", headers={"Content-Disposition": f"inline; filename=invoice_{datetime.now().strftime('%Y%m%d')}.pdf"})
@@ -1733,6 +1734,7 @@ async def generate_devis_pdf(payload: dict):
             p.setFont("Helvetica", 10)
             y_pos = 750
             # Redraw header on new page
+            p.setLineWidth(0.7)
             p.setFillColorRGB(0, 0, 0)
             p.rect(header_x, y_pos, total_width, 20, fill=1)
             p.setFillColorRGB(1, 1, 1)
@@ -1830,7 +1832,6 @@ async def generate_devis_pdf(payload: dict):
     ttc_width_text = p.stringWidth(ttc_text, "Helvetica-Bold", 10)
     p.drawString(header_x + total_width - ttc_width_text - 5, y_pos - 15, ttc_text)
 
-    p.showPage()
     p.save()
     buffer.seek(0)
     filename = f"devis_{datetime.now().strftime('%Y%m%d_%H%M%S')}.pdf"
