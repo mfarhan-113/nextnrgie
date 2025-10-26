@@ -544,6 +544,10 @@ async def generate_invoice_pdf(
                 if line_txt.strip():
                     p.drawString(right, y_pos, line_txt.strip())
                     y_pos -= 15
+        # SIRET from TSA number (if available)
+        if getattr(client, 'tsa_number', None):
+            p.drawString(right, y_pos, f"SIRET: {client.tsa_number}")
+            y_pos -= 15
         
         # Email (keep if available)
         if getattr(client, 'email', None):
@@ -623,22 +627,11 @@ async def generate_invoice_pdf(
     y_position = table_header_y - 20
     total_ht_sum = 0.0
     tva_sum = 0.0
-    # Track per-page vertical border extents
-    page_top = table_header_y
     
     if factures:
         for detail in factures:
             # Check if we need a new page
-            if y_position < 100:  # If too close to bottom, close borders and start a new page
-                # Close current page table borders up to the last drawn row
-                p.setLineWidth(0.7)
-                cx = header_x
-                for header in headers[:-1]:
-                    p.line(cx, page_top, cx, y_position)
-                    cx += header["width"]
-                p.line(cx, page_top, cx, y_position)
-                p.line(header_x, y_position, header_x + total_width, y_position)
-
+            if y_position < 100:  # If too close to bottom, start a new page
                 p.showPage()
                 p.setFont("Helvetica", 10)
                 y_position = 750  # Reset y position for new page
@@ -657,8 +650,6 @@ async def generate_invoice_pdf(
                         p.drawString(current_x + 5, y_position - 15, header["text"])
                     current_x += header["width"]
                 y_position -= 20
-                # Reset page_top for the new page
-                page_top = y_position + 20
                 p.setFillColorRGB(0, 0, 0)  # Reset to black for content
             
             # Draw row data
@@ -715,15 +706,17 @@ async def generate_invoice_pdf(
         total_ht_sum = 0.0
         tva_sum = 0.0
     
-    # Draw vertical lines for the final page and the bottom line
+    # Draw vertical lines for all columns
     p.setLineWidth(0.7)
     current_x = header_x
     for header in headers[:-1]:  # Draw lines for all but last column
-        p.line(current_x, page_top, current_x, y_position)
+        p.line(current_x, table_header_y, current_x, y_position)
         current_x += header["width"]
     # Draw rightmost line at the end of the last column
-    p.line(current_x, page_top, current_x, y_position)
+    p.line(current_x, table_header_y, current_x, y_position)
+    
     # Draw bottom line
+    p.setLineWidth(0.7)
     p.line(header_x, y_position, header_x + total_width, y_position)
     
     # Add totals section
@@ -1357,7 +1350,6 @@ def generate_facture_pdf(facture_data: dict, db: Session = Depends(get_db)):
     
     client_email = facture_data.get('client_email')
     client_phone = facture_data.get('client_phone')
-    client_tsa = client.get("tsa_number") or client.get("siret")
     client_tva = facture_data.get('client_tva')
     
     y_offset = left_col_y - 15
@@ -1368,9 +1360,6 @@ def generate_facture_pdf(facture_data: dict, db: Session = Depends(get_db)):
     if client_phone and client_phone != 'N/A':
         y_offset -= 15
         p.drawString(right, y_offset, f"Tél: {client_phone}")
-    if client_tsa and client_tsa != 'N/A':
-        y_offset -= 15
-        p.drawString(right, y_offset, f"SIRET: {client_tsa}")
     
     if client_tva and client_tva != 'N/A':
         y_offset -= 15
