@@ -32,11 +32,7 @@ const Sidebar = ({ mobileOpen, onDrawerToggle }) => {
   const { t } = useTranslation();
 
   const drawer = (
-    <div className="sidebar">
-      <div className="brand">
-        <img src="/logonr.jpg" alt="NR-GIE Logo" />
-        <span>NR-GIE</span>
-      </div>
+    <div className="sidebar drawer">
       <div className="menu">
         {menuItems.map((item) => (
           <div
@@ -69,10 +65,12 @@ const Sidebar = ({ mobileOpen, onDrawerToggle }) => {
         sx={{ 
           display: { xs: 'block', md: 'none' }, 
           '& .MuiDrawer-paper': { 
-            boxSizing: 'border-box', 
-            width: drawerWidth,
-            top: 64,
-            height: 'calc(100vh - 64px)'
+            boxSizing: 'border-box',
+            width: 64,
+            top: 0,
+            height: '100vh',
+            backgroundColor: '#03062e',
+            color: '#fff'
           } 
         }}
       >
