@@ -13,7 +13,7 @@ import {
 } from '@mui/icons-material';
 import '../sidebar.css';
 
-const drawerWidth = 240;
+const drawerWidth = 220;
 
 const menuItems = [
   { key: 'dashboard', icon: <DashboardIcon />, path: '/' },
@@ -33,6 +33,10 @@ const Sidebar = ({ mobileOpen, onDrawerToggle }) => {
 
   const drawer = (
     <div className="sidebar">
+      <div className="brand">
+        <img src="/logonr.jpg" alt="NR-GIE Logo" />
+        <span>NR-GIE</span>
+      </div>
       <div className="menu">
         {menuItems.map((item) => (
           <div
@@ -62,14 +66,30 @@ const Sidebar = ({ mobileOpen, onDrawerToggle }) => {
         open={mobileOpen}
         onClose={onDrawerToggle}
         ModalProps={{ keepMounted: true }}
-        sx={{ display: { xs: 'block', md: 'none' }, '& .MuiDrawer-paper': { boxSizing: 'border-box', width: drawerWidth } }}
+        sx={{ 
+          display: { xs: 'block', md: 'none' }, 
+          '& .MuiDrawer-paper': { 
+            boxSizing: 'border-box', 
+            width: drawerWidth,
+            top: 64,
+            height: 'calc(100vh - 64px)'
+          } 
+        }}
       >
         {drawer}
       </Drawer>
       {/* Desktop Drawer */}
       <Drawer
         variant="permanent"
-        sx={{ display: { xs: 'none', md: 'block' }, '& .MuiDrawer-paper': { boxSizing: 'border-box', width: drawerWidth } }}
+        sx={{ 
+          display: { xs: 'none', md: 'block' }, 
+          '& .MuiDrawer-paper': { 
+            boxSizing: 'border-box', 
+            width: drawerWidth,
+            top: 64,
+            height: 'calc(100vh - 64px)'
+          } 
+        }}
         open
       >
         {drawer}

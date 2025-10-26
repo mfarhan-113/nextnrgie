@@ -22,7 +22,8 @@ const Layout = ({ children }) => {
         sx={{ 
           flexGrow: 1, 
           p: { xs: 2, sm: 3 },
-          width: { md: `calc(100% - 280px)` },
+          width: { md: `calc(100% - 220px)` },
+          marginLeft: { md: '220px' },
           marginTop: '64px',
           backgroundColor: '#f5f7fa',
           minHeight: 'calc(100vh - 64px)'
