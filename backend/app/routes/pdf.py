@@ -9,6 +9,7 @@ from app.models.contract import Contract
 from app.models.client import Client
 from app.models.contract_detail import ContractDetail
 from app.models.facture import Facture
+from app.models.estimate import Estimate
 from app.schemas.facture import Facture as FactureSchema
 from reportlab.lib.pagesizes import letter
 from reportlab.pdfgen import canvas
@@ -89,7 +90,7 @@ async def generate_devis_pdf_get(
     for key, value in query_params.items():
         logger.info(f"{key}: {value}")
         
-    # Parse client and items from query parameters
+    # Extract client info (support alternate keys from UI)
     client = {}
     items = []
     
@@ -106,6 +107,55 @@ async def generate_devis_pdf_get(
     alt_tva = query_params.get('client[tva_number]')
     if alt_tva and not client.get('tva'):
         client['tva'] = alt_tva
+
+    # Enrich missing client fields (especially name) from DB
+    try:
+        if not client.get('name'):
+            # 0) If devis_number is provided, resolve client via Estimate
+            if devis_number:
+                est = db.execute(select(Estimate).where(Estimate.estimate_number == devis_number)).scalars().first()
+                if est:
+                    db_client = db.execute(select(Client).where(Client.id == est.client_id)).scalars().first()
+                    if db_client:
+                        client.setdefault('name', getattr(db_client, 'client_name', '') or '')
+                        client.setdefault('email', getattr(db_client, 'email', '') or '')
+                        client.setdefault('client_address', getattr(db_client, 'client_address', '') or '')
+                        if not client.get('tva') and getattr(db_client, 'tva_number', None):
+                            client['tva'] = db_client.tva_number
+                        client.setdefault('tsa_number', getattr(db_client, 'tsa_number', '') or '')
+            # 1) If contract_id provided, load client from contract
+            if contract_id:
+                contract_row = db.execute(select(Contract).where(Contract.id == int(contract_id))).scalars().first()
+                if contract_row:
+                    db_client = db.execute(select(Client).where(Client.id == contract_row.client_id)).scalars().first()
+                    if db_client:
+                        client.setdefault('name', getattr(db_client, 'client_name', '') or '')
+                        client.setdefault('email', getattr(db_client, 'email', '') or '')
+                        client.setdefault('client_address', getattr(db_client, 'client_address', '') or '')
+                        # normalize TVA and SIRET
+                        if not client.get('tva') and getattr(db_client, 'tva_number', None):
+                            client['tva'] = db_client.tva_number
+                        client.setdefault('tsa_number', getattr(db_client, 'tsa_number', '') or '')
+            # 2) Else try lookup by SIRET/TSA number
+            if not client.get('name') and client.get('tsa_number'):
+                db_client = db.execute(select(Client).where(Client.tsa_number == client.get('tsa_number'))).scalars().first()
+                if db_client:
+                    client.setdefault('name', getattr(db_client, 'client_name', '') or '')
+                    client.setdefault('email', getattr(db_client, 'email', '') or '')
+                    client.setdefault('client_address', getattr(db_client, 'client_address', '') or '')
+                    if not client.get('tva') and getattr(db_client, 'tva_number', None):
+                        client['tva'] = db_client.tva_number
+            # 3) Else try lookup by email
+            if not client.get('name') and client.get('email'):
+                db_client = db.execute(select(Client).where(Client.email == client.get('email'))).scalars().first()
+                if db_client:
+                    client.setdefault('name', getattr(db_client, 'client_name', '') or '')
+                    client.setdefault('client_address', getattr(db_client, 'client_address', '') or '')
+                    if not client.get('tva') and getattr(db_client, 'tva_number', None):
+                        client['tva'] = db_client.tva_number
+                    client.setdefault('tsa_number', getattr(db_client, 'tsa_number', '') or '')
+    except Exception as e:
+        logger.warning(f"Failed to enrich client info for devis PDF: {e}")
             
     # Extract items (handle both indexed and non-indexed items)
     item_count = 0
