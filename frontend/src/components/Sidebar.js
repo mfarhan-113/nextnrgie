@@ -61,16 +61,23 @@ const Sidebar = ({ mobileOpen, onDrawerToggle }) => {
         variant="temporary"
         open={mobileOpen}
         onClose={onDrawerToggle}
-        ModalProps={{ keepMounted: true }}
+        ModalProps={{ 
+          keepMounted: true,
+          style: { zIndex: 1300 } // Ensure modal is above app bar
+        }}
         sx={{ 
           display: { xs: 'block', md: 'none' }, 
+          zIndex: 1300,
           '& .MuiDrawer-paper': { 
             boxSizing: 'border-box',
             width: 64,
             top: 0,
+            left: 0,
             height: '100vh',
             backgroundColor: '#03062e',
-            color: '#fff'
+            color: '#fff',
+            zIndex: 1300,
+            position: 'fixed'
           } 
         }}
       >
