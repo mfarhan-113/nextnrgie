@@ -111,6 +111,190 @@ class NumberedCanvas(canvas.Canvas):
         self.drawRightString(right_margin_x, y, right_text)
         self.restoreState()
 
+async def generate_devis_pdf(payload: dict):
+    buffer = BytesIO()
+    footer_left_text = "NEXT NR-GIE, SAS avec un capital de 5 000,00 € • 930 601 547 Evry B"
+    p = NumberedCanvas(buffer, pagesize=letter, footer_left=footer_left_text, doc_number="")
+
+    # Set footer doc number
+    doc_num = str(payload.get("devis_number") or payload.get("name") or "")
+    try:
+        p._doc_number = doc_num
+    except Exception:
+        pass
+
+    left = 40
+    y = 740
+    line_height = 22
+
+    # Title and number
+    p.setFont("Helvetica-Bold", 24)
+    p.drawString(left, y, "Devis")
+    y -= int(1.5 * line_height)
+    p.setFont("Helvetica-Bold", 12)
+    p.drawString(left, y, "Numéro de devis")
+    p.setFont("Helvetica", 12)
+    p.drawString(left + 170, y, doc_num)
+    y -= line_height
+
+    # Dates
+    from datetime import datetime
+    p.setFont("Helvetica-Bold", 12)
+    p.drawString(left, y, "Date d'émission")
+    p.setFont("Helvetica", 12)
+    try:
+        cd = payload.get("creation_date")
+        dt = datetime.strptime(cd, "%Y-%m-%d") if cd else datetime.now()
+    except Exception:
+        dt = datetime.now()
+    p.drawString(left + 170, y, dt.strftime("%d/%m/%Y"))
+    y -= line_height
+
+    p.setFont("Helvetica-Bold", 12)
+    p.drawString(left, y, "Date d'expiration")
+    p.setFont("Helvetica", 12)
+    p.drawString(left + 170, y, (payload.get("expiration") or ""))
+    y -= line_height
+
+    # Client (minimal)
+    client = payload.get("client") or {}
+    right = 320
+    p.setFont("Helvetica-Bold", 11)
+    p.drawString(right, y, (client.get("name") or client.get("client_name") or "Client"))
+    y -= 15
+    p.setFont("Helvetica", 10)
+    siret = client.get("tsa_number") or client.get("siret")
+    if siret:
+        p.drawString(right, y, f"SIRET: {siret}")
+        y -= 15
+    addr = client.get("client_address")
+    if addr:
+        for ln in str(addr).splitlines():
+            if ln.strip():
+                p.drawString(right, y, ln.strip())
+                y -= 15
+    tva_num = client.get("tva") or client.get("tva_number")
+    if tva_num:
+        p.drawString(right, y, f"Numéro de TVA: {tva_num}")
+        y -= 15
+
+    # Table
+    table_header_y = y - 30
+    headers = [
+        {"text": "Description", "width": 250},
+        {"text": "Quantité", "width": 100},
+        {"text": "Prix unitaire", "width": 100},
+        {"text": "TVA (%)", "width": 60},
+        {"text": "Total HT", "width": 70},
+    ]
+    total_width = sum(h["width"] for h in headers)
+    page_width = 550
+    header_x = (page_width - total_width) / 2 + 40
+
+    p.setLineWidth(0.7)
+    p.setFillColorRGB(0, 0, 0)
+    p.rect(header_x, table_header_y - 20, total_width, 20, fill=1)
+    p.setFillColorRGB(1, 1, 1)
+    current_x = header_x
+    p.setFont("Helvetica-Bold", 10)
+    for h in headers:
+        if h["text"] == "Total HT":
+            tw = p.stringWidth(h["text"], "Helvetica-Bold", 10)
+            p.drawString(current_x + h["width"] - tw - 5, table_header_y - 15, h["text"])
+        else:
+            p.drawString(current_x + 5, table_header_y - 15, h["text"])
+        current_x += h["width"]
+    p.setFillColorRGB(0, 0, 0)
+
+    def format_qty(qty, unit):
+        unit_key = (unit or "unite").lower()
+        if unit_key == "unite":
+            return f"{int(qty) if qty == int(qty) else qty} {'unité' if qty == 1 else 'unités'}"
+        return f"{int(qty) if qty == int(qty) else qty} {unit}"
+
+    y_pos = table_header_y - 20
+    total_amount = 0.0
+    items = payload.get("items") or []
+    for item in items:
+        current_x = header_x
+        p.setFont("Helvetica", 9)
+        desc = str(item.get("description", ""))
+        p.drawString(current_x + 5, y_pos - 15, desc[:60])
+        current_x += headers[0]["width"]
+        qty = float(item.get("qty", 0) or 0)
+        qty_unit = item.get("qty_unit", "unite")
+        qty_text = format_qty(qty, qty_unit)
+        qw = p.stringWidth(qty_text, "Helvetica", 9)
+        p.drawString(current_x + headers[1]["width"] - qw - 5, y_pos - 15, qty_text)
+        current_x += headers[1]["width"]
+        unit_price = float(item.get("unit_price", 0) or 0)
+        up_t = f"€ {unit_price:.2f}"
+        uw = p.stringWidth(up_t, "Helvetica", 9)
+        p.drawString(current_x + headers[2]["width"] - uw - 5, y_pos - 15, up_t)
+        current_x += headers[2]["width"]
+        tva_val = float(item.get("tva", 0) or 0)
+        tv_t = f"{tva_val:.2f}%"
+        tw = p.stringWidth(tv_t, "Helvetica", 9)
+        p.drawString(current_x + headers[3]["width"] - tw - 5, y_pos - 15, tv_t)
+        current_x += headers[3]["width"]
+        total_ht = float(item.get("total_ht", qty * unit_price))
+        total_amount += total_ht
+        th_t = f"€ {total_ht:.2f}"
+        th_w = p.stringWidth(th_t, "Helvetica", 9)
+        p.drawString(current_x + headers[4]["width"] - th_w - 5, y_pos - 15, th_t)
+        # Row line
+        p.line(header_x, y_pos - 20, header_x + total_width, y_pos - 20)
+        y_pos -= 20
+        if y_pos < 100:
+            p.showPage()
+            # Redraw header on new page
+            p.setLineWidth(0.7)
+            p.setFillColorRGB(0, 0, 0)
+            p.rect(header_x, 750, total_width, 20, fill=1)
+            p.setFillColorRGB(1, 1, 1)
+            current_x = header_x
+            for h in headers:
+                if h["text"] == "Total HT":
+                    tw = p.stringWidth(h["text"], "Helvetica-Bold", 10)
+                    p.drawString(current_x + h["width"] - tw - 5, 750 - 15, h["text"])
+                else:
+                    p.drawString(current_x + 5, 750 - 15, h["text"])
+                current_x += h["width"]
+            y_pos = 730
+            p.setFillColorRGB(0, 0, 0)
+
+    # Column lines and bottom
+    current_x = header_x
+    p.setLineWidth(0.7)
+    for h in headers[:-1]:
+        p.line(current_x, table_header_y, current_x, y_pos)
+        current_x += h["width"]
+    p.line(current_x, table_header_y, current_x, y_pos)
+    p.line(header_x, y_pos, header_x + total_width, y_pos)
+
+    # Totals
+    y_pos -= 20
+    p.setFont("Helvetica-Bold", 10)
+    p.drawString(header_x + 5, y_pos - 15, "Total HT:")
+    total_text = f"{total_amount:.2f} €"
+    total_w = p.stringWidth(total_text, "Helvetica-Bold", 10)
+    p.drawString(header_x + total_width - total_w - 5, y_pos - 15, total_text)
+    y_pos -= 20
+    p.drawString(header_x + 5, y_pos - 15, "TVA:")
+    tv_text = f"{0.0:.2f} €"
+    tv_w = p.stringWidth(tv_text, "Helvetica-Bold", 10)
+    p.drawString(header_x + total_width - tv_w - 5, y_pos - 15, tv_text)
+    y_pos -= 20
+    p.drawString(header_x + 5, y_pos - 15, "Total TTC:")
+    ttc_text = f"{total_amount:.2f} €"
+    ttc_w = p.stringWidth(ttc_text, "Helvetica-Bold", 10)
+    p.drawString(header_x + total_width - ttc_w - 5, y_pos - 15, ttc_text)
+
+    p.save()
+    buffer.seek(0)
+    filename = f"devis_{datetime.now().strftime('%Y%m%d_%H%M%S')}.pdf"
+    return Response(buffer.read(), media_type="application/pdf", headers={"Content-Disposition": f"inline; filename={filename}"})
+
 @router.get("/generate_devis")
 async def generate_devis_pdf_get(
     request: Request,
