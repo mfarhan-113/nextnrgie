@@ -63,6 +63,53 @@ def receive_after_cursor_execute(conn, cursor, statement, params, context, execu
 
 router = APIRouter(prefix="/pdf", tags=["pdf"])
 
+# Canvas subclass to add page X/Y footer with doc number
+class NumberedCanvas(canvas.Canvas):
+    def __init__(self, *args, footer_left: str = "", doc_number: str = "", **kwargs):
+        super().__init__(*args, **kwargs)
+        self._saved_page_states = []
+        self._footer_left = footer_left
+        self._doc_number = doc_number
+
+    def showPage(self):
+        self._saved_page_states.append(dict(self.__dict__))
+        super().showPage()
+
+    def save(self):
+        total_pages = len(self._saved_page_states) + 1  # include current page
+        # Draw on all previous pages
+        for state in self._saved_page_states:
+            self.__dict__.update(state)
+            self._draw_footer(total_pages)
+            super().showPage()
+        # Draw on last page
+        self._draw_footer(total_pages)
+        super().save()
+
+    def _draw_footer(self, total_pages: int):
+        # Footer styling
+        left_margin = 40
+        right_margin_x = 570  # approx page width - 42
+        y = 30
+        self.saveState()
+        self.setFont("Helvetica", 8)
+        self.setFillGray(0.35)
+        # Left text
+        if self._footer_left:
+            self.drawString(left_margin, y, self._footer_left)
+        # Right text: DOCNUM · page/total
+        try:
+            page_num = self.getPageNumber()
+        except Exception:
+            page_num = 1
+        right_text = ""
+        if self._doc_number:
+            right_text = f"{self._doc_number}  ·  {page_num}/{total_pages}"
+        else:
+            right_text = f"{page_num}/{total_pages}"
+        self.drawRightString(right_margin_x, y, right_text)
+        self.restoreState()
+
 @router.get("/generate_devis")
 async def generate_devis_pdf_get(
     request: Request,
@@ -313,7 +360,9 @@ async def generate_invoice_pdf(
         logger.warning("No client found for this invoice")
 
     buffer = BytesIO()
-    p = canvas.Canvas(buffer, pagesize=letter)
+    # Use NumberedCanvas with footer; set doc number after computing invoice_num
+    footer_left_text = "NEXT NR-GIE, SAS avec un capital de 5 000,00 € • 930 601 547 Evry B"
+    p = NumberedCanvas(buffer, pagesize=letter, footer_left=footer_left_text, doc_number="")
 
     # Page-break helper (align with old template)
     def ensure_space(current_y: int, min_y: int = 140) -> int:
@@ -344,6 +393,11 @@ async def generate_invoice_pdf(
         db_invoice_number = None
     invoice_num = invoice_number or db_invoice_number or datetime.now().strftime('%Y%m%d')
     p.drawString(left + 170, y, f"{invoice_num}")
+    # Update footer doc number (shown at right with page x/y)
+    try:
+        p._doc_number = str(invoice_num)
+    except Exception:
+        pass
     y -= line_height
     
     # Get dates from parameters or fall back to invoice fields then contract
@@ -606,7 +660,7 @@ async def generate_invoice_pdf(
             current_x += headers[1]["width"]
             
             # Unit Price
-            unit_price_text = f"{detail.unit_price:.2f}"
+            unit_price_text = f"€ {detail.unit_price:.2f}"
             unit_price_width = p.stringWidth(unit_price_text, "Helvetica", 9)
             p.drawString(current_x + headers[2]["width"] - unit_price_width - 5, y_position - 15, unit_price_text)
             current_x += headers[2]["width"]
@@ -623,7 +677,7 @@ async def generate_invoice_pdf(
                 row_ht = float(detail.qty or 0) * float(detail.unit_price or 0)
             except Exception:
                 row_ht = 0.0
-            row_ht_text = f"{row_ht:.2f}"
+            row_ht_text = f"€ {row_ht:.2f}"
             row_ht_width = p.stringWidth(row_ht_text, "Helvetica", 9)
             p.drawString(current_x + headers[4]["width"] - row_ht_width - 5, y_position - 15, row_ht_text)
 
@@ -738,7 +792,8 @@ def generate_estimate_pdf(contract_id: int, db: Session = Depends(get_db)):
     client = client_result.scalars().first()
     
     buffer = BytesIO()
-    p = canvas.Canvas(buffer, pagesize=letter)
+    footer_left_text = "NEXT NR-GIE, SAS avec un capital de 5 000,00 € • 930 601 547 Evry B"
+    p = NumberedCanvas(buffer, pagesize=letter, footer_left=footer_left_text, doc_number="")
     
     # Page-break helper
     def ensure_space(current_y: int, min_y: int = 140) -> int:
@@ -1432,19 +1487,6 @@ def generate_facture_pdf(facture_data: dict, db: Session = Depends(get_db)):
     # p.drawString(label_x, y, "Référence")
     # p.drawString(value_x, y, "QECVZDX")
 
-    # Footer
-    # Show invoice number in footer
-    y = ensure_space(y, 130)
-    y = 115
-    p.setFont("Helvetica", 8)
-    p.drawString(left, y, f"Numéro de facture: {invoice_no}")
-    # Company footer lines
-    y = 100
-    p.setFont("Helvetica", 8)
-    p.drawString(left, y, "NEXT NR-GIE - 2 Rue Des Frênes, 91100 Corbeil-Essonnes - Tél: +33 7 83 19 48 75 - Email: nextrngie@gmail.com")
-    y -= 15
-    p.drawString(left, y, "SIRET: 930 601 547 00019 - TVA Intracommunautaire: FR26930601547")
-
     p.save()
     buffer.seek(0)
     
@@ -1522,6 +1564,11 @@ async def generate_devis_pdf(payload: dict):
     devis_number = str(devis_number)
     
     p.drawString(left + 170, y, devis_number)
+    # Update footer doc number (right side)
+    try:
+        p._doc_number = str(devis_number)
+    except Exception:
+        pass
     y -= line_height
 
     # Issue date - use creation_date from payload if available, otherwise use current date
@@ -1731,7 +1778,7 @@ async def generate_devis_pdf(payload: dict):
         current_x += headers[1]["width"]
         # Unit price
         unit_price = float(item.get("unit_price", 0))
-        unit_price_text = f"{unit_price:.2f}"
+        unit_price_text = f"€ {unit_price:.2f}"
         unit_price_width = p.stringWidth(unit_price_text, "Helvetica", 9)
         p.drawString(current_x + headers[2]["width"] - unit_price_width - 5, y_pos - 15, unit_price_text)
         current_x += headers[2]["width"]
@@ -1743,7 +1790,7 @@ async def generate_devis_pdf(payload: dict):
         current_x += headers[3]["width"]
         # Total HT
         total_ht = float(item.get("total_ht", (unit_price * float(item.get("qty", 0)))))
-        total_ht_text = f"{total_ht:.2f}"
+        total_ht_text = f"€ {total_ht:.2f}"
         total_ht_width = p.stringWidth(total_ht_text, "Helvetica", 9)
         p.drawString(current_x + headers[4]["width"] - total_ht_width - 5, y_pos - 15, total_ht_text)
 
