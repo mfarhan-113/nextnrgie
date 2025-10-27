@@ -63,22 +63,32 @@ const Sidebar = ({ mobileOpen, onDrawerToggle }) => {
         onClose={onDrawerToggle}
         ModalProps={{ 
           keepMounted: true,
-          style: { zIndex: 1300 } // Ensure modal is above app bar
+          style: { 
+            zIndex: 1300,
+          }
         }}
-        sx={{ 
-          display: { xs: 'block', md: 'none' }, 
-          zIndex: 1300,
-          '& .MuiDrawer-paper': { 
+        sx={{
+          display: { xs: 'block', md: 'none' },
+          '& .MuiDrawer-paper': {
             boxSizing: 'border-box',
-            width: 64,
-            top: 0,
-            left: 0,
-            height: '100vh',
+            width: '80%', // Increased from 220px for better mobile experience
             backgroundColor: '#03062e',
             color: '#fff',
-            zIndex: 1300,
-            position: 'fixed'
-          } 
+            height: '100%',
+            borderRight: 'none',
+            boxShadow: '2px 0 8px rgba(0,0,0,0.15)',
+            overflowY: 'auto',
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            '&::-webkit-scrollbar': {
+              width: '4px',
+            },
+            '&::-webkit-scrollbar-thumb': {
+              backgroundColor: 'rgba(255,255,255,0.2)',
+              borderRadius: '4px',
+            },
+          },
         }}
       >
         {drawer}
