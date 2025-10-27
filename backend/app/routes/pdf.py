@@ -671,8 +671,59 @@ async def generate_invoice_pdf(
             current_x = header_x
             p.setFont("Helvetica", 9)
             
-            # Description
-            p.drawString(current_x + 5, y_position - 15, str(detail.description)[:40])
+            # Description with word wrapping
+            desc = str(detail.description or '')
+            max_width = headers[0]["width"] - 10  # 5px padding on each side
+            words = desc.split()
+            lines = []
+            current_line = []
+            
+            for word in words:
+                test_line = ' '.join(current_line + [word])
+                if p.stringWidth(test_line, "Helvetica", 9) <= max_width:
+                    current_line.append(word)
+                else:
+                    if current_line:
+                        lines.append(' '.join(current_line))
+                    current_line = [word]
+            if current_line:
+                lines.append(' '.join(current_line))
+                
+            # Draw each line of the description
+            line_height = 12
+            desc_y = y_position - 10  # Start a bit higher to center the text
+            for i, line in enumerate(lines):
+                if i > 0:  # If we need to add more lines
+                    y_position -= line_height
+                    # Check if we need a new page
+                    if y_position < 100:
+                        close_table_borders(page_top, y_position + line_height)
+                        p.showPage()
+                        p.setFont("Helvetica", 10)
+                        y_position = 750
+                        # Redraw header on new page
+                        p.setLineWidth(0.7)
+                        p.setFillColorRGB(0, 0, 0)
+                        p.rect(header_x, y_position, total_width, 20, fill=1)
+                        p.setFillColorRGB(1, 1, 1)
+                        current_x_header = header_x
+                        for header in headers:
+                            if header["text"] == "Total HT":
+                                text_width = p.stringWidth(header["text"], "Helvetica-Bold", 10)
+                                p.drawString(current_x_header + header["width"] - text_width - 5, y_position - 15, header["text"])
+                            else:
+                                p.drawString(current_x_header + 5, y_position - 15, header["text"])
+                            current_x_header += header["width"]
+                        y_position -= 20
+                        page_top = y_position + 20
+                        p.setFillColorRGB(0, 0, 0)
+                        desc_y = y_position - 10
+                
+                p.drawString(header_x + 5, desc_y, line)
+                desc_y -= line_height
+                
+            # Adjust y_position based on number of lines
+            y_position -= (len(lines) - 1) * line_height
             current_x += headers[0]["width"]
             
             # Quantity with unit (e.g., "432 unités", "100 m")
