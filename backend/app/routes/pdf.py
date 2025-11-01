@@ -576,7 +576,8 @@ async def generate_invoice_pdf(
     table_y = chantier_y - 30  # Position below chantier
     table_header_y = table_y + 20
     
-    # Draw header line
+    # Draw header line with reduced spacing
+    p.setLineWidth(0.5)  # Thinner line for header
     p.line(40, table_header_y, 550, table_header_y)
     
     # Table headers
@@ -635,8 +636,8 @@ async def generate_invoice_pdf(
         p.line(header_x, bottom_y, header_x + total_width, bottom_y)
     
     # Draw factures in the table (items for THIS invoice)
-    row_height = 20
-    y_position = table_header_y - 20
+    row_height = 18  # Reduced row height for more compact rows
+    y_position = table_header_y - 15  # Reduced spacing after header
     total_ht_sum = 0.0
     tva_sum = 0.0
     
@@ -722,8 +723,9 @@ async def generate_invoice_pdf(
                 p.drawString(header_x + 5, desc_y, line)
                 desc_y -= line_height
                 
-            # Adjust y_position based on number of lines
-            y_position -= (len(lines) - 1) * line_height
+            # Adjust y_position based on number of lines with reduced spacing
+            if len(lines) > 1:
+                y_position -= (len(lines) - 1) * (line_height - 2)  # Reduced line spacing
             current_x += headers[0]["width"]
             
             # Quantity with unit (e.g., "432 unités", "100 m")
@@ -762,8 +764,11 @@ async def generate_invoice_pdf(
                 item_tva_rate = 0.0
             tva_sum += row_ht * (item_tva_rate / 100.0)
             
-            # Draw horizontal line for this row
-            p.line(header_x, y_position - 20, header_x + total_width, y_position - 20)
+            # Draw horizontal line for this row with reduced spacing
+            line_y = y_position - (row_height - 2)  # Slightly reduce the row height
+            p.setLineWidth(0.3)  # Thinner line for row separators
+            p.line(header_x, line_y, header_x + total_width, line_y)
+            y_position = line_y  # Use the actual line position for next row
             
             # Move to next row
             y_position -= row_height
@@ -1003,7 +1008,8 @@ def generate_estimate_pdf(contract_id: int, db: Session = Depends(get_db)):
     table_y = chantier_y - 30  # Position below chantier
     table_header_y = table_y + 20
     
-    # Draw header line
+    # Draw header line with reduced spacing
+    p.setLineWidth(0.5)  # Thinner line for header
     p.line(40, table_header_y, 550, table_header_y)
     
     # Table headers
@@ -1049,7 +1055,7 @@ def generate_estimate_pdf(contract_id: int, db: Session = Depends(get_db)):
     p.setFillColorRGB(0, 0, 0)
     
     # Draw facture items in the table
-    y_position = table_header_y - 20
+    y_position = table_header_y - 15  # Reduced spacing after header
     total_amount = 0
     
     if facture_items:
@@ -1058,7 +1064,7 @@ def generate_estimate_pdf(contract_id: int, db: Session = Depends(get_db)):
             description = str(item.description) if item.description else ""
             description_lines = description.split('\n')
             additional_lines = min(len(description_lines) - 1, 3) if len(description_lines) > 1 else 0
-            row_height = 20 + (additional_lines * 12)  # Base height + extra for additional lines
+            row_height = 18  # Reduced row height for more compact rows
             # Check if we need a new page
             if y_position < 100:  # If too close to bottom, start a new page
                 p.showPage()
@@ -1132,9 +1138,11 @@ def generate_estimate_pdf(contract_id: int, db: Session = Depends(get_db)):
             # Add to total
             total_amount += total_ht
             
-            # Draw horizontal line at the bottom of the row (accounting for variable height)
-            line_y = y_position - row_height
+            # Draw horizontal line at the bottom of the row with reduced spacing
+            line_y = y_position - (row_height - 2)  # Slightly reduce the row height
+            p.setLineWidth(0.3)  # Thinner line for row separators
             p.line(header_x, line_y, header_x + total_width, line_y)
+            y_position = line_y  # Use the actual line position for next row
             
             # Move to next row
             y_position -= row_height
@@ -1815,23 +1823,60 @@ async def generate_devis_pdf(payload: dict):
         current_x = header_x
         p.setFont("Helvetica", 9)
         
-        # Description - handle multi-line text
-        description = str(item.get("description", ""))
-        description_lines = description.split('\n')  # Split by line breaks
+        # Description with word wrapping
+        desc = str(item.get("description", ""))
+        max_width = headers[0]["width"] - 10  # 5px padding on each side
+        words = desc.split()
+        lines = []
+        current_line = []
         
-        # Draw first line in the main row
-        first_line = description_lines[0][:60] if description_lines else ""
-        p.drawString(current_x + 5, y_pos - 15, first_line)
-        
-        # If there are additional lines, draw them below
-        if len(description_lines) > 1:
-            temp_y = y_pos - 15
-            for i, line in enumerate(description_lines[1:], 1):
-                if i >= 3:  # Limit to 3 additional lines to prevent overflow
-                    break
-                temp_y -= 12  # Move down for each additional line
-                if temp_y > 50:  # Make sure we don't go too low on the page
-                    p.drawString(current_x + 5, temp_y, line[:60])
+        # Split description into lines that fit within max_width
+        for word in words:
+            test_line = ' '.join(current_line + [word])
+            if p.stringWidth(test_line, "Helvetica", 9) <= max_width:
+                current_line.append(word)
+            else:
+                if current_line:
+                    lines.append(' '.join(current_line))
+                current_line = [word]
+        if current_line:
+            lines.append(' '.join(current_line))
+            
+        # Draw each line of the description
+        line_height = 12
+        desc_y = y_pos - 10  # Start a bit higher to center the text
+        for i, line in enumerate(lines):
+            if i > 0:  # If we need to add more lines
+                y_pos -= line_height
+                # Check if we need a new page
+                if y_pos < 100:
+                    close_table_borders(page_top, y_position + line_height)
+                    p.showPage()
+                    p.setFont("Helvetica", 10)
+                    y_position = 750
+                    # Redraw header on new page
+                    p.setLineWidth(0.7)
+                    p.setFillColorRGB(0, 0, 0)
+                    p.rect(header_x, y_position, total_width, 20, fill=1)
+                    p.setFillColorRGB(1, 1, 1)
+                    current_x_header = header_x
+                    for header in headers:
+                        if header["text"] == "Total HT":
+                            text_width = p.stringWidth(header["text"], "Helvetica-Bold", 10)
+                            p.drawString(current_x_header + header["width"] - text_width - 5, y_position - 15, header["text"])
+                        else:
+                            p.drawString(current_x_header + 5, y_position - 15, header["text"])
+                        current_x_header += header["width"]
+                    y_position -= 20
+                    page_top = y_position + 20
+                    p.setFillColorRGB(0, 0, 0)
+                    desc_y = y_position - 10
+            
+            p.drawString(header_x + 5, desc_y, line)
+            desc_y -= line_height
+            
+        # Adjust y_position based on number of lines
+        y_position -= (len(lines) - 1) * line_height
         
         current_x += headers[0]["width"]
         # Qty with unit
@@ -1860,10 +1905,10 @@ async def generate_devis_pdf(payload: dict):
         p.drawString(current_x + headers[4]["width"] - total_ht_width - 5, y_pos - 15, total_ht_text)
 
         total_amount += total_ht
-        # Draw horizontal line at the bottom of the row (accounting for variable height)
-        line_y = y_pos - row_height
+        # Draw horizontal line at the bottom of the row with reduced spacing
+        line_y = y_pos - (row_height - 2)  # Slightly reduce the row height
         p.line(header_x, line_y, header_x + total_width, line_y)
-        y_pos -= row_height
+        y_pos = line_y  # Use the actual line position for next row
 
     # Column lines
     p.setLineWidth(0.7)
