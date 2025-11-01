@@ -1174,8 +1174,13 @@ def generate_estimate_pdf(contract_id: int, db: Session = Depends(get_db)):
         p.drawString(current_x + headers[4]["width"] - price_width - 5, y_position - 15, price_text)
         total_amount = contract.price
         
-        # Draw horizontal line for this row
-        p.line(header_x, y_position - 20, header_x + total_width, y_position - 20)
+        # Draw horizontal line at the bottom of the row with reduced spacing
+        line_y = y_position - (row_height - 2)  # Slightly reduce the row height
+        p.setLineWidth(0.3)  # Thinner line for row separators
+        p.line(header_x, line_y, header_x + total_width, line_y)
+        y_position = line_y  # Use the actual line position for next row
+        
+        # Move to next row
         y_position -= row_height
     
     # Draw vertical lines for all columns
@@ -1907,18 +1912,28 @@ async def generate_devis_pdf(payload: dict):
         total_amount += total_ht
         # Draw horizontal line at the bottom of the row with reduced spacing
         line_y = y_pos - (row_height - 2)  # Slightly reduce the row height
+        p.setLineWidth(0.3)  # Thinner line for row separators
         p.line(header_x, line_y, header_x + total_width, line_y)
         y_pos = line_y  # Use the actual line position for next row
+        
+        # Move to next row
+        y_pos -= row_height
+        p.setLineWidth(0.3)  # Thinner line for row separators
+        p.line(header_x, line_y, header_x + total_width, line_y)
+        y_pos = line_y  # Use the actual line position for next row
+        
+        # Move to next row
+        y_pos -= row_height
 
-    # Column lines
-    p.setLineWidth(0.7)
-    current_x = header_x
-    for h in headers[:-1]:
+    # Column lines - only draw if we have items
+    if 'items' in payload and len(payload['items']) > 0:
+        p.setLineWidth(0.7)
+        current_x = header_x
+        for h in headers[:-1]:
+            p.line(current_x, table_header_y, current_x, y_pos)
+            current_x += h["width"]
         p.line(current_x, table_header_y, current_x, y_pos)
-        current_x += h["width"]
-    p.line(current_x, table_header_y, current_x, y_pos)
-    p.setLineWidth(0.7)
-    p.line(header_x, y_pos, header_x + total_width, y_pos)
+        p.line(header_x, y_pos, header_x + total_width, y_pos)
 
     # Totals
     y_pos = ensure_space(y_pos - 20, 160)
