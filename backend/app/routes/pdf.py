@@ -576,8 +576,8 @@ async def generate_invoice_pdf(
     table_y = chantier_y - 30  # Position below chantier
     table_header_y = table_y + 20
     
-    # Draw header line with reduced spacing
-    p.setLineWidth(0.5)  # Thinner line for header
+    # Draw header baseline
+    p.setLineWidth(0.7)
     p.line(40, table_header_y, 550, table_header_y)
     
     # Table headers
@@ -635,50 +635,20 @@ async def generate_invoice_pdf(
         # bottom line
         p.line(header_x, bottom_y, header_x + total_width, bottom_y)
     
-    # Draw factures in the table (items for THIS invoice)
-    row_height = 18  # Reduced row height for more compact rows
-    y_position = table_header_y - 15  # Reduced spacing after header
+    padding_top = 6
+    padding_bottom = 4
+    line_height = 12
+    y_position = table_header_y - 20
     total_ht_sum = 0.0
     tva_sum = 0.0
-    
+
     if factures:
         for detail in factures:
-            # Check if we need a new page
-            if y_position < 100:  # If too close to bottom, close borders and start a new page
-                close_table_borders(page_top, y_position)
-                p.showPage()
-                p.setFont("Helvetica", 10)
-                y_position = 750  # Reset y position for new page
-                
-                # Redraw header on new page
-                p.setLineWidth(0.7)
-                p.setFillColorRGB(0, 0, 0)  # Black
-                p.rect(header_x, y_position, total_width, 20, fill=1)
-                p.setFillColorRGB(1, 1, 1)  # White
-                current_x = header_x
-                for header in headers:
-                    if header["text"] == "Total HT":
-                        text_width = p.stringWidth(header["text"], "Helvetica-Bold", 10)
-                        p.drawString(current_x + header["width"] - text_width - 5, y_position - 15, header["text"])
-                    else:
-                        p.drawString(current_x + 5, y_position - 15, header["text"])
-                    current_x += header["width"]
-                y_position -= 20
-                # Reset page_top for the new page
-                page_top = y_position + 20
-                p.setFillColorRGB(0, 0, 0)  # Reset to black for content
-            
-            # Draw row data
-            current_x = header_x
-            p.setFont("Helvetica", 9)
-            
-            # Description with word wrapping
             desc = str(detail.description or '')
-            max_width = headers[0]["width"] - 10  # 5px padding on each side
+            max_width = headers[0]["width"] - 10
             words = desc.split()
             lines = []
             current_line = []
-            
             for word in words:
                 test_line = ' '.join(current_line + [word])
                 if p.stringWidth(test_line, "Helvetica", 9) <= max_width:
@@ -689,91 +659,81 @@ async def generate_invoice_pdf(
                     current_line = [word]
             if current_line:
                 lines.append(' '.join(current_line))
-                
-            # Draw each line of the description
-            line_height = 12
-            desc_y = y_position - 10  # Start a bit higher to center the text
-            for i, line in enumerate(lines):
-                if i > 0:  # If we need to add more lines
-                    y_position -= line_height
-                    # Check if we need a new page
-                    if y_position < 100:
-                        close_table_borders(page_top, y_position + line_height)
-                        p.showPage()
-                        p.setFont("Helvetica", 10)
-                        y_position = 750
-                        # Redraw header on new page
-                        p.setLineWidth(0.7)
-                        p.setFillColorRGB(0, 0, 0)
-                        p.rect(header_x, y_position, total_width, 20, fill=1)
-                        p.setFillColorRGB(1, 1, 1)
-                        current_x_header = header_x
-                        for header in headers:
-                            if header["text"] == "Total HT":
-                                text_width = p.stringWidth(header["text"], "Helvetica-Bold", 10)
-                                p.drawString(current_x_header + header["width"] - text_width - 5, y_position - 15, header["text"])
-                            else:
-                                p.drawString(current_x_header + 5, y_position - 15, header["text"])
-                            current_x_header += header["width"]
-                        y_position -= 20
-                        page_top = y_position + 20
-                        p.setFillColorRGB(0, 0, 0)
-                        desc_y = y_position - 10
-                
+            if not lines:
+                lines = [""]
+
+            content_height = max(len(lines) * line_height, line_height)
+            row_height = content_height + padding_top + padding_bottom
+
+            if y_position - row_height < 100:
+                close_table_borders(page_top, y_position)
+                p.showPage()
+                p.setFont("Helvetica", 10)
+                y_position = 750
+                p.setLineWidth(0.7)
+                p.setFillColorRGB(0, 0, 0)
+                p.rect(header_x, y_position, total_width, 20, fill=1)
+                p.setFillColorRGB(1, 1, 1)
+                current_x = header_x
+                for header in headers:
+                    if header["text"] == "Total HT":
+                        text_width = p.stringWidth(header["text"], "Helvetica-Bold", 10)
+                        p.drawString(current_x + header["width"] - text_width - 5, y_position - 15, header["text"])
+                    else:
+                        p.drawString(current_x + 5, y_position - 15, header["text"])
+                    current_x += header["width"]
+                y_position -= 20
+                page_top = y_position + 20
+                p.setFillColorRGB(0, 0, 0)
+
+            row_top = y_position
+            baseline = row_top - padding_top - 2
+
+            current_x = header_x
+            p.setFont("Helvetica", 9)
+            desc_y = baseline
+            for line in lines:
                 p.drawString(header_x + 5, desc_y, line)
                 desc_y -= line_height
-                
-            # Adjust y_position based on number of lines with reduced spacing
-            if len(lines) > 1:
-                y_position -= (len(lines) - 1) * (line_height - 2)  # Reduced line spacing
+
             current_x += headers[0]["width"]
-            
-            # Quantity with unit (e.g., "432 unités", "100 m")
+
             qty_text = format_qty(detail.qty, getattr(detail, 'qty_unit', 'unite'))
             qty_width = p.stringWidth(qty_text, "Helvetica", 9)
-            p.drawString(current_x + headers[1]["width"] - qty_width - 5, y_position - 15, qty_text)
+            p.drawString(current_x + headers[1]["width"] - qty_width - 5, baseline, qty_text)
             current_x += headers[1]["width"]
-            
-            # Unit Price
+
             unit_price_text = f"€ {detail.unit_price:.2f}"
             unit_price_width = p.stringWidth(unit_price_text, "Helvetica", 9)
-            p.drawString(current_x + headers[2]["width"] - unit_price_width - 5, y_position - 15, unit_price_text)
+            p.drawString(current_x + headers[2]["width"] - unit_price_width - 5, baseline, unit_price_text)
             current_x += headers[2]["width"]
-            
-            # TVA from contract detail
+
             tva_rate = detail.tva if hasattr(detail, 'tva') else 0.0
             tva_text = f"{tva_rate:.2f}%"
             tva_width = p.stringWidth(tva_text, "Helvetica", 9)
-            p.drawString(current_x + headers[3]["width"] - tva_width - 5, y_position - 15, tva_text)
+            p.drawString(current_x + headers[3]["width"] - tva_width - 5, baseline, tva_text)
             current_x += headers[3]["width"]
-            
-            # Total HT per row (exclude tax): qty * unit_price
+
             try:
                 row_ht = float(detail.qty or 0) * float(detail.unit_price or 0)
             except Exception:
                 row_ht = 0.0
             row_ht_text = f"€ {row_ht:.2f}"
             row_ht_width = p.stringWidth(row_ht_text, "Helvetica", 9)
-            p.drawString(current_x + headers[4]["width"] - row_ht_width - 5, y_position - 15, row_ht_text)
+            p.drawString(current_x + headers[4]["width"] - row_ht_width - 5, baseline, row_ht_text)
 
-            # Accumulate totals
             total_ht_sum += row_ht
             try:
                 item_tva_rate = float(getattr(detail, 'tva', 0.0) or 0.0)
             except Exception:
                 item_tva_rate = 0.0
             tva_sum += row_ht * (item_tva_rate / 100.0)
-            
-            # Draw horizontal line for this row with reduced spacing
-            line_y = y_position - (row_height - 2)  # Slightly reduce the row height
-            p.setLineWidth(0.3)  # Thinner line for row separators
+
+            line_y = row_top - row_height
+            p.setLineWidth(0.7)
             p.line(header_x, line_y, header_x + total_width, line_y)
-            y_position = line_y  # Use the actual line position for next row
-            
-            # Move to next row
-            y_position -= row_height
+            y_position = line_y
     else:
-        # No items: don't render any placeholder rows; totals remain zero
         total_ht_sum = 0.0
         tva_sum = 0.0
     
@@ -1766,177 +1726,137 @@ async def generate_devis_pdf(payload: dict):
     # p.setFont("Helvetica-Bold", 12)
     # p.drawString(left, chantier_y, "CHANTIER BEIGE MONCEAU")
     
-    # Table header
+    # Table header setup mirroring invoice layout
     table_y = chantier_y - 30
     table_header_y = table_y + 20
 
     headers = [
         {"text": "Description", "width": 250},
-        {"text": "Quantité", "width": 100},  # Increased width to accommodate unit
+        {"text": "Qté", "width": 70},
         {"text": "Prix unitaire", "width": 100},
         {"text": "TVA (%)", "width": 60},
-        {"text": "Total HT", "width": 70},
+        {"text": "Total HT", "width": 60},
     ]
     total_width = sum(h["width"] for h in headers)
-    page_width = 550
-    header_x = (page_width - total_width) / 2 + 40
+    header_x = (550 - total_width) / 2 + 40
 
-    p.setFillColorRGB(0, 0, 0)
-    p.rect(header_x, table_header_y - 20, total_width, 20, fill=1)
-    p.setFillColorRGB(1, 1, 1)
-    current_x = header_x
-    p.setFont("Helvetica-Bold", 10)
-    for h in headers:
-        if h["text"] == "Total HT":
-            text_width = p.stringWidth(h["text"], "Helvetica-Bold", 10)
-            p.drawString(current_x + h["width"] - text_width - 5, table_header_y - 15, h["text"])
-        else:
-            p.drawString(current_x + 5, table_header_y - 15, h["text"])
-        current_x += h["width"]
-
-    # Items rows
-    p.setFillColorRGB(0, 0, 0)
-    y_pos = table_header_y - 20
-    total_amount = 0.0
-
-    for item in items:
-        # Calculate row height based on description lines
-        description = str(item.get("description", ""))
-        description_lines = description.split('\n')
-        additional_lines = min(len(description_lines) - 1, 3) if len(description_lines) > 1 else 0
-        row_height = 20 + (additional_lines * 12)  # Base height + extra for additional lines
-        if y_pos < 100:
-            p.showPage()
-            p.setFont("Helvetica", 10)
-            y_pos = 750
-            # Redraw header on new page
-            p.setLineWidth(0.7)
-            p.setFillColorRGB(0, 0, 0)
-            p.rect(header_x, y_pos, total_width, 20, fill=1)
-            p.setFillColorRGB(1, 1, 1)
-            current_x = header_x
-            for h in headers:
-                if h["text"] == "Total HT":
-                    text_width = p.stringWidth(h["text"], "Helvetica-Bold", 10)
-                    p.drawString(current_x + h["width"] - text_width - 5, y_pos - 15, h["text"])
-                else:
-                    p.drawString(current_x + 5, y_pos - 15, h["text"])
-                current_x += h["width"]
-            y_pos -= 20
-            p.setFillColorRGB(0, 0, 0)
-
-        current_x = header_x
-        p.setFont("Helvetica", 9)
-        
-        # Description with word wrapping
-        desc = str(item.get("description", ""))
-        max_width = headers[0]["width"] - 10  # 5px padding on each side
-        words = desc.split()
-        lines = []
-        current_line = []
-        
-        # Split description into lines that fit within max_width
-        for word in words:
-            test_line = ' '.join(current_line + [word])
-            if p.stringWidth(test_line, "Helvetica", 9) <= max_width:
-                current_line.append(word)
-            else:
-                if current_line:
-                    lines.append(' '.join(current_line))
-                current_line = [word]
-        if current_line:
-            lines.append(' '.join(current_line))
-            
-        # Draw each line of the description
-        line_height = 12
-        desc_y = y_pos - 10  # Start a bit higher to center the text
-        for i, line in enumerate(lines):
-            if i > 0:  # If we need to add more lines
-                y_pos -= line_height
-                # Check if we need a new page
-                if y_pos < 100:
-                    close_table_borders(page_top, y_position + line_height)
-                    p.showPage()
-                    p.setFont("Helvetica", 10)
-                    y_position = 750
-                    # Redraw header on new page
-                    p.setLineWidth(0.7)
-                    p.setFillColorRGB(0, 0, 0)
-                    p.rect(header_x, y_position, total_width, 20, fill=1)
-                    p.setFillColorRGB(1, 1, 1)
-                    current_x_header = header_x
-                    for header in headers:
-                        if header["text"] == "Total HT":
-                            text_width = p.stringWidth(header["text"], "Helvetica-Bold", 10)
-                            p.drawString(current_x_header + header["width"] - text_width - 5, y_position - 15, header["text"])
-                        else:
-                            p.drawString(current_x_header + 5, y_position - 15, header["text"])
-                        current_x_header += header["width"]
-                    y_position -= 20
-                    page_top = y_position + 20
-                    p.setFillColorRGB(0, 0, 0)
-                    desc_y = y_position - 10
-            
-            p.drawString(header_x + 5, desc_y, line)
-            desc_y -= line_height
-            
-        # Adjust y_position based on number of lines
-        y_position -= (len(lines) - 1) * line_height
-        
-        current_x += headers[0]["width"]
-        # Qty with unit
-        qty = float(item.get("qty", 0))
-        qty_unit = item.get("qty_unit", "unite")
-        qty_text = format_qty(qty, qty_unit)
-        qty_width = p.stringWidth(qty_text, "Helvetica", 9)
-        p.drawString(current_x + headers[1]["width"] - qty_width - 5, y_pos - 15, qty_text)
-        current_x += headers[1]["width"]
-        # Unit price
-        unit_price = float(item.get("unit_price", 0))
-        unit_price_text = f"€ {unit_price:.2f}"
-        unit_price_width = p.stringWidth(unit_price_text, "Helvetica", 9)
-        p.drawString(current_x + headers[2]["width"] - unit_price_width - 5, y_pos - 15, unit_price_text)
-        current_x += headers[2]["width"]
-        # TVA
-        tva_val = float(item.get("tva", 0))
-        tva_text = f"{tva_val:.2f}%"
-        tva_width = p.stringWidth(tva_text, "Helvetica", 9)
-        p.drawString(current_x + headers[3]["width"] - tva_width - 5, y_pos - 15, tva_text)
-        current_x += headers[3]["width"]
-        # Total HT
-        total_ht = float(item.get("total_ht", (unit_price * float(item.get("qty", 0)))))
-        total_ht_text = f"€ {total_ht:.2f}"
-        total_ht_width = p.stringWidth(total_ht_text, "Helvetica", 9)
-        p.drawString(current_x + headers[4]["width"] - total_ht_width - 5, y_pos - 15, total_ht_text)
-
-        total_amount += total_ht
-        # Draw horizontal line at the bottom of the row with reduced spacing
-        line_y = y_pos - (row_height - 2)  # Slightly reduce the row height
-        p.setLineWidth(0.3)  # Thinner line for row separators
-        p.line(header_x, line_y, header_x + total_width, line_y)
-        y_pos = line_y  # Use the actual line position for next row
-        
-        # Move to next row
-        y_pos -= row_height
-        p.setLineWidth(0.3)  # Thinner line for row separators
-        p.line(header_x, line_y, header_x + total_width, line_y)
-        y_pos = line_y  # Use the actual line position for next row
-        
-        # Move to next row
-        y_pos -= row_height
-
-    # Column lines - only draw if we have items
-    if 'items' in payload and len(payload['items']) > 0:
+    def draw_header_block(y_base: float):
         p.setLineWidth(0.7)
-        current_x = header_x
-        for h in headers[:-1]:
-            p.line(current_x, table_header_y, current_x, y_pos)
-            current_x += h["width"]
-        p.line(current_x, table_header_y, current_x, y_pos)
-        p.line(header_x, y_pos, header_x + total_width, y_pos)
+        p.setFillColorRGB(0, 0, 0)
+        p.rect(header_x, y_base, total_width, 20, fill=1)
+        p.setFillColorRGB(1, 1, 1)
+        current = header_x
+        p.setFont("Helvetica-Bold", 10)
+        for h in headers:
+            if h["text"] == "Total HT":
+                text_width = p.stringWidth(h["text"], "Helvetica-Bold", 10)
+                p.drawString(current + h["width"] - text_width - 5, y_base + 5, h["text"])
+            else:
+                p.drawString(current + 5, y_base + 5, h["text"])
+            current += h["width"]
+        p.setFillColorRGB(0, 0, 0)
+
+    draw_header_block(table_header_y - 20)
+
+    col_x = [header_x]
+    for h in headers:
+        col_x.append(col_x[-1] + h["width"])
+
+    def close_table_borders(top_y: float, bottom_y: float):
+        p.setLineWidth(0.7)
+        for x in col_x:
+            p.line(x, top_y, x, bottom_y)
+        p.line(header_x, bottom_y, header_x + total_width, bottom_y)
+
+    padding_top = 6
+    padding_bottom = 4
+    line_height = 12
+    y_position = table_header_y - 20
+    page_top = table_header_y
+    total_amount = 0.0
+    p.setFillColorRGB(0, 0, 0)
+
+    if items:
+        for detail in items:
+            desc = str(detail.get("description", "") or "")
+            max_width = headers[0]["width"] - 10
+            words = desc.split()
+            lines = []
+            line_words = []
+            for word in words:
+                test_line = " ".join(line_words + [word])
+                if p.stringWidth(test_line, "Helvetica", 9) <= max_width:
+                    line_words.append(word)
+                else:
+                    if line_words:
+                        lines.append(" ".join(line_words))
+                    line_words = [word]
+            if line_words:
+                lines.append(" ".join(line_words))
+            if not lines:
+                lines = [""]
+
+            content_height = max(len(lines) * line_height, line_height)
+            row_height = content_height + padding_top + padding_bottom
+
+            if y_position - row_height < 100:
+                close_table_borders(page_top, y_position)
+                p.showPage()
+                p.setFont("Helvetica", 10)
+                y_position = 750
+                draw_header_block(y_position)
+                y_position -= 20
+                page_top = y_position + 20
+                p.setFillColorRGB(0, 0, 0)
+
+            row_top = y_position
+            baseline = row_top - padding_top - 2
+
+            current_x = header_x
+            p.setFont("Helvetica", 9)
+            desc_y = baseline
+            for line in lines:
+                p.drawString(header_x + 5, desc_y, line)
+                desc_y -= line_height
+
+            current_x += headers[0]["width"]
+
+            qty = float(detail.get("qty", 0) or 0)
+            qty_text = format_qty(qty, detail.get("qty_unit", "unite"))
+            qty_width = p.stringWidth(qty_text, "Helvetica", 9)
+            p.drawString(current_x + headers[1]["width"] - qty_width - 5, baseline, qty_text)
+            current_x += headers[1]["width"]
+
+            unit_price = float(detail.get("unit_price", 0) or 0)
+            unit_price_text = f"€ {unit_price:.2f}"
+            unit_price_width = p.stringWidth(unit_price_text, "Helvetica", 9)
+            p.drawString(current_x + headers[2]["width"] - unit_price_width - 5, baseline, unit_price_text)
+            current_x += headers[2]["width"]
+
+            tva_val = float(detail.get("tva", 0) or 0)
+            tva_text = f"{tva_val:.2f}%"
+            tva_width = p.stringWidth(tva_text, "Helvetica", 9)
+            p.drawString(current_x + headers[3]["width"] - tva_width - 5, baseline, tva_text)
+            current_x += headers[3]["width"]
+
+            total_ht = float(detail.get("total_ht", qty * unit_price) or 0)
+            total_ht_text = f"€ {total_ht:.2f}"
+            total_ht_width = p.stringWidth(total_ht_text, "Helvetica", 9)
+            p.drawString(current_x + headers[4]["width"] - total_ht_width - 5, baseline, total_ht_text)
+
+            total_amount += total_ht
+
+            line_y = row_top - row_height
+            p.setLineWidth(0.7)
+            p.line(header_x, line_y, header_x + total_width, line_y)
+            y_position = line_y
+
+        close_table_borders(page_top, y_position)
+    else:
+        y_position = table_header_y - 20 - line_height
 
     # Totals
-    y_pos = ensure_space(y_pos - 20, 160)
+    y_pos = ensure_space(y_position - 20, 160)
     p.setFont("Helvetica-Bold", 10)
     p.drawString(header_x + 5, y_pos - 15, "Total HT:")
     total_text = f"{total_amount:.2f} €"
