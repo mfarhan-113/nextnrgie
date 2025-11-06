@@ -671,6 +671,8 @@ const Miscellaneous = () => {
                     onChange={handleAddFormChange}
                     fullWidth
                     required
+                    multiline
+                    minRows={3}
                   />
                 </Grid>
                 <Grid item xs={12} sm={6}>
@@ -752,6 +754,8 @@ const Miscellaneous = () => {
                     onChange={handleEditFormChange}
                     fullWidth
                     required
+                    multiline
+                    minRows={3}
                   />
                 </Grid>
                 <Grid item xs={12} sm={6}>

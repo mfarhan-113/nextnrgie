@@ -645,20 +645,27 @@ async def generate_invoice_pdf(
     if factures:
         for detail in factures:
             desc = str(detail.description or '')
-            max_width = headers[0]["width"] - 10
-            words = desc.split()
+            max_width = headers[0]["width"] - 10  # 5px padding on each side
+            # Preserve explicit newlines by splitting into paragraphs first
+            paragraphs = str(desc).replace('\r\n','\n').replace('\r','\n').split('\n')
             lines = []
-            current_line = []
-            for word in words:
-                test_line = ' '.join(current_line + [word])
-                if p.stringWidth(test_line, "Helvetica", 9) <= max_width:
-                    current_line.append(word)
-                else:
-                    if current_line:
-                        lines.append(' '.join(current_line))
-                    current_line = [word]
-            if current_line:
-                lines.append(' '.join(current_line))
+            for para in paragraphs:
+                words = para.split()
+                if not words:
+                    # Preserve blank line
+                    lines.append('')
+                    continue
+                current_line = []
+                for word in words:
+                    test_line = ' '.join(current_line + [word])
+                    if p.stringWidth(test_line, "Helvetica", 9) <= max_width:
+                        current_line.append(word)
+                    else:
+                        if current_line:
+                            lines.append(' '.join(current_line))
+                        current_line = [word]
+                if current_line:
+                    lines.append(' '.join(current_line))
             if not lines:
                 lines = [""]
 
@@ -1780,19 +1787,24 @@ async def generate_devis_pdf(payload: dict):
         for detail in items:
             desc = str(detail.get("description", "") or "")
             max_width = headers[0]["width"] - 10
-            words = desc.split()
+            paragraphs = str(desc).replace('\r\n','\n').replace('\r','\n').split('\n')
             lines = []
-            line_words = []
-            for word in words:
-                test_line = " ".join(line_words + [word])
-                if p.stringWidth(test_line, "Helvetica", 9) <= max_width:
-                    line_words.append(word)
-                else:
-                    if line_words:
-                        lines.append(" ".join(line_words))
-                    line_words = [word]
-            if line_words:
-                lines.append(" ".join(line_words))
+            for para in paragraphs:
+                words = para.split()
+                if not words:
+                    lines.append('')
+                    continue
+                line_words = []
+                for word in words:
+                    test_line = " ".join(line_words + [word])
+                    if p.stringWidth(test_line, "Helvetica", 9) <= max_width:
+                        line_words.append(word)
+                    else:
+                        if line_words:
+                            lines.append(" ".join(line_words))
+                        line_words = [word]
+                if line_words:
+                    lines.append(" ".join(line_words))
             if not lines:
                 lines = [""]
 

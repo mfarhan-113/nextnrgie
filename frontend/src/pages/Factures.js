@@ -1357,6 +1357,8 @@ const Factures = () => {
                                               name="description"
                                               value={editItemForm.description}
                                               onChange={handleEditItemChange}
+                                              multiline
+                                              minRows={3}
                                             />
                                           </Grid>
                                           <Grid item xs={4} sm={2}>
@@ -1586,6 +1588,8 @@ const Factures = () => {
                     value={detailsForm.description}
                     onChange={handleDetailsChange}
                     required
+                    multiline
+                    minRows={3}
                   />
                 </Grid>
                 <Grid item xs={6}>
