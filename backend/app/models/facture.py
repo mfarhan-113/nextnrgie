@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Float, DateTime, ForeignKey
+from sqlalchemy import Column, Integer, String, Float, DateTime, ForeignKey, Text
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 from .base import Base
@@ -8,7 +8,7 @@ class Facture(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     contract_id = Column(Integer, ForeignKey("contracts.id"), nullable=False)
-    description = Column(String(255), nullable=False)
+    description = Column(Text, nullable=False)
     qty = Column(Float, nullable=False)
     qty_unit = Column(String(20), default="unite")
     unit_price = Column(Float, nullable=False)

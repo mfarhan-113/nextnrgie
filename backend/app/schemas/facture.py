@@ -8,7 +8,7 @@ class FactureBase(BaseModel):
     contract_id: int = Field(..., description="ID of the contract this facture belongs to")
     # Optional explicit invoice to link this facture to
     invoice_id: Optional[int] = Field(None, description="ID of the invoice this facture belongs to")
-    description: str = Field(..., max_length=255, description="Description of the facture item")
+    description: str = Field(..., description="Description of the facture item")
     qty: float = Field(..., gt=0, description="Quantity of items")
     # unite | ensemble | m
     qty_unit: str = Field("unite", description="Unit for quantity: unite | ensemble | m")
@@ -51,7 +51,7 @@ class FactureCreate(FactureBase):
 
 class FactureUpdate(BaseModel):
     """Schema for updating an existing facture."""
-    description: Optional[str] = Field(None, max_length=255, description="Updated description")
+    description: Optional[str] = Field(None, description="Updated description")
     qty: Optional[float] = Field(None, gt=0, description="Updated quantity")
     qty_unit: Optional[str] = Field(None, description="Updated quantity unit: unite | ensemble | m")
     unit_price: Optional[float] = Field(None, ge=0, description="Updated unit price")
