@@ -56,7 +56,7 @@ CREATE TABLE IF NOT EXISTS contracts (
 CREATE TABLE IF NOT EXISTS contract_details (
     id INT NOT NULL AUTO_INCREMENT,
     contract_id INT NOT NULL,
-    description VARCHAR(255) NOT NULL,
+    description TEXT NOT NULL,
     qty INT NOT NULL,
     unit_price FLOAT NOT NULL,
     tva FLOAT NOT NULL,
@@ -69,7 +69,7 @@ CREATE TABLE IF NOT EXISTS contract_details (
 CREATE TABLE IF NOT EXISTS factures (
     id INT NOT NULL AUTO_INCREMENT,
     contract_id INT NOT NULL,
-    description VARCHAR(255) NOT NULL,
+    description TEXT NOT NULL,
     qty FLOAT NOT NULL,
     unit_price FLOAT NOT NULL,
     tva FLOAT NOT NULL,
